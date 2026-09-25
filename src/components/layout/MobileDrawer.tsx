@@ -5,16 +5,22 @@ import {
   CheckSquare, Calendar, QrCode, Target, 
   GraduationCap, Trophy, Bot, 
   Megaphone, FolderGit2, ShieldAlert, BarChart3, 
-  HeartPulse, MessageSquare, Sliders, User 
+  HeartPulse, MessageSquare, Sliders, User, Smartphone, Download 
 } from 'lucide-react';
 
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings?: () => void;
+  onOpenInstallModal?: () => void;
 }
 
-export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onOpenSettings }) => {
+export const MobileDrawer: React.FC<MobileDrawerProps> = ({ 
+  isOpen, 
+  onClose, 
+  onOpenSettings,
+  onOpenInstallModal
+}) => {
   const { activeTab, setActiveTab, teamHealthScore, isLiveCommandCenterActive, branding, complaints, currentUser, isHighLeadership } = useApp();
 
   if (!isOpen) return null;
@@ -115,6 +121,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onO
 
         {/* Footer */}
         <div className="space-y-2 pt-2 border-t border-slate-800/80">
+          {onOpenInstallModal && (
+            <button
+              onClick={() => { onOpenInstallModal(); onClose(); }}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600/30 to-sky-500/30 hover:from-blue-600/40 text-sky-200 border border-sky-400/40 flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <Smartphone className="w-4 h-4 text-sky-300" />
+              <span>تثبيت التطبيق على الموبايل 📱</span>
+            </button>
+          )}
+
           {isHighLeadership && onOpenSettings && (
             <button
               onClick={() => { onOpenSettings(); onClose(); }}

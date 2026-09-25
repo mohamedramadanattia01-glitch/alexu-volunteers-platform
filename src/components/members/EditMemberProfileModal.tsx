@@ -3,8 +3,10 @@ import { useApp } from '../../context/AppContext';
 import { Member } from '../../types';
 import { 
   X, User, Upload, Sparkles, Heart, GraduationCap, 
-  Plus, Trash2, Check, Phone, FileText, Camera 
+  Plus, Check, Phone, FileText, Camera, Lock,
+  ShieldCheck, MapPin, AlertCircle, HeartHandshake
 } from 'lucide-react';
+import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 
 interface EditMemberProfileModalProps {
   member: Member;
@@ -19,14 +21,28 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
 }) => {
   const { updateMemberSelfProfile } = useApp();
 
+  // Personal Official Data
+  const [fullName, setFullName] = useState(member.fullName || '');
+  const [nationalId, setNationalId] = useState(member.nationalId || '');
+  const [phone, setPhone] = useState(member.phone || member.whatsappNumber || '');
+  const [whatsappNumber, setWhatsappNumber] = useState(member.whatsappNumber || member.phone || '');
+  const [college, setCollege] = useState(member.college || 'كلية الهندسة');
+  const [academicYear, setAcademicYear] = useState(member.academicYear || 'الفرقة الثالثة');
+  const [bloodType, setBloodType] = useState(member.bloodType || 'O+');
+  const [emergencyContact, setEmergencyContact] = useState(member.emergencyContact || '');
+  const [address, setAddress] = useState(member.address || 'الإسكندرية');
+
+  // Avatar & Profile
   const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
   const [bio, setBio] = useState(member.bio || '');
-  const [whatsappNumber, setWhatsappNumber] = useState(member.whatsappNumber || '');
+
+  // Social URLs
   const [facebookUrl, setFacebookUrl] = useState(member.facebookUrl || '');
   const [tiktokUrl, setTiktokUrl] = useState(member.tiktokUrl || '');
   const [instagramUrl, setInstagramUrl] = useState(member.instagramUrl || '');
   const [linkedinUrl, setLinkedinUrl] = useState(member.linkedinUrl || '');
 
+  // Hobbies & Aspirations
   const [hobbies, setHobbies] = useState<string[]>(member.hobbies || ['القراءة', 'العمل التطوعي']);
   const [learningAspirations, setLearningAspirations] = useState<string[]>(
     member.learningAspirations || ['إدارة الفرق', 'الذكاء الاصطناعي']
@@ -76,11 +92,20 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
     setLearningAspirations(learningAspirations.filter(a => a !== aspToRemove));
   };
 
-  const handleSave = () => {
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
     updateMemberSelfProfile(member.id, {
+      fullName: fullName.trim() || member.fullName,
+      nationalId: nationalId.trim() || member.nationalId,
+      phone: phone.trim() || member.phone,
+      whatsappNumber: whatsappNumber.trim() || member.whatsappNumber,
+      college,
+      academicYear,
+      bloodType,
+      emergencyContact: emergencyContact.trim(),
+      address: address.trim(),
       avatarUrl,
       bio,
-      whatsappNumber,
       facebookUrl,
       tiktokUrl,
       instagramUrl,
@@ -92,12 +117,12 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
   };
 
   // Quick preset suggestions
-  const suggestedHobbies = ['التصوير', 'المونتاج', 'الرسم والخط العربي', 'الشطرنج', 'الكتابة الإبداعية', 'البرمجة', 'الرياضة واللياقة', 'العزف والموسيقى'];
-  const suggestedAspirations = ['إدارة الأزمات', 'التحدث أمام الجمهور', 'الذكاء الاصطناعي', 'التسويق الرقمي', 'تصميم الجرافيك', 'القيادة الفعالة', 'إدارة الوقت'];
+  const suggestedHobbies = ['التصوير', 'المونتاج', 'الرسم والخط العربي', 'الشطرنج', 'الكتابة الإبداعية', 'البرمجة', 'الرياضة واللياقة', 'العزف والموسيقى', 'التنظيم'];
+  const suggestedAspirations = ['إدارة الأزمات', 'التحدث أمام الجمهور', 'الذكاء الاصطناعي', 'التسويق الرقمي', 'تصميم الجرافيك', 'القيادة الفعالة', 'إدارة الوقت', 'العلاقات العامة'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in overflow-y-auto">
-      <div className="glass-card max-w-xl w-full p-6 border border-blue-500/30 shadow-2xl bg-slate-950 text-right my-8 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in overflow-y-auto">
+      <div className="glass-card max-w-2xl w-full p-5 sm:p-6 border border-blue-500/30 shadow-2xl bg-slate-950 text-right my-6 max-h-[92vh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
@@ -108,9 +133,9 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               </div>
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white">تعديل ملفي الشخصي</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">تعديل وتحديث بياناتي الشخصية</h3>
               <p className="text-[11px] text-slate-400">
-                تحديث الصورة، الهوايات، والمهارات التي تطمح لتعلمها وتطويرها
+                تحديث الرقم القومي، الكلية، أرقام التواصل، والبيانات الميدانية في شيت الفريق المعتمد
               </p>
             </div>
           </div>
@@ -123,7 +148,7 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
           </button>
         </div>
 
-        <div className="space-y-5 text-xs">
+        <form onSubmit={handleSave} className="space-y-5 text-xs">
           
           {/* Avatar Upload & Preview */}
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
@@ -157,7 +182,7 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] cursor-pointer transition-all"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>رفع صورة من الجهاز</span>
+                  <span>رفع صورة جديدة من جهازك</span>
                 </label>
               </div>
 
@@ -173,103 +198,224 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Bio & Phone */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-slate-300 font-bold mb-1">نبذة عني (Bio):</label>
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={2}
-                placeholder="اكتب نبذة قصيرة عن اهتماماتك ودورك في الفريق..."
-                className="glass-input text-xs resize-none"
-              />
+          {/* Core Official Personal Info */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+              <ShieldCheck className="w-4 h-4 text-sky-400" />
+              <h4 className="text-xs font-bold text-white">البيانات الرسمية والأكاديمية</h4>
             </div>
 
-            {/* Social Media & Instant Contact Links */}
-            <div className="p-4 rounded-2xl bg-slate-900/90 border border-blue-500/30 space-y-3">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Sparkles className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs font-bold text-white">
-                  روابط التواصل السريع وحسابات السوشيال ميديا
-                </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Full Name */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">الاسم الرباعي الكامل *</label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="الاسم الرباعي كما في البطاقة..."
+                  className="glass-input text-xs"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* WhatsApp */}
-                <div>
-                  <label className="block text-slate-300 text-[11px] font-bold mb-1 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>رقم الواتساب (للتواصل المباشر):</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="+201000000000"
-                    className="glass-input text-xs font-mono"
-                  />
-                </div>
+              {/* National ID */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">الرقم القومي (14 رقم) *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={14}
+                  value={nationalId}
+                  onChange={(e) => setNationalId(e.target.value)}
+                  placeholder="14 رقماً قومياً..."
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
 
-                {/* Facebook */}
-                <div>
-                  <label className="block text-slate-300 text-[11px] font-bold mb-1 flex items-center gap-1.5">
-                    <span className="text-blue-400 font-bold">f</span>
-                    <span>رابط حساب الفيسبوك (Facebook URL):</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={facebookUrl}
-                    onChange={(e) => setFacebookUrl(e.target.value)}
-                    placeholder="https://facebook.com/username"
-                    className="glass-input text-xs font-mono"
-                  />
-                </div>
+              {/* Protected Read-Only Email */}
+              <div className="sm:col-span-2">
+                <label className="block text-slate-400 font-bold mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-slate-300">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>البريد الإلكتروني المعتمد (حساب الدخول - محمي للقراءة فقط):</span>
+                  </span>
+                  <span className="text-[10px] text-amber-400/90 font-normal">🔒 لا يمكن تعديله لأمان الحساب</span>
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  readOnly
+                  value={member.universityEmail}
+                  className="glass-input text-xs font-mono bg-slate-950/80 border-slate-800 text-slate-400 cursor-not-allowed select-none"
+                />
+              </div>
 
-                {/* Instagram */}
-                <div>
-                  <label className="block text-slate-300 text-[11px] font-bold mb-1 flex items-center gap-1.5">
-                    <span className="text-pink-400 font-bold">📷</span>
-                    <span>رابط الإنستغرام (Instagram URL):</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={instagramUrl}
-                    onChange={(e) => setInstagramUrl(e.target.value)}
-                    placeholder="https://instagram.com/username"
-                    className="glass-input text-xs font-mono"
-                  />
-                </div>
+              {/* College */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">الكلية / المعهد *</label>
+                <select
+                  value={college}
+                  onChange={(e) => setCollege(e.target.value)}
+                  className="glass-input text-xs cursor-pointer"
+                >
+                  {ALEXANDRIA_UNIVERSITY_COLLEGES.map(c => (
+                    <option key={c} value={c} className="bg-slate-900 text-white">{c}</option>
+                  ))}
+                </select>
+              </div>
 
-                {/* TikTok */}
-                <div>
-                  <label className="block text-slate-300 text-[11px] font-bold mb-1 flex items-center gap-1.5">
-                    <span className="text-cyan-400 font-bold">🎵</span>
-                    <span>رابط التيك توك (TikTok URL):</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={tiktokUrl}
-                    onChange={(e) => setTiktokUrl(e.target.value)}
-                    placeholder="https://tiktok.com/@username"
-                    className="glass-input text-xs font-mono"
-                  />
-                </div>
+              {/* Academic Year */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">الفرقة الدراسية *</label>
+                <select
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  className="glass-input text-xs cursor-pointer"
+                >
+                  <option value="الفرقة الأولى" className="bg-slate-900 text-white">الفرقة الأولى</option>
+                  <option value="الفرقة الثانية" className="bg-slate-900 text-white">الفرقة الثانية</option>
+                  <option value="الفرقة الثالثة" className="bg-slate-900 text-white">الفرقة الثالثة</option>
+                  <option value="الفرقة الرابعة" className="bg-slate-900 text-white">الفرقة الرابعة</option>
+                  <option value="الفرقة الخامسة" className="bg-slate-900 text-white">الفرقة الخامسة (طبي / هندسي)</option>
+                  <option value="الفرقة السادسة" className="bg-slate-900 text-white">الفرقة السادسة (بشري)</option>
+                  <option value="خريج / دراسات عليا" className="bg-slate-900 text-white">خريج / دراسات عليا</option>
+                </select>
+              </div>
 
-                {/* LinkedIn */}
-                <div className="sm:col-span-2">
-                  <label className="block text-slate-300 text-[11px] font-bold mb-1 flex items-center gap-1.5">
-                    <span className="text-sky-400 font-bold">in</span>
-                    <span>رابط الملف المهني لينكد إن (LinkedIn URL):</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    placeholder="https://linkedin.com/in/username"
-                    className="glass-input text-xs font-mono"
-                  />
-                </div>
+              {/* Phone / Mobile */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">رقم الهاتف الأساسي *</label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="01000000000"
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              {/* WhatsApp */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">رقم الواتساب (للمجموعات الميدانية) *</label>
+                <input
+                  type="tel"
+                  required
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  placeholder="01000000000"
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              {/* Blood Type */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">فصيلة الدم (للطوارئ الميدانية)</label>
+                <select
+                  value={bloodType}
+                  onChange={(e) => setBloodType(e.target.value)}
+                  className="glass-input text-xs font-mono cursor-pointer"
+                >
+                  <option value="O+" className="bg-slate-900 text-white">O+</option>
+                  <option value="O-" className="bg-slate-900 text-white">O-</option>
+                  <option value="A+" className="bg-slate-900 text-white">A+</option>
+                  <option value="A-" className="bg-slate-900 text-white">A-</option>
+                  <option value="B+" className="bg-slate-900 text-white">B+</option>
+                  <option value="B-" className="bg-slate-900 text-white">B-</option>
+                  <option value="AB+" className="bg-slate-900 text-white">AB+</option>
+                  <option value="AB-" className="bg-slate-900 text-white">AB-</option>
+                </select>
+              </div>
+
+              {/* Emergency Contact */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">رقم هاتف ولي الأمر / الطوارئ</label>
+                <input
+                  type="tel"
+                  value={emergencyContact}
+                  onChange={(e) => setEmergencyContact(e.target.value)}
+                  placeholder="رقم شخص للطوارئ..."
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              {/* Address */}
+              <div className="sm:col-span-2">
+                <label className="block text-slate-300 font-bold mb-1">محل الإقامة / العنوان الحالي</label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="المنطقة - الإسكندرية..."
+                  className="glass-input text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-slate-300 font-bold mb-1">نبذة عني ودوري في الفريق (Bio):</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={2}
+              placeholder="اكتب نبذة قصيرة عن مهاراتك واهتماماتك ودورك التطوعي..."
+              className="glass-input text-xs resize-none"
+            />
+          </div>
+
+          {/* Social Media Links */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+              <Sparkles className="w-4 h-4 text-sky-400" />
+              <h4 className="text-xs font-bold text-white">حسابات التواصل الاجتماعي والملف المهني</h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-300 text-[11px] font-bold mb-1">رابط فيسبوك (Facebook URL):</label>
+                <input
+                  type="url"
+                  value={facebookUrl}
+                  onChange={(e) => setFacebookUrl(e.target.value)}
+                  placeholder="https://facebook.com/..."
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-[11px] font-bold mb-1">رابط إنستغرام (Instagram URL):</label>
+                <input
+                  type="url"
+                  value={instagramUrl}
+                  onChange={(e) => setInstagramUrl(e.target.value)}
+                  placeholder="https://instagram.com/..."
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-[11px] font-bold mb-1">رابط تيك توك (TikTok URL):</label>
+                <input
+                  type="url"
+                  value={tiktokUrl}
+                  onChange={(e) => setTiktokUrl(e.target.value)}
+                  placeholder="https://tiktok.com/@..."
+                  className="glass-input text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-[11px] font-bold mb-1">رابط لينكد إن (LinkedIn URL):</label>
+                <input
+                  type="url"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  placeholder="https://linkedin.com/in/..."
+                  className="glass-input text-xs font-mono"
+                />
               </div>
             </div>
           </div>
@@ -278,20 +424,17 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
           <div className="space-y-2.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
             <label className="block font-bold text-white flex items-center gap-1.5">
               <Heart className="w-4 h-4 text-rose-400 fill-rose-400/20" />
-              <span>هواياتي ومواهبي الشخصية (Hobbies & Interests):</span>
+              <span>هواياتي ومواهبي الشخصية:</span>
             </label>
-            <p className="text-[10px] text-slate-400">
-              تظهر في ملفك الشخصي وسيرتك الذاتية وتساعد في إسناد المهام التناسبية
-            </p>
 
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newHobby}
                 onChange={(e) => setNewHobby(e.target.value)}
-                placeholder="اكتب هواية واضغط إضافة..."
+                placeholder="اكتب موهبة أو هواية واضغط إضافة..."
                 className="glass-input text-xs flex-1"
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddHobby(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddHobby(); } }}
               />
               <button
                 type="button"
@@ -303,7 +446,6 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               </button>
             </div>
 
-            {/* Current Hobbies Tags */}
             <div className="flex flex-wrap gap-1.5 pt-1">
               {hobbies.map((h, i) => (
                 <span 
@@ -322,21 +464,17 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               ))}
             </div>
 
-            {/* Quick Suggestions */}
-            <div className="pt-2 border-t border-slate-800/80">
-              <div className="text-[10px] text-slate-400 mb-1.5">اقتراحات سريعة للاختيار:</div>
-              <div className="flex flex-wrap gap-1">
-                {suggestedHobbies.filter(sh => !hobbies.includes(sh)).map((sh, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setHobbies([...hobbies, sh])}
-                    className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition-all cursor-pointer"
-                  >
-                    + {sh}
-                  </button>
-                ))}
-              </div>
+            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap gap-1">
+              {suggestedHobbies.filter(sh => !hobbies.includes(sh)).map((sh, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setHobbies([...hobbies, sh])}
+                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition-all cursor-pointer"
+                >
+                  + {sh}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -344,20 +482,17 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
           <div className="space-y-2.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
             <label className="block font-bold text-white flex items-center gap-1.5">
               <GraduationCap className="w-4 h-4 text-purple-400" />
-              <span>ما أرغب في تعلمه وتطويره (Skills to Learn & Aspirations):</span>
+              <span>ما أرغب في تعلمه وتطويره (Skills to Learn):</span>
             </label>
-            <p className="text-[10px] text-slate-400">
-              تُستخدم لترشيحك للدورات التدريبية المتقدمة وورش العمل المناسبة
-            </p>
 
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newAspiration}
                 onChange={(e) => setNewAspiration(e.target.value)}
-                placeholder="مهارة أو موضوع تريد تعلمه..."
+                placeholder="مهارة أو ورشة عمل تريد تعلمها..."
                 className="glass-input text-xs flex-1"
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddAspiration(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAspiration(); } }}
               />
               <button
                 type="button"
@@ -369,7 +504,6 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               </button>
             </div>
 
-            {/* Current Aspirations Tags */}
             <div className="flex flex-wrap gap-1.5 pt-1">
               {learningAspirations.map((a, i) => (
                 <span 
@@ -388,26 +522,22 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               ))}
             </div>
 
-            {/* Quick Suggestions */}
-            <div className="pt-2 border-t border-slate-800/80">
-              <div className="text-[10px] text-slate-400 mb-1.5">اقتراحات مهارات للتعلم:</div>
-              <div className="flex flex-wrap gap-1">
-                {suggestedAspirations.filter(sa => !learningAspirations.includes(sa)).map((sa, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setLearningAspirations([...learningAspirations, sa])}
-                    className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition-all cursor-pointer"
-                  >
-                    + {sa}
-                  </button>
-                ))}
-              </div>
+            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap gap-1">
+              {suggestedAspirations.filter(sa => !learningAspirations.includes(sa)).map((sa, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setLearningAspirations([...learningAspirations, sa])}
+                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition-all cursor-pointer"
+                >
+                  + {sa}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
@@ -416,16 +546,15 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               إلغاء
             </button>
             <button
-              type="button"
-              onClick={handleSave}
-              className="btn-primary text-xs py-2 px-5"
+              type="submit"
+              className="btn-primary text-xs py-2.5 px-6 font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30"
             >
               <Check className="w-4 h-4" />
-              <span>حفظ التعديلات</span>
+              <span>حفظ وتحديث البيانات في الشيت العام</span>
             </button>
           </div>
 
-        </div>
+        </form>
 
       </div>
     </div>

@@ -5,7 +5,7 @@ import {
   Bell, AlertTriangle, ChevronDown, CheckCircle, 
   Sparkles, Search, LogOut, Check, X,
   Sliders, MessageSquare, Volume2, VolumeX, Image as ImageIcon, User,
-  Crown, Star, Shield, UserCheck
+  Crown, Star, Shield, UserCheck, Download, Smartphone
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -15,6 +15,7 @@ interface NavbarProps {
   onOpenSettings: () => void;
   onOpenComplaintModal: () => void;
   onOpenApprovalsModal: () => void;
+  onOpenInstallModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -23,7 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAIChat,
   onOpenSettings,
   onOpenComplaintModal,
-  onOpenApprovalsModal
+  onOpenApprovalsModal,
+  onOpenInstallModal
 }) => {
   const { 
     currentUser, members, switchPersona, 
@@ -170,9 +172,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         </div>
 
-        {/* Left Side: Settings + Notifications + Persona Switcher + Logout */}
+        {/* Left Side: Install App + Settings + Notifications + Persona Switcher + Logout */}
         <div className="flex items-center gap-1 sm:gap-2">
           
+          {/* PWA Install Button */}
+          {onOpenInstallModal && (
+            <button
+              onClick={onOpenInstallModal}
+              title="تثبيت التطبيق على الموبايل (PWA)"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600/30 to-sky-500/30 hover:from-blue-600/40 hover:to-sky-500/40 border border-sky-400/40 text-xs font-bold text-sky-200 transition-all cursor-pointer shadow-sm animate-pulse"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-sky-300" />
+              <span className="hidden sm:inline">تثبيت التطبيق 📱</span>
+            </button>
+          )}
+
           {/* Settings Trigger (Restricted to High Leadership) */}
           {isHighLeadership && (
             <button
@@ -424,32 +438,58 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Quick Persona Switcher Modal / Dropdown */}
+          {/* User Profile Badge & Persona Switcher (Dropdown only for High Leadership) */}
           <div className="relative">
-            <button
-              onClick={() => { setShowPersonaMenu(!showPersonaMenu); setShowNotifMenu(false); }}
-              className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 hover:border-blue-500/40 transition-all cursor-pointer"
-            >
-              <img 
-                src={currentUser.avatarUrl} 
-                alt={currentUser.fullName} 
-                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40"
-              />
-              <div className="text-right hidden sm:block">
-                <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                  {currentUser.fullName.split(' ')[0]}
-                  <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
-                    {currentUser.volunteerId || 'AU-001'}
-                  </span>
+            {isHighLeadership ? (
+              <button
+                onClick={() => { setShowPersonaMenu(!showPersonaMenu); setShowNotifMenu(false); }}
+                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 hover:border-blue-500/40 transition-all cursor-pointer"
+                title="تبديل المنظور (صلاحية الإدارة العليا فقط)"
+              >
+                <img 
+                  src={currentUser.avatarUrl} 
+                  alt={currentUser.fullName} 
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40"
+                />
+                <div className="text-right hidden sm:block">
+                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
+                    {currentUser.fullName.split(' ')[0]}
+                    <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
+                      {currentUser.volunteerId || 'AU-001'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 leading-tight">
+                    {currentUser.position}
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-400 leading-tight">
-                  {currentUser.position}
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            ) : (
+              <div 
+                onClick={() => setActiveTab('profile')}
+                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 border border-slate-700 transition-all cursor-pointer hover:border-blue-500/40"
+                title="عرض ملفك الشخصي"
+              >
+                <img 
+                  src={currentUser.avatarUrl} 
+                  alt={currentUser.fullName} 
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40"
+                />
+                <div className="text-right hidden sm:block">
+                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
+                    {currentUser.fullName.split(' ')[0]}
+                    <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
+                      {currentUser.volunteerId || 'VOL'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 leading-tight">
+                    {currentUser.position}
+                  </div>
                 </div>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
+            )}
 
-            {showPersonaMenu && (
+            {isHighLeadership && showPersonaMenu && (
               <div className="absolute left-0 mt-2 w-72 sm:w-80 glass-dropdown p-2.5 z-50 animate-in fade-in">
                 <div className="px-2.5 py-2 border-b border-slate-800 flex items-center justify-between mb-1">
                   <div>

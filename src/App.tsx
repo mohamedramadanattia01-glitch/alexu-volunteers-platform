@@ -41,6 +41,7 @@ import { AppSettingsModal } from './components/settings/AppSettingsModal';
 import { CelebrationOverlay } from './components/common/CelebrationOverlay';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PendingApprovalsModal } from './components/members/PendingApprovalsModal';
+import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 import { Member, Task } from './types';
 
 const MainAppContent: React.FC = () => {
@@ -59,6 +60,7 @@ const MainAppContent: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [isPendingApprovalsOpen, setIsPendingApprovalsOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const [selectedMemberIdForProfile, setSelectedMemberIdForProfile] = useState<string | null>(null);
   const [selectedMemberForEdit, setSelectedMemberForEdit] = useState<Member | null>(null);
@@ -107,6 +109,7 @@ const MainAppContent: React.FC = () => {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenComplaintModal={() => setIsComplaintModalOpen(true)}
         onOpenApprovalsModal={() => setIsPendingApprovalsOpen(true)}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
       />
 
       {/* Main Layout Body */}
@@ -240,9 +243,11 @@ const MainAppContent: React.FC = () => {
         isOpen={isMobileDrawerOpen}
         onClose={() => setIsMobileDrawerOpen(false)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
       />
 
       {/* Global Modals */}
+      <PWAInstallPrompt isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} />
       <SOSModal isOpen={isSOSOpen} onClose={() => setIsSOSOpen(false)} />
       <QRAttendanceModal isOpen={isQROpen} onClose={() => setIsQROpen(false)} />
       <AIAssistantModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />

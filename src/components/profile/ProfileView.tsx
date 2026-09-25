@@ -24,7 +24,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenQRModal,
   onSelectTask
 }) => {
-  const { currentUser, tasks, attendanceRecords, badges, branding } = useApp();
+  const { currentUser, tasks, attendanceRecords, badges, branding, isHighLeadership, members, events } = useApp();
   const [copiedId, setCopiedId] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'attendance' | 'badges'>('overview');
 
@@ -57,9 +57,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/40 text-blue-300 text-xs font-bold backdrop-blur-md">
               {currentUser.currentCommitteeName}
             </span>
-            <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-extrabold backdrop-blur-md flex items-center gap-1">
+            <span className={`px-3 py-1 rounded-full border text-xs font-extrabold backdrop-blur-md flex items-center gap-1 ${
+              isHighLeadership 
+                ? 'bg-purple-500/20 border-purple-400/40 text-purple-200' 
+                : 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+            }`}>
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span>المستوى {currentUser.level || 1}</span>
+              <span>{isHighLeadership ? '👑 قيادة عليا وإشراف عام' : `المستوى ${currentUser.level || 1}`}</span>
             </span>
           </div>
         </div>
@@ -211,95 +215,151 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {/* 2. Key Metrics Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* Metric 1: XP & Points */}
-        <div className="glass-card p-4 border-amber-500/20 bg-amber-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-amber-300 font-bold">نقاط التطوع (XP)</span>
-            <Sparkles className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="mt-2">
-            <span className="text-2xl font-black text-white">{currentUser.points || 0}</span>
-            <span className="text-xs text-slate-400 mr-1">نقطة</span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-amber-500 to-amber-300 h-full rounded-full"
-              style={{ width: `${Math.min(100, ((currentUser.points % 150) / 150) * 100)}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-400 mt-1 text-left">
-            باقي {150 - (currentUser.points % 150)} للترقية
-          </span>
-        </div>
-
-        {/* Metric 2: Attendance Rate */}
-        <div className="glass-card p-4 border-blue-500/20 bg-blue-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-blue-300 font-bold">نسبة الالتزام الميداني</span>
-            <Clock className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="mt-2">
-            <span className="text-2xl font-black text-white">{currentUser.performance?.attendanceRate || 100}%</span>
-            <span className="text-xs text-slate-400 mr-1">({totalHours.toFixed(1)} ساعة)</span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-blue-500 h-full rounded-full"
-              style={{ width: `${currentUser.performance?.attendanceRate || 100}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-emerald-400 mt-1">
-            {myAttendance.length} فعاليات مسجلة بـ QR
-          </span>
-        </div>
-
-        {/* Metric 3: Tasks Completed */}
-        <div className="glass-card p-4 border-emerald-500/20 bg-emerald-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-emerald-300 font-bold">إنجاز المهام</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-2">
-            <span className="text-2xl font-black text-white">
-              {myTasks.filter(t => t.status === 'Approved').length}
+      {isHighLeadership ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="glass-card p-4 border-purple-500/20 bg-purple-950/20 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-purple-300 font-bold">الصفة التنظيمية</span>
+              <ShieldCheck className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-lg font-black text-white">{currentUser.position || 'مستشار الفريق'}</span>
+            </div>
+            <span className="text-[10px] text-purple-300/80 mt-2">
+              👑 قيادة عليا وإشراف عام شامل
             </span>
-            <span className="text-xs text-slate-400 mr-1">من أصل {myTasks.length} مهمة</span>
           </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-emerald-500 h-full rounded-full"
-              style={{ width: `${myTasks.length > 0 ? (myTasks.filter(t => t.status === 'Approved').length / myTasks.length) * 100 : 100}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-400 mt-1">
-            معدل الجودة: {currentUser.performance?.taskQuality || 4.8}/5.0
-          </span>
-        </div>
 
-        {/* Metric 4: Overall Rating */}
-        <div className="glass-card p-4 border-purple-500/20 bg-purple-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-purple-300 font-bold">التقييم الشامل الموحد</span>
-            <TrendingUp className="w-4 h-4 text-purple-400" />
+          <div className="glass-card p-4 border-blue-500/20 bg-blue-950/20 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-blue-300 font-bold">الصلاحيات المركزية</span>
+              <Shield className="w-4 h-4 text-sky-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-xl font-black text-white">إدارة كاملة</span>
+            </div>
+            <span className="text-[10px] text-sky-300/80 mt-2">
+              اعتماد المتطوعين، اللجان، وتعيين الأدوار
+            </span>
           </div>
-          <div className="mt-2">
-            <span className="text-2xl font-black text-white">{currentUser.performance?.overallScore || 90}%</span>
-            <span className="text-xs text-slate-400 mr-1">امتياز 🌟</span>
-          </div>
-          <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-purple-500 h-full rounded-full"
-              style={{ width: `${currentUser.performance?.overallScore || 90}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-400 mt-1">
-            {currentUser.performance?.evaluationsCount || 1} تقييم مسجل
-          </span>
-        </div>
 
-      </div>
+          <div className="glass-card p-4 border-emerald-500/20 bg-emerald-950/20 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-emerald-300 font-bold">إجمالي المتطوعين تحت الإشراف</span>
+              <User className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">{members.filter(m => m.status === 'Active').length}</span>
+              <span className="text-xs text-slate-400 mr-1">عضو نشط</span>
+            </div>
+            <span className="text-[10px] text-emerald-400/80 mt-2">
+              متابعة الـ 6 لجان تخصصية
+            </span>
+          </div>
+
+          <div className="glass-card p-4 border-amber-500/20 bg-amber-950/20 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-amber-300 font-bold">الفعاليات المعتمدة</span>
+              <Calendar className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">{events.length}</span>
+              <span className="text-xs text-slate-400 mr-1">فعالية</span>
+            </div>
+            <span className="text-[10px] text-amber-400/80 mt-2">
+              موسم 2026/2027
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Metric 1: XP & Points */}
+          <div className="glass-card p-4 border-amber-500/20 bg-amber-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-amber-300 font-bold">نقاط التطوع (XP)</span>
+              <Sparkles className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">{currentUser.points || 0}</span>
+              <span className="text-xs text-slate-400 mr-1">نقطة</span>
+            </div>
+            <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-amber-500 to-amber-300 h-full rounded-full"
+                style={{ width: `${Math.min(100, ((currentUser.points % 150) / 150) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1 text-left">
+              باقي {150 - (currentUser.points % 150)} للترقية
+            </span>
+          </div>
+
+          {/* Metric 2: Attendance Rate */}
+          <div className="glass-card p-4 border-blue-500/20 bg-blue-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-blue-300 font-bold">نسبة الالتزام الميداني</span>
+              <Clock className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">{currentUser.performance?.attendanceRate || 0}%</span>
+              <span className="text-xs text-slate-400 mr-1">({totalHours.toFixed(1)} ساعة)</span>
+            </div>
+            <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-blue-500 h-full rounded-full"
+                style={{ width: `${currentUser.performance?.attendanceRate || 0}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-emerald-400 mt-1">
+              {myAttendance.length} فعاليات مسجلة بـ QR
+            </span>
+          </div>
+
+          {/* Metric 3: Tasks Completed */}
+          <div className="glass-card p-4 border-emerald-500/20 bg-emerald-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-emerald-300 font-bold">إنجاز المهام</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">
+                {myTasks.filter(t => t.status === 'Approved').length}
+              </span>
+              <span className="text-xs text-slate-400 mr-1">من أصل {myTasks.length} مهمة</span>
+            </div>
+            <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-emerald-500 h-full rounded-full"
+                style={{ width: `${myTasks.length > 0 ? (myTasks.filter(t => t.status === 'Approved').length / myTasks.length) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1">
+              معدل الجودة: {currentUser.performance?.taskQuality || 0}/5.0
+            </span>
+          </div>
+
+          {/* Metric 4: Overall Rating */}
+          <div className="glass-card p-4 border-purple-500/20 bg-purple-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-purple-300 font-bold">التقييم الشامل الموحد</span>
+              <TrendingUp className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-white">{currentUser.performance?.overallScore || 0}%</span>
+              <span className="text-xs text-slate-400 mr-1">تقييم معتمد</span>
+            </div>
+            <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-purple-500 h-full rounded-full"
+                style={{ width: `${currentUser.performance?.overallScore || 0}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1">
+              {currentUser.performance?.evaluationsCount || 0} تقييم مسجل
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* 3. Digital ID Card + Hobbies & Aspirations Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

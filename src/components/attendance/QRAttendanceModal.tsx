@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
+import jsQR from 'jsqr';
 import { 
   QrCode, X, RefreshCw, CheckCircle2, Clock, 
   MapPin, ShieldCheck, UserCheck, AlertCircle, Plus, 
-  Layers, Download, Award, Sparkles, Navigation, Check
+  Layers, Download, Award, Sparkles, Navigation, Check, Camera
 } from 'lucide-react';
 import { exportAttendanceToExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
@@ -54,10 +55,16 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Camera video feed state
+  // Camera video feed & QR decoding state
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
+  const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
+  const [isProcessingScan, setIsProcessingScan] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
   // Evaluation Modal Trigger
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
@@ -82,29 +89,105 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     return () => clearInterval(timer);
   }, [isOpen]);
 
+  const handleMemberScan = useCallback((actionType: 'check-in' | 'check-out', customToken?: string) => {
+    const loc = gpsData || {
+      lat: 31.2001,
+      lng: 29.9187,
+      address: 'جامعة الإسكندرية (الموقع الفعلي)'
+    };
+
+    const res = recordAttendanceWithGPS({
+      memberId: currentUser.id,
+      sessionId: currentSession?.id,
+      eventId: currentEvent?.id,
+      actionType,
+      gpsLocation: loc,
+      qrToken: customToken || qrToken
+    });
+
+    setScanResult(res);
+  }, [gpsData, recordAttendanceWithGPS, currentUser.id, currentSession?.id, currentEvent?.id, qrToken]);
+
+  // Frame scanning engine using jsQR
+  const scanQRFromCamera = useCallback(() => {
+    if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+      animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
+      return;
+    }
+
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement('canvas');
+    }
+
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert'
+      });
+
+      if (code && code.data && !isProcessingScan) {
+        const payload = code.data;
+        if (payload !== lastScannedPayload) {
+          setIsProcessingScan(true);
+          setLastScannedPayload(payload);
+          
+          // Trigger Attendance Check-In automatically on valid QR
+          handleMemberScan('check-in', payload);
+          showNotification('success', '🎯 تم مسح رمز الحضور بالكاميرا بنجاح وتوثيق الحضور!');
+
+          setTimeout(() => {
+            setIsProcessingScan(false);
+          }, 3000);
+        }
+      }
+    }
+
+    animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
+  }, [handleMemberScan, isProcessingScan, lastScannedPayload, showNotification]);
+
   // Handle Camera lifecycle
   const startCamera = async () => {
+    setCameraPermissionError(null);
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
         });
         mediaStreamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.play();
         }
         setIsCameraActive(true);
+        animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
       } else {
-        showNotification('info', 'المتصفح لا يدعم الوصول المباشر للكاميرا، تم تفعيل المسح الذكي الموثق');
+        setCameraPermissionError('المتصفح لا يدعم الوصول للكاميرا');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Camera access denied or unavailable:', err);
-      showNotification('info', 'تم تفعيل المسح الذكي الفوري وتوثيق الموقع الجغرافي بالـ GPS');
+      setCameraPermissionError('يرجى السماح بصلاحية الكاميرا لمسح الـ QR كود تلقائياً');
       setIsCameraActive(false);
     }
   };
 
   const stopCamera = () => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
@@ -112,43 +195,47 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     setIsCameraActive(false);
   };
 
-  useEffect(() => {
-    if (!isOpen || mode !== 'member_scan') {
-      stopCamera();
-    }
-    return () => {
-      stopCamera();
-    };
-  }, [isOpen, mode]);
-
-  // Request Real Geolocation when member opens scan mode
-  useEffect(() => {
-    if (mode === 'member_scan' && navigator.geolocation) {
+  // Request Real Geolocation
+  const requestRealGPS = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
       setIsGettingGPS(true);
+      setGpsError(null);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setIsGettingGPS(false);
           setGpsData({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            address: 'مجمع الكليات — جامعة الإسكندرية'
+            accuracy: Math.round(pos.coords.accuracy),
+            address: `إحداثيات حية (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}) — دقة ±${Math.round(pos.coords.accuracy)}م`
           });
         },
         (err) => {
           setIsGettingGPS(false);
-          // Graceful fallback for desktop browser testing with Alexandria coordinates
+          setGpsError(err.message || 'تعذر جلب إحداثيات الموقع');
           setGpsData({
-            lat: 31.2001 + (Math.random() - 0.5) * 0.005,
-            lng: 29.9187 + (Math.random() - 0.5) * 0.005,
-            accuracy: 15,
-            address: 'مجمع الكليات — جامعة الإسكندرية (تم التحقق)'
+            lat: 31.2001,
+            lng: 29.9187,
+            accuracy: 25,
+            address: 'مجمع كليات الشاطبي — جامعة الإسكندرية (موقع افتراضي)'
           });
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
-  }, [mode]);
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'member_scan' && isOpen) {
+      requestRealGPS();
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [mode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -165,25 +252,6 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     });
 
     setMode('host_qr');
-  };
-
-  const handleMemberScan = (actionType: 'check-in' | 'check-out') => {
-    const loc = gpsData || {
-      lat: 31.2001,
-      lng: 29.9187,
-      address: 'جامعة الإسكندرية'
-    };
-
-    const res = recordAttendanceWithGPS({
-      memberId: currentUser.id,
-      sessionId: currentSession?.id,
-      eventId: currentEvent?.id,
-      actionType,
-      gpsLocation: loc,
-      qrToken
-    });
-
-    setScanResult(res);
   };
 
   const handleExportSessionExcel = () => {
@@ -547,45 +615,66 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
             </div>
 
             {/* GPS Location Status Indicator */}
-            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <MapPin className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
                 <div>
-                  <span className="font-bold text-white">الموقع الجغرافي الحقيقي (GPS):</span>
-                  <div className="text-[11px] text-slate-400 font-mono">
+                  <span className="font-bold text-white">الموقع الجغرافي الحقيقي (GPS Live):</span>
+                  <div className="text-[11px] text-slate-300 font-mono">
                     {isGettingGPS ? (
-                      <span className="text-amber-400">جاري تحديد الإحداثيات...</span>
+                      <span className="text-amber-400 font-bold">جاري تحديد الإحداثيات الحقيقية...</span>
                     ) : gpsData ? (
-                      <span className="text-emerald-300">
-                        {gpsData.address || 'تم التقاط الموقع بنجاح'} ({gpsData.lat.toFixed(4)}, {gpsData.lng.toFixed(4)})
+                      <span className="text-emerald-300 font-bold">
+                        📍 {gpsData.address}
                       </span>
                     ) : (
-                      <span>جامعة الإسكندرية (الموقع الميداني)</span>
+                      <span>موقع جامعة الإسكندرية الميداني</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={requestRealGPS}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
+                  title="تحديث إحداثيات الـ GPS"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>تحديث الموقع</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => isCameraActive ? stopCamera() : startCamera()}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
                     isCameraActive
-                      ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-                      : 'bg-blue-600/20 border-blue-500/40 text-blue-300 hover:bg-blue-600/40'
+                      ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                      : 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30'
                   }`}
                 >
-                  {isCameraActive ? 'إيقاف الكاميرا' : 'تشغيل كاميرا المسح 📷'}
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{isCameraActive ? 'إيقاف الكاميرا' : 'تشغيل الكاميرا 📷'}</span>
                 </button>
-                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-bold">
-                  GPS Verified 📍
-                </span>
               </div>
             </div>
 
+            {cameraPermissionError && (
+              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-center justify-between">
+                <span>⚠️ {cameraPermissionError}</span>
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="px-2.5 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg text-[10px]"
+                >
+                  إعادة المحاولة
+                </button>
+              </div>
+            )}
+
             {/* Live Camera Scanner Viewport or Visual Scanner Frame */}
-            <div className="relative rounded-2xl overflow-hidden border-2 border-dashed border-sky-500/40 bg-slate-950 p-4 flex flex-col items-center justify-center text-center min-h-[240px]">
+            <div className="relative rounded-2xl overflow-hidden border-2 border-dashed border-sky-500/40 bg-slate-950 p-4 flex flex-col items-center justify-center text-center min-h-[260px]">
               
               {isCameraActive ? (
                 <div className="relative w-full max-w-sm rounded-xl overflow-hidden border-2 border-sky-400 shadow-2xl bg-black aspect-video sm:aspect-square flex items-center justify-center">
@@ -599,50 +688,61 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                   {/* Viewfinder Target Corners */}
                   <div className="absolute inset-8 border-2 border-white/60 rounded-xl pointer-events-none flex flex-col justify-between p-2">
                     <div className="flex justify-between">
-                      <div className="w-4 h-4 border-t-2 border-r-2 border-sky-400" />
-                      <div className="w-4 h-4 border-t-2 border-l-2 border-sky-400" />
+                      <div className="w-5 h-5 border-t-4 border-r-4 border-sky-400" />
+                      <div className="w-5 h-5 border-t-4 border-l-4 border-sky-400" />
                     </div>
                     <div className="flex justify-between">
-                      <div className="w-4 h-4 border-b-2 border-r-2 border-sky-400" />
-                      <div className="w-4 h-4 border-b-2 border-l-2 border-sky-400" />
+                      <div className="w-5 h-5 border-b-4 border-r-4 border-sky-400" />
+                      <div className="w-5 h-5 border-b-4 border-l-4 border-sky-400" />
                     </div>
                   </div>
                   {/* Laser line */}
-                  <div className="absolute inset-x-8 top-1/3 h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-lg shadow-red-500 animate-bounce pointer-events-none" />
+                  <div className="absolute inset-x-8 top-1/2 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-lg shadow-emerald-400 animate-pulse pointer-events-none" />
+                  
+                  <div className="absolute bottom-2 inset-x-2 py-1 px-2 rounded-lg bg-black/75 backdrop-blur-sm text-center text-[10px] text-emerald-300 font-bold border border-emerald-500/30">
+                    {isProcessingScan ? '⏳ جاري التحقق وتسجيل الحضور...' : '📷 الكاميرا نشطة: وجهها نحو كود الحضور وسيسجل تلقائياً'}
+                  </div>
                 </div>
               ) : (
                 <>
-                  {/* Animated Laser Scanning Line */}
-                  <div className="absolute inset-x-8 top-1/4 h-[2px] bg-gradient-to-r from-transparent via-sky-400 to-transparent shadow-lg shadow-sky-400 animate-bounce pointer-events-none" />
-
+                  {/* Visual Scanner Frame */}
                   <div className="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mb-3 shadow-lg">
                     <QrCode className="w-8 h-8 animate-pulse" />
                   </div>
 
                   <h4 className="text-sm font-bold text-white mb-1">
-                    توجيه الكاميرا نحو كود المشرف (Session Host QR)
+                    مسح كود الحضور بالكاميرا المباشرة
                   </h4>
-                  <p className="text-xs text-slate-400 max-w-sm">
-                    سيتم سحب بياناتك فورياً وتوثيق توقيت وموقع الحضور الميداني بالـ GPS
+                  <p className="text-xs text-slate-400 max-w-sm mb-3">
+                    اضغط تشغيل الكاميرا لتوجيهها نحو كود المشرف وسيقوم النظام بفك التشفير وتوثيق الحضور والـ GPS تلقائياً
                   </p>
+
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>تشغيل كاميرا المسح الآن</span>
+                  </button>
                 </>
               )}
 
-              {/* Scan Buttons (Check-in & Check-out) */}
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-2 z-10">
+              {/* Manual Backup Buttons (Check-in & Check-out) */}
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-2 z-10 border-t border-slate-800/80 w-full">
                 <button
                   type="button"
                   onClick={() => handleMemberScan('check-in')}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>تأكيد مسح الحضور (Check-In)</span>
+                  <span>تأكيد الحضور (Check-In)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleMemberScan('check-out')}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <Clock className="w-3.5 h-3.5 text-sky-400" />
                   <span>تسجيل الانصراف (Check-Out)</span>

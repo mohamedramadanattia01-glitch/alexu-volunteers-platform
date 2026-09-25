@@ -5,7 +5,12 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="متطوعين AU" />
     <title>فريق متطوعين اتحاد طلاب جامعة الإسكندرية</title>
     <meta name="description" content="المنظومة الرقمية الرسمية لفريق متطوعين اتحاد طلاب جامعة الإسكندرية. إدارة الفعاليات، المهام، التقييمات، الحضور بـ QR، والذكاء الاصطناعي." />
     <!-- Google Fonts: Cairo & Outfit -->
@@ -16,5 +21,16 @@
   <body class="bg-slate-900 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('PWA Service Worker registered successfully:', reg.scope);
+          }).catch((err) => {
+            console.warn('PWA Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

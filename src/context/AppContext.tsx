@@ -84,6 +84,7 @@ interface AppContextType {
   deleteMember: (id: string, alsoBanEmail?: boolean, banReason?: string) => void;
   banMember: (id: string, reason: string) => void;
   unbanMember: (id: string) => void;
+  filterOutMember: (id: string, reason?: string) => void;
   bannedList: BannedUserRecord[];
   isUserBanned: (emailOrNationalId: string) => boolean;
   archiveMember: (id: string, reason: string) => void;
@@ -180,11 +181,17 @@ interface AppContextType {
   getVisibleComplaintsForUser: () => Complaint[];
   updateRolePermissions: (role: Role, perms: { [permCode: string]: boolean }) => void;
   updateMemberSelfProfile: (memberId: string, profileData: { 
-    avatarUrl?: string; 
-    bio?: string; 
+    fullName?: string;
+    nationalId?: string;
+    phone?: string;
     whatsappNumber?: string;
     college?: string;
     academicYear?: string;
+    bloodType?: string;
+    emergencyContact?: string;
+    address?: string;
+    avatarUrl?: string; 
+    bio?: string; 
     hobbies?: string[]; 
     learningAspirations?: string[];
     facebookUrl?: string;
@@ -487,6 +494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cloudData.announcements) setAnnouncements(cloudData.announcements);
         if (cloudData.auditLogs) setAuditLogs(cloudData.auditLogs);
         if (cloudData.notifications) setNotifications(cloudData.notifications);
+        if (cloudData.bannedUsers && cloudData.bannedUsers.length > 0) setBannedList(cloudData.bannedUsers);
         setIsSupabaseConnected(true);
       }
     } catch (e) {
@@ -498,47 +506,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncWithCloud();
   }, []);
 
-  // Derived state
+  // Security Watchdog: Automatically terminate session and block access if active user is banned or inactive
+  useEffect(() => {
+    if (isAuthenticated && currentUserId) {
+      const activeMember = members.find(m => m.id === currentUserId);
+      const isBanned = isUserBanned(activeMember?.universityEmail || '') || 
+                       (activeMember?.nationalId ? isUserBanned(activeMember.nationalId) : false) ||
+                       bannedList.some(b => b.id === currentUserId || (activeMember && b.email.toLowerCase() === activeMember.universityEmail.toLowerCase()));
+
+      if (!activeMember || activeMember.status === 'Banned' || activeMember.status === 'Inactive' || isBanned) {
+        setIsAuthenticated(false);
+        setCurrentUserId('');
+        localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+        localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
+      }
+    }
+  }, [members, bannedList, isAuthenticated, currentUserId]);
+
+  // Derived state: currentUser reflects current logged-in user or first available active member
   const currentUser = members.find(m => m.id === currentUserId) || members[0] || initialMembers[0];
   const activeSeason = seasons.find(s => s.id === activeSeasonId) || seasons[0] || initialSeasons[0];
   const isHighLeadership = isHighLeadershipMember(currentUser);
 
   const liveEvent = events.find(e => e.liveDashboardActive);
-  // Dynamic Mathematical Health Score Computation
+
+  // Dynamic Mathematical Health Score Computation (100% Real & Dynamic)
   const calculateCommitteeHealth = (commId: string): number => {
     const comm = committees.find(c => c.id === commId);
-    if (!comm) return 90;
+    if (!comm) return 0;
 
-    const commMembers = members.filter(m => m.currentCommitteeId === commId);
+    const commMembers = members.filter(m => m.currentCommitteeId === commId && m.status === 'Active');
     const commTasks = tasks.filter(t => t.committeeId === commId);
     const commComplaints = complaints.filter(c => c.senderCommitteeId === commId);
 
-    const attendance = commMembers.length > 0
-      ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.attendanceRate || 90), 0) / commMembers.length)
-      : comm.attendanceRate || 90;
-
+    const totalCommMembers = commMembers.length;
     const totalCommTasks = commTasks.length;
     const completedCommTasks = commTasks.filter(t => t.status === 'Approved').length;
-    const tasksRate = totalCommTasks > 0 ? Math.round((completedCommTasks / totalCommTasks) * 100) : (comm.performanceScore || 90);
 
-    const performance = commMembers.length > 0
-      ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 90), 0) / commMembers.length)
-      : comm.performanceScore || 90;
+    // If there are no members and no tasks in this committee, health is 0
+    if (totalCommMembers === 0 && totalCommTasks === 0) {
+      return 0;
+    }
+
+    const attendance = totalCommMembers > 0
+      ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.attendanceRate || 0), 0) / totalCommMembers)
+      : 0;
+
+    const tasksRate = totalCommTasks > 0
+      ? Math.round((completedCommTasks / totalCommTasks) * 100)
+      : (totalCommMembers > 0 ? 0 : 0);
+
+    const performance = totalCommMembers > 0
+      ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 0), 0) / totalCommMembers)
+      : 0;
 
     const resolvedComplaints = commComplaints.filter(c => c.status === 'Resolved').length;
     const totalComplaints = commComplaints.length;
-    const satisfaction = totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 95;
+    const satisfaction = totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 100;
 
-    const healthScore = Math.min(100, Math.max(50, Math.round(
+    // Weighted dynamic composite score
+    const healthScore = Math.min(100, Math.max(0, Math.round(
       0.35 * attendance + 0.35 * tasksRate + 0.15 * performance + 0.15 * satisfaction
     )));
 
     return healthScore;
   };
 
-  const teamHealthScore = committees.length > 0
-    ? Math.round(committees.reduce((acc, c) => acc + calculateCommitteeHealth(c.id), 0) / committees.length)
-    : 100;
+  // Team Health Score: Average of active committees with members/tasks, or 0 if empty
+  const activeCommitteesWithData = committees.filter(c => 
+    members.some(m => m.currentCommitteeId === c.id && m.status === 'Active') || 
+    tasks.some(t => t.committeeId === c.id)
+  );
+
+  const teamHealthScore = activeCommitteesWithData.length > 0
+    ? Math.round(activeCommitteesWithData.reduce((acc, c) => acc + calculateCommitteeHealth(c.id), 0) / activeCommitteesWithData.length)
+    : 0;
 
   const activeAttendanceSession = attendanceSessions.find(s => s.isActive) || null;
   const canCreateAttendanceSession = isHighLeadership || ['head', 'vice_head', 'hr_admin', 'event_manager'].includes(currentUser.role);
@@ -567,10 +609,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: 'الآن'
     };
     setNotifications(prev => [newNotif, ...prev]);
+
+    // Audio Chime & Vibration
     if (type === 'error' || type === 'warning') {
       playSound('alert');
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([150, 50, 150]);
+      }
     } else {
       playSound('task');
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(80);
+      }
+    }
+
+    // Native Browser / Mobile Web Notification API
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          new Notification(newNotif.title, {
+            body: message,
+            icon: '/logo.png',
+            badge: '/logo.png',
+            tag: newNotif.id
+          });
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
+      }
+    } catch {
+      // Ignore background notification restrictions
     }
   };
 
@@ -874,7 +942,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('تعديل بيانات عضو', `ID: ${id}`, 'تم تحديث ملف العضو');
   };
 
-  // Ban Member & Blacklist
+  // Ban Member & Blacklist (Permanent Access Revocation)
   const banMember = (id: string, reason: string) => {
     const target = members.find(m => m.id === id);
     if (!target) return;
@@ -904,7 +972,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setBannedList(prev => {
-      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase());
+      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id);
       return [bannedRecord, ...filtered];
     });
 
@@ -915,10 +983,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
-    addAuditLog('حظر واستبعاد عضو نهائياً', `${target.fullName} (${target.universityEmail})`, `تم تطبيق الحظر الدائم والإدراج في القائمة السوداء. السبب: ${banReason}`);
+    addAuditLog('حظر واستبعاد عضو نهائياً', `${target.fullName} (${target.universityEmail})`, `تم تطبيق الحظر الدائم والإدراج في القائمة السوداء وسحب الصلاحيات. السبب: ${banReason}`);
     playSound('alert');
     showNotification('warning', `تم حظر واستبعاد العضو ${target.fullName} وإدراجه بالقائمة السوداء.`);
     SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase ban error:', e));
+    SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase banned_users save error:', e));
+  };
+
+  // Filter Out / Dismiss Member from Team with Immediate Access Block
+  const filterOutMember = (id: string, reason: string = 'تصفية واستبعاد من الفريق مع إيقاف الحساب ومنع الدخول') => {
+    const target = members.find(m => m.id === id);
+    if (!target) return;
+
+    const banReason = reason.trim() || 'تمت تصفية واستبعاد العضو من الفريق مع حظر الدخول للمنصة بقرار القيادة العليا';
+    const bannedAt = new Date().toISOString();
+    const bannedBy = currentUser?.fullName || 'القيادة العليا';
+
+    const updatedMember: Member = {
+      ...target,
+      status: 'Banned',
+      banReason,
+      bannedAt,
+      bannedBy
+    };
+
+    setMembers(prev => prev.map(m => m.id === id ? updatedMember : m));
+
+    const bannedRecord: BannedUserRecord = {
+      id: target.id,
+      email: target.universityEmail,
+      fullName: target.fullName,
+      nationalId: target.nationalId,
+      reason: banReason,
+      bannedAt,
+      bannedBy
+    };
+
+    setBannedList(prev => {
+      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id);
+      return [bannedRecord, ...filtered];
+    });
+
+    // Update committee count
+    setCommittees(prev => prev.map(c => c.id === target.currentCommitteeId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c));
+
+    if (currentUserId === id) {
+      setIsAuthenticated(false);
+      setCurrentUserId('');
+      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
+    }
+
+    addAuditLog('تصفية واستبعاد عضو', target.fullName, `تم استبعاد وتصفية العضو من الفريق وحظره من الدخول نهائياً. السبب: ${banReason}`);
+    playSound('alert');
+    showNotification('warning', `تمت تصفية واستبعاد ${target.fullName} من الفريق وإيقاف وصوله للمنصة.`);
+    SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase filter error:', e));
+    SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase filter ban save error:', e));
   };
 
   // Unban Member
@@ -941,6 +1061,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSound('normal');
     showNotification('success', `تم رفع الحظر عن العضو ${target.fullName} واستعادة عضويته.`);
     SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase unban error:', e));
+    SupabaseService.deleteBannedUser(target.universityEmail).catch(e => console.warn('Supabase unban delete error:', e));
   };
 
   // Check if User is Banned
@@ -962,28 +1083,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return memberBanned;
   };
 
-  // Delete Member (with optional permanent ban / blacklist)
-  const deleteMember = (id: string, alsoBanEmail: boolean = false, banReason: string = '') => {
+  // Delete Member (with automatic permanent ban & access revocation)
+  const deleteMember = (id: string, alsoBanEmail: boolean = true, banReason: string = '') => {
     const target = members.find(m => m.id === id);
     if (!target) return;
 
-    if (alsoBanEmail) {
-      const reason = banReason.trim() || 'حظر دائم مع حذف السجل';
-      const bannedRecord: BannedUserRecord = {
-        id: target.id,
-        email: target.universityEmail,
-        fullName: target.fullName,
-        nationalId: target.nationalId,
-        reason,
-        bannedAt: new Date().toISOString(),
-        bannedBy: currentUser.fullName
-      };
-      setBannedList(prev => {
-        const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase());
-        return [bannedRecord, ...filtered];
-      });
-      addAuditLog('إدراج في القائمة السوداء مع الحذف', target.fullName, `تم حظر البريد ${target.universityEmail} نهائياً`);
-    }
+    const reason = banReason.trim() || 'تم حذف واستبعاد العضو نهائياً مع حظر الدخول';
+    const bannedRecord: BannedUserRecord = {
+      id: target.id,
+      email: target.universityEmail,
+      fullName: target.fullName,
+      nationalId: target.nationalId,
+      reason,
+      bannedAt: new Date().toISOString(),
+      bannedBy: currentUser.fullName
+    };
+
+    setBannedList(prev => {
+      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id);
+      return [bannedRecord, ...filtered];
+    });
 
     setMembers(prev => prev.filter(m => m.id !== id));
     setCommittees(prev => prev.map(c => c.id === target.currentCommitteeId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c));
@@ -995,17 +1114,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
-    addAuditLog('حذف عضو من الفريق', target.fullName, `تم حذف العضو بواسطة ${currentUser.fullName}${alsoBanEmail ? ' (مع الحظر الدائم)' : ''}`);
+    addAuditLog('حذف واستبعاد عضو من الفريق', target.fullName, `تم حذف العضو وحظره من الدخول بواسطة ${currentUser.fullName}. السبب: ${reason}`);
     playSound('task');
+    SupabaseService.deleteMember(id).catch(e => console.warn('Supabase delete member error:', e));
+    SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase ban record error:', e));
   };
 
-  // Self Profile update for regular members
+  // Self Profile update for regular members & leadership
   const updateMemberSelfProfile = (memberId: string, profileData: { 
-    avatarUrl?: string; 
-    bio?: string; 
+    fullName?: string;
+    nationalId?: string;
+    phone?: string;
     whatsappNumber?: string;
     college?: string;
     academicYear?: string;
+    bloodType?: string;
+    emergencyContact?: string;
+    address?: string;
+    avatarUrl?: string; 
+    bio?: string; 
     hobbies?: string[]; 
     learningAspirations?: string[];
     facebookUrl?: string;
@@ -1013,9 +1140,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     instagramUrl?: string;
     linkedinUrl?: string;
   }) => {
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, ...profileData } : m));
-    addAuditLog('تعديل الملف الشخصي', `عضو ID: ${memberId}`, 'قام العضو بتحديث بياناته الشخصية وروابط التواصل');
-    playSound('task');
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const updated = { ...m, ...profileData };
+        SupabaseService.upsertMember(updated).catch(e => console.warn('Supabase profile sync error:', e));
+        return updated;
+      }
+      return m;
+    }));
+    addAuditLog('تعديل الملف الشخصي', `عضو ID: ${memberId}`, 'قام العضو بتحديث وتوثيق بياناته الشخصية المعتمدة');
+    showNotification('success', 'تم حفظ وتحديث بياناتك الشخصية بنجاح وتحديث السجل العام للفريق ✓');
   };
 
   // Archive Member
@@ -1776,16 +1910,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setDocuments(prev => [newDoc, ...prev]);
     addAuditLog('رفع مستند رسمي', newDoc.title, newDoc.committeeName);
+    showNotification('success', `تم رفع وحفظ الوثيقة "${newDoc.title}" في مكتبة الوثائق بنجاح`);
+    playSound('task');
+    SupabaseService.upsertDocument(newDoc).catch(e => console.warn('Supabase document save error:', e));
   };
 
   const updateDocument = (id: string, updates: Partial<DocumentItem>) => {
-    setDocuments(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+    let updatedDoc: DocumentItem | null = null;
+    setDocuments(prev => prev.map(d => {
+      if (d.id === id) {
+        updatedDoc = { ...d, ...updates };
+        return updatedDoc;
+      }
+      return d;
+    }));
     addAuditLog('تعديل مستند', `ID: ${id}`, 'تم تحديث بيانات الملف');
+    showNotification('success', 'تم تحديث بيانات الوثيقة بنجاح');
+    if (updatedDoc) {
+      SupabaseService.upsertDocument(updatedDoc).catch(e => console.warn('Supabase document update error:', e));
+    }
   };
 
   const deleteDocument = (id: string) => {
+    const docToDelete = documents.find(d => d.id === id);
     setDocuments(prev => prev.filter(d => d.id !== id));
     addAuditLog('حذف مستند', `ID: ${id}`, 'تم حذف المستند من الأرشيف');
+    showNotification('info', `تم حذف الوثيقة "${docToDelete?.title || id}" من المكتبة`);
+    SupabaseService.deleteDocument(id).catch(e => console.warn('Supabase document delete error:', e));
   };
 
   const manualRecordAttendance = (recordData: Partial<AttendanceRecord>) => {
@@ -2485,6 +2636,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         banMember,
         unbanMember,
+        filterOutMember,
         bannedList,
         isUserBanned,
 

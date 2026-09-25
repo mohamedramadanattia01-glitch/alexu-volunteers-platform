@@ -48,14 +48,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const openSOS = sosAlerts.filter(s => s.status === 'Open' || s.status === 'Acknowledged');
   const liveEvents = events.filter(e => e.status === 'Live' || e.liveDashboardActive);
 
-  // Accurate Overall Score
+  // Accurate Overall Score (Dynamic)
   const averagePerformanceScore = regularMembers.length > 0
     ? Math.round(regularMembers.reduce((a, b) => a + (b.performance?.overallScore || 0), 0) / regularMembers.length)
-    : 100;
+    : 0;
 
   const taskCompletionRate = tasks.length > 0 
     ? Math.round((completedTasks.length / tasks.length) * 100) 
-    : 100;
+    : 0;
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">

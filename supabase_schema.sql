@@ -304,6 +304,17 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 13. BANNED USERS / BLACKLIST (Permanent Access Revocation)
+CREATE TABLE IF NOT EXISTS public.banned_users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    full_name TEXT,
+    national_id TEXT,
+    reason TEXT NOT NULL,
+    banned_at TIMESTAMPTZ DEFAULT NOW(),
+    banned_by TEXT
+);
+
 -- ==============================================================================
 -- STORAGE BUCKETS CONFIGURATION (Public Read Access)
 -- ==============================================================================
@@ -350,6 +361,9 @@ ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable all for banned_users" ON public.banned_users FOR ALL USING (true);
 
 -- Allow full read/write for all application operations (Anon + Authenticated)
 CREATE POLICY "Enable read for all users" ON public.members FOR SELECT USING (true);

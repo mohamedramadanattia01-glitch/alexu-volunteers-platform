@@ -147,7 +147,27 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
     }
   ]);
 
-  const currentEvent = liveEvent || events[0];
+  const fallbackEvent: any = {
+    id: 'live-operations-room',
+    name: 'غرفة العمليات المركزية والقيادة الميدانية الموحدة',
+    description: 'المتابعة المباشرة لانتشار المتطوعين، تدفق الحشود، وإدارة العمليات اللحظية بجامعة الإسكندرية.',
+    date: new Date().toISOString().slice(0, 10),
+    time: 'طوال اليوم (Live)',
+    location: 'المجمع المركزي للأنشطة والفعاليات — جامعة الإسكندرية',
+    expectedMembersCount: 150,
+    status: 'Live',
+    committeeQuotas: {
+      'comm-org': { required: 30, present: 0 },
+      'comm-hr': { required: 15, present: 0 },
+      'comm-montage': { required: 10, present: 0 },
+      'comm-media': { required: 15, present: 0 },
+      'comm-content': { required: 10, present: 0 },
+      'comm-design': { required: 10, present: 0 },
+    },
+    liveDashboardActive: true
+  };
+
+  const currentEvent = liveEvent || (events && events.length > 0 ? events[0] : fallbackEvent) || fallbackEvent;
   const eventTasks = tasks.filter(t => t.eventId === currentEvent.id || !t.eventId);
   const eventAttendance = attendanceRecords.filter(a => a.eventId === currentEvent.id);
   const activeSOS = sosAlerts.filter(s => s.status !== 'Closed');
@@ -545,14 +565,16 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(currentEvent.committeeQuotas).map(([commId, quota]) => {
-            const pct = quota.required > 0 ? Math.round((quota.present / quota.required) * 100) : 0;
+          {Object.entries(currentEvent.committeeQuotas || fallbackEvent.committeeQuotas || {}).map(([commId, quota]: [string, any]) => {
+            const pct = quota && quota.required > 0 ? Math.round(((quota.present || 0) / quota.required) * 100) : 0;
+            const presentCount = quota?.present || 0;
+            const requiredCount = quota?.required || 0;
             return (
               <div key={commId} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all">
                 <div className="flex items-center justify-between mb-2">
                   <CommitteeBadge committeeId={commId} size="sm" />
                   <span className="text-xs font-black text-emerald-400 font-mono">
-                    {quota.present} / {quota.required} حاضر
+                    {presentCount} / {requiredCount} حاضر
                   </span>
                 </div>
 

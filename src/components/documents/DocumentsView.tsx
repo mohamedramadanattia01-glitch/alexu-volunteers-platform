@@ -70,7 +70,7 @@ const getDocTypeInfo = (doc: DocumentItem) => {
 };
 
 export const DocumentsView: React.FC = () => {
-  const { documents, committees, deleteDocument, currentUser } = useApp();
+  const { documents, committees, deleteDocument, currentUser, isHighLeadership } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -79,7 +79,8 @@ export const DocumentsView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [documentToEdit, setDocumentToEdit] = useState<DocumentItem | null>(null);
 
-  const canManage = currentUser.role === 'super_admin' || currentUser.role === 'hr_admin' || currentUser.role === 'head';
+  // Strictly High Leadership (الادارة العليا) permission for upload/edit/delete
+  const canManage = isHighLeadership;
 
   const filteredDocs = documents.filter(doc => {
     const typeInfo = getDocTypeInfo(doc);

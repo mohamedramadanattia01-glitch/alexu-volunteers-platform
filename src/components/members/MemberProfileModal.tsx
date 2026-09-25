@@ -23,10 +23,11 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   onOpenDigitalPortfolio,
   onOpenEditProfile
 }) => {
-  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember } = useApp();
+  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember, filterOutMember } = useApp();
   const [isNationalIdRevealed, setIsNationalIdRevealed] = useState(false);
   const [isBanModalOpen, setIsBanModalOpen] = useState(false);
   const [banReasonInput, setBanReasonInput] = useState('');
+  const [actionType, setActionType] = useState<'ban' | 'filter'>('ban');
 
   if (!isOpen || !memberId) return null;
 
@@ -42,9 +43,13 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
     }
   };
 
-  const handleConfirmBan = () => {
-    const reason = banReasonInput.trim() || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي';
-    banMember(member.id, reason);
+  const handleConfirmBanOrFilter = () => {
+    const reason = banReasonInput.trim() || (actionType === 'filter' ? 'تصفية واستبعاد من الفريق' : 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي');
+    if (actionType === 'filter') {
+      filterOutMember(member.id, reason);
+    } else {
+      banMember(member.id, reason);
+    }
     setIsBanModalOpen(false);
     setBanReasonInput('');
   };
@@ -111,9 +116,13 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                   {member.volunteerId || member.id}
                 </span>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                  member.status === 'Banned' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400'
+                  member.status === 'Banned' 
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                    : isHighLeadershipMember(member)
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 }`}>
-                  {member.status === 'Banned' ? 'محظور' : `المستوى ${member.level} (${member.points} XP)`}
+                  {member.status === 'Banned' ? 'محظور' : isHighLeadershipMember(member) ? '👑 قيادة عليا وإشراف عام' : `المستوى ${member.level} (${member.points} XP)`}
                 </span>
               </div>
               <h3 className="text-xl font-extrabold text-white">{member.fullName}</h3>
@@ -143,13 +152,25 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             </button>
 
             {isHighLeadership && !isMe && member.status !== 'Banned' && (
-              <button
-                onClick={() => setIsBanModalOpen(true)}
-                className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-400 hover:text-rose-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Ban className="w-3.5 h-3.5" />
-                <span>حظر واستبعاد</span>
-              </button>
+              <>
+                <button
+                  onClick={() => { setActionType('filter'); setIsBanModalOpen(true); }}
+                  className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  title="تصفية واستبعاد العضو مع حظر الدخول"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                  <span>تصفية واستبعاد</span>
+                </button>
+
+                <button
+                  onClick={() => { setActionType('ban'); setIsBanModalOpen(true); }}
+                  className="px-3 py-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/50 text-amber-400 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  title="حظر وإدراج بالقائمة السوداء"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>حظر</span>
+                </button>
+              </>
             )}
 
             <button 
@@ -270,64 +291,83 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Performance 360 Matrix */}
+          {/* Performance 360 Matrix (Hidden for High Leadership) */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Award className="w-4 h-4 text-amber-400" />
-              <span>مصفوفة الأداء الشامل 360°</span>
+              <span>{isHighLeadershipMember(member) ? 'بيانات الصفة الإدارية والإشراف العام' : 'مصفوفة الأداء الشامل 360°'}</span>
             </h4>
 
-            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-3">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">نسبة الحضور والانضباط</span>
-                  <span className="font-bold text-emerald-400 font-mono">{member.performance.attendanceRate}%</span>
+            {isHighLeadershipMember(member) ? (
+              <div className="bg-gradient-to-br from-purple-950/40 via-slate-900/60 to-slate-950 p-4 rounded-xl border border-purple-500/30 space-y-3 text-xs">
+                <div className="flex items-center gap-2 text-purple-300 font-bold border-b border-purple-500/20 pb-2">
+                  <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  <span>👑 صفة القيادة العليا والإشراف العام</span>
                 </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${member.performance.attendanceRate}%` }} />
+                <p className="text-slate-300 leading-relaxed">
+                  هذا العضو يمثل القيادة العليا والإشرافية المباشرة على فريق المتطوعين واتحاد طلاب جامعة الإسكندرية.
+                </p>
+                <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 text-[11px] text-amber-300/90 leading-normal">
+                  📌 <strong>ملاحظة تنظيمية:</strong> القيادة العليا معفية من قياس نقاط التطوع والتقييمات الميدانية لأنها تمثل جهة الاعتماد والتقييم العليا.
+                </div>
+                <div className="flex justify-between items-center pt-1 text-[11px] text-slate-400">
+                  <span>الصلاحيات:</span>
+                  <span className="font-bold text-white">إشراف شامل على كافة اللجان والعمليات</span>
                 </div>
               </div>
+            ) : (
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">نسبة الحضور والانضباط</span>
+                    <span className="font-bold text-emerald-400 font-mono">{member.performance.attendanceRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${member.performance.attendanceRate}%` }} />
+                  </div>
+                </div>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">نسبة إنجاز المهام</span>
-                  <span className="font-bold text-blue-400 font-mono">{member.performance.taskCompletionRate}%</span>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">نسبة إنجاز المهام</span>
+                    <span className="font-bold text-blue-400 font-mono">{member.performance.taskCompletionRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-blue-500 h-full rounded-full" style={{ width: `${member.performance.taskCompletionRate}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${member.performance.taskCompletionRate}%` }} />
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">جودة المهام (Task Quality)</span>
-                  <span className="font-bold text-amber-400 font-mono">{member.performance.taskQuality} / 5</span>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">جودة المهام (Task Quality)</span>
+                    <span className="font-bold text-amber-400 font-mono">{member.performance.taskQuality} / 5</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-amber-400 h-full rounded-full" style={{ width: `${(member.performance.taskQuality / 5) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-amber-400 h-full rounded-full" style={{ width: `${(member.performance.taskQuality / 5) * 100}%` }} />
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">الالتزام والمسؤولية</span>
-                  <span className="font-bold text-sky-400 font-mono">{member.performance.commitment}%</span>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">الالتزام والمسؤولية</span>
+                    <span className="font-bold text-sky-400 font-mono">{member.performance.commitment}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-sky-400 h-full rounded-full" style={{ width: `${member.performance.commitment}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-sky-400 h-full rounded-full" style={{ width: `${member.performance.commitment}%` }} />
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">القيادة والمبادرة (Leadership Potential)</span>
-                  <span className="font-bold text-purple-400 font-mono">{member.performance.leadership}%</span>
-                </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-purple-500 h-full rounded-full" style={{ width: `${member.performance.leadership}%` }} />
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">القيادة والمبادرة (Leadership Potential)</span>
+                    <span className="font-bold text-purple-400 font-mono">{member.performance.leadership}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-purple-500 h-full rounded-full" style={{ width: `${member.performance.leadership}%` }} />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
         </div>
@@ -425,33 +465,37 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
         </div>
 
-        {/* Ban Confirmation Dialog Modal */}
+        {/* Ban / Filter Confirmation Dialog Modal */}
         {isBanModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
             <div className="relative w-full max-w-md bg-slate-950 rounded-2xl shadow-2xl border border-rose-600/60 p-6 space-y-4 text-right">
               <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
                 <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                  <Ban className="w-5 h-5" />
+                  {actionType === 'filter' ? <ShieldAlert className="w-5 h-5 text-rose-400" /> : <Ban className="w-5 h-5 text-amber-400" />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">حظر واستبعاد العضو نهائياً</h3>
-                  <p className="text-xs text-slate-400">إدراج العضو بالقائمة السوداء وحظر حسابه</p>
+                  <h3 className="text-base font-bold text-white">
+                    {actionType === 'filter' ? 'تصفية واستبعاد العضو من الفريق' : 'حظر العضو نهائياً من المنصة'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {actionType === 'filter' ? 'سحب العضوية وإيقاف الحساب ومنع الدخول' : 'إدراج العضو بالقائمة السوداء وحظر حسابه'}
+                  </p>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed">
-                هل أنت متأكد من رغبتك في تطبيق قرار الحظر الدائم على العضو <strong className="text-white font-bold">{member.fullName}</strong>؟
-              </p>
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-900/50 text-xs text-rose-200 leading-relaxed">
+                هل أنت متأكد من {actionType === 'filter' ? 'تصفية واستبعاد' : 'حظر'} العضو <strong className="text-white font-bold">{member.fullName}</strong>؟ سيتم إيقاف صلاحياته وجلسته فورا.
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  سبب قرار الاستبعاد والحظر *
+                  {actionType === 'filter' ? 'سبب قرار التصفية والاستبعاد *' : 'سبب قرار الحظر الرسمي *'}
                 </label>
                 <textarea
                   rows={3}
                   value={banReasonInput}
                   onChange={(e) => setBanReasonInput(e.target.value)}
-                  placeholder="اكتب سبب قرار الاستبعاد الرسمي..."
+                  placeholder={actionType === 'filter' ? 'اكتب سبب تصفية واستبعاد العضو...' : 'اكتب سبب قرار الحظر...'}
                   className="glass-input w-full text-xs resize-none"
                   required
                 />
@@ -467,11 +511,11 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleConfirmBan}
+                  onClick={handleConfirmBanOrFilter}
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Ban className="w-3.5 h-3.5" />
-                  <span>تأكيد الحظر والإدراج بالقائمة السوداء</span>
+                  {actionType === 'filter' ? <ShieldAlert className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                  <span>{actionType === 'filter' ? 'تأكيد التصفية والاستبعاد' : 'تأكيد الحظر والإدراج بالقائمة السوداء'}</span>
                 </button>
               </div>
             </div>
