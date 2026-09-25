@@ -1,13 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { DocumentItem } from '../../types';
-import { X, FileText, Upload, Check, FolderPlus, FileUp } from 'lucide-react';
+import { 
+  X, FileText, Upload, Check, FolderPlus, FileUp, 
+  FileSpreadsheet, Image as ImageIcon, Archive, FileCode,
+  File, Presentation, Sparkles
+} from 'lucide-react';
 
 interface AddDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
   documentToEdit?: DocumentItem | null;
 }
+
+const getFileTypeDetails = (fileName: string) => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') {
+    return { type: 'PDF', label: 'PDF Document', color: 'text-rose-400 bg-rose-950/80 border-rose-500/40' };
+  }
+  if (['doc', 'docx'].includes(ext)) {
+    return { type: 'Word', label: 'Word (DOCX)', color: 'text-blue-400 bg-blue-950/80 border-blue-500/40' };
+  }
+  if (['xls', 'xlsx', 'csv'].includes(ext)) {
+    return { type: 'Excel', label: 'Excel Sheet', color: 'text-emerald-400 bg-emerald-950/80 border-emerald-500/40' };
+  }
+  if (['ppt', 'pptx'].includes(ext)) {
+    return { type: 'PowerPoint', label: 'PowerPoint', color: 'text-amber-400 bg-amber-950/80 border-amber-500/40' };
+  }
+  if (['png', 'jpg', 'jpeg', 'svg', 'webp'].includes(ext)) {
+    return { type: 'Image', label: 'صورة / تصميم', color: 'text-purple-400 bg-purple-950/80 border-purple-500/40' };
+  }
+  if (['zip', 'rar', '7z', 'tar'].includes(ext)) {
+    return { type: 'Archive', label: 'ملف مضغوط', color: 'text-orange-400 bg-orange-950/80 border-orange-500/40' };
+  }
+  if (['txt', 'md'].includes(ext)) {
+    return { type: 'Text', label: 'مستند نصي', color: 'text-slate-300 bg-slate-800 border-slate-600' };
+  }
+  return { type: 'File', label: ext.toUpperCase() || 'ملف وثائقي', color: 'text-sky-400 bg-sky-950/80 border-sky-500/40' };
+};
 
 export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
   isOpen,
@@ -21,6 +51,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
   const [category, setCategory] = useState<DocumentItem['category']>('Rules');
   const [description, setDescription] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileType, setFileType] = useState('PDF');
   const [fileSize, setFileSize] = useState('2.4 MB');
   const [pdfBase64, setPdfBase64] = useState<string>('');
 
@@ -31,6 +62,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
       setCategory(documentToEdit.category);
       setDescription(documentToEdit.description || '');
       setFileName(documentToEdit.fileName || `${documentToEdit.title}.pdf`);
+      setFileType(documentToEdit.fileType || getFileTypeDetails(documentToEdit.fileName || 'file.pdf').type);
       setFileSize(documentToEdit.fileSize);
       setPdfBase64(documentToEdit.pdfBase64 || '');
     } else {
@@ -39,6 +71,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
       setCategory('Rules');
       setDescription('');
       setFileName('');
+      setFileType('PDF');
       setFileSize('1.5 MB');
       setPdfBase64('');
     }
@@ -51,8 +84,13 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
     if (!file) return;
 
     setFileName(file.name);
-    const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
-    setFileSize(`${sizeInMb} MB`);
+    const sizeInMb = file.size > 1024 * 1024 
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+      : `${Math.round(file.size / 1024)} KB`;
+    setFileSize(sizeInMb);
+
+    const details = getFileTypeDetails(file.name);
+    setFileType(details.type);
 
     if (!title) {
       setTitle(file.name.replace(/\.[^/.]+$/, ''));
@@ -73,6 +111,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
     }
 
     const commObj = committees.find(c => c.id === committeeId) || committees[0];
+    const finalFileType = fileType || getFileTypeDetails(fileName || 'file.pdf').type;
 
     if (documentToEdit) {
       updateDocument(documentToEdit.id, {
@@ -82,6 +121,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
         category,
         description,
         fileName: fileName || `${title.trim()}.pdf`,
+        fileType: finalFileType,
         fileSize,
         pdfBase64: pdfBase64 || documentToEdit.pdfBase64
       });
@@ -93,7 +133,7 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
         category,
         uploadedBy: currentUser.fullName,
         fileSize: fileSize || '2.0 MB',
-        fileType: 'PDF',
+        fileType: finalFileType,
         fileName: fileName || `${title.trim()}.pdf`,
         description,
         pdfBase64
@@ -102,6 +142,8 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
 
     onClose();
   };
+
+  const typeDetails = getFileTypeDetails(fileName || 'file.pdf');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
@@ -115,9 +157,9 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
-                {documentToEdit ? 'تعديل بيانات وثيقة PDF' : 'رفع وإضافة وثيقة PDF جديدة'}
+                {documentToEdit ? 'تعديل بيانات وثيقة أو ملف' : 'رفع وإضافة وثيقة أو ملف جديد'}
               </h3>
-              <p className="text-[11px] text-slate-400">توثيق الملفات الرسمية واللوائح بالأرشيف</p>
+              <p className="text-[11px] text-slate-400">توثيق الملفات الرسمية (PDF, Word, Excel, PowerPoint, صور، مضغوطة)</p>
             </div>
           </div>
 
@@ -134,18 +176,38 @@ export const AddDocumentModal: React.FC<AddDocumentModalProps> = ({
           
           {/* File Upload Selector */}
           <div>
-            <label className="block text-slate-300 font-bold mb-1.5">رفع ملف PDF من جهازك</label>
+            <label className="block text-slate-300 font-bold mb-1.5">
+              رفع الملف من جهازك (يدعم جميع الصيغ)
+            </label>
             <label className="border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer bg-slate-900/40 transition-colors">
-              <FileText className="w-8 h-8 text-sky-400 mb-2" />
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center mb-2">
+                {typeDetails.type === 'PDF' && <FileText className="w-6 h-6 text-rose-400" />}
+                {typeDetails.type === 'Word' && <FileText className="w-6 h-6 text-blue-400" />}
+                {typeDetails.type === 'Excel' && <FileSpreadsheet className="w-6 h-6 text-emerald-400" />}
+                {typeDetails.type === 'PowerPoint' && <Presentation className="w-6 h-6 text-amber-400" />}
+                {typeDetails.type === 'Image' && <ImageIcon className="w-6 h-6 text-purple-400" />}
+                {typeDetails.type === 'Archive' && <Archive className="w-6 h-6 text-orange-400" />}
+                {['File', 'Text'].includes(typeDetails.type) && <File className="w-6 h-6 text-sky-400" />}
+              </div>
+
               <span className="font-bold text-white text-xs mb-0.5">
-                {fileName ? fileName : 'اضغط لاختيار ملف PDF من جهازك'}
+                {fileName ? fileName : 'اضغط لاختيار ملف (PDF, Word, Excel, PPT, صور...)'}
               </span>
-              <span className="text-[11px] text-slate-500">
-                {fileName ? `الحجم: ${fileSize}` : 'يدعم صيغ PDF والوثائق الرسمية'}
-              </span>
+              <div className="flex items-center gap-2 mt-1">
+                {fileName ? (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${typeDetails.color}`}>
+                    {typeDetails.label} • {fileSize}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-500">
+                    PDF, DOCX, XLSX, PPTX, PNG, JPG, ZIP, RAR, TXT
+                  </span>
+                )}
+              </div>
+
               <input 
                 type="file" 
-                accept=".pdf,.doc,.docx" 
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.svg,.webp,.zip,.rar,.7z,.txt,.csv" 
                 onChange={handleFileUpload}
                 className="hidden" 
               />

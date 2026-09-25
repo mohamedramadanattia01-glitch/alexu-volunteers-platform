@@ -8,7 +8,8 @@ import {
   RolePermissionsMap, Role, EvaluationRubric, MemberEvaluationRecord, ComplaintCategory,
   MemberStatus, AttendanceSession, DailySessionEvaluation, GPSLocation,
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
-  HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment
+  HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
+  BannedUserRecord
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -80,7 +81,11 @@ interface AppContextType {
   addMember: (memberData: Partial<Member>) => void;
   importMembersBulk: (newMembers: Partial<Member>[]) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
-  deleteMember: (id: string) => void;
+  deleteMember: (id: string, alsoBanEmail?: boolean, banReason?: string) => void;
+  banMember: (id: string, reason: string) => void;
+  unbanMember: (id: string) => void;
+  bannedList: BannedUserRecord[];
+  isUserBanned: (emailOrNationalId: string) => boolean;
   archiveMember: (id: string, reason: string) => void;
   transferMemberCommittee: (memberId: string, newCommitteeId: string, reason: string) => void;
   revealNationalId: (memberId: string) => void;
@@ -205,7 +210,7 @@ interface AppContextType {
     preferredCommitteeId: string;
     bio?: string;
     skills?: { [k: string]: number };
-  }) => { success: boolean; message: string; member: Member };
+  }) => { success: boolean; message: string; member?: Member };
   approveMemberRegistration: (memberId: string, assignedCommitteeId: string, customRole?: Role) => { success: boolean; volunteerId: string };
   rejectMemberRegistration: (memberId: string, reason?: string) => void;
   logout: () => void;
@@ -237,14 +242,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : initialMembers;
   });
 
+  const [bannedList, setBannedList] = useState<BannedUserRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_BANNED`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_BANNED`, JSON.stringify(bannedList));
+  }, [bannedList]);
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_AUTH_STATUS`);
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false;
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_AUTH_USER_ID`);
-    return saved ? saved : 'user-advisor-mohamed-ramadan';
+    return saved ? saved : '';
   });
 
   useEffect(() => {
@@ -860,14 +874,128 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('تعديل بيانات عضو', `ID: ${id}`, 'تم تحديث ملف العضو');
   };
 
-  // Delete Member
-  const deleteMember = (id: string) => {
+  // Ban Member & Blacklist
+  const banMember = (id: string, reason: string) => {
     const target = members.find(m => m.id === id);
-    setMembers(prev => prev.filter(m => m.id !== id));
-    if (target) {
-      setCommittees(prev => prev.map(c => c.id === target.currentCommitteeId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c));
-      addAuditLog('حذف عضو من الفريق', target.fullName, `تم حذف العضو بواسطة ${currentUser.fullName}`);
+    if (!target) return;
+
+    const banReason = reason.trim() || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي';
+    const bannedAt = new Date().toISOString();
+    const bannedBy = currentUser?.fullName || 'القيادة العليا';
+
+    const updatedMember: Member = {
+      ...target,
+      status: 'Banned',
+      banReason,
+      bannedAt,
+      bannedBy
+    };
+
+    setMembers(prev => prev.map(m => m.id === id ? updatedMember : m));
+
+    const bannedRecord: BannedUserRecord = {
+      id: target.id,
+      email: target.universityEmail,
+      fullName: target.fullName,
+      nationalId: target.nationalId,
+      reason: banReason,
+      bannedAt,
+      bannedBy
+    };
+
+    setBannedList(prev => {
+      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase());
+      return [bannedRecord, ...filtered];
+    });
+
+    if (currentUserId === id) {
+      setIsAuthenticated(false);
+      setCurrentUserId('');
+      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
+
+    addAuditLog('حظر واستبعاد عضو نهائياً', `${target.fullName} (${target.universityEmail})`, `تم تطبيق الحظر الدائم والإدراج في القائمة السوداء. السبب: ${banReason}`);
+    playSound('alert');
+    showNotification('warning', `تم حظر واستبعاد العضو ${target.fullName} وإدراجه بالقائمة السوداء.`);
+    SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase ban error:', e));
+  };
+
+  // Unban Member
+  const unbanMember = (id: string) => {
+    const target = members.find(m => m.id === id);
+    if (!target) return;
+
+    const updatedMember: Member = {
+      ...target,
+      status: 'Active',
+      banReason: undefined,
+      bannedAt: undefined,
+      bannedBy: undefined
+    };
+
+    setMembers(prev => prev.map(m => m.id === id ? updatedMember : m));
+    setBannedList(prev => prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id));
+
+    addAuditLog('إلغاء حظر عضو', target.fullName, `تم رفع الحظر واستعادة العضو بواسطة ${currentUser.fullName}`);
+    playSound('normal');
+    showNotification('success', `تم رفع الحظر عن العضو ${target.fullName} واستعادة عضويته.`);
+    SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase unban error:', e));
+  };
+
+  // Check if User is Banned
+  const isUserBanned = (emailOrNationalId: string): boolean => {
+    if (!emailOrNationalId) return false;
+    const clean = emailOrNationalId.trim().toLowerCase();
+    const inBannedList = bannedList.some(b => 
+      b.email?.trim().toLowerCase() === clean || 
+      (b.nationalId && b.nationalId.trim() === emailOrNationalId.trim())
+    );
+    if (inBannedList) return true;
+
+    const memberBanned = members.some(m => 
+      m.status === 'Banned' && (
+        m.universityEmail?.trim().toLowerCase() === clean ||
+        (m.nationalId && m.nationalId.trim() === emailOrNationalId.trim())
+      )
+    );
+    return memberBanned;
+  };
+
+  // Delete Member (with optional permanent ban / blacklist)
+  const deleteMember = (id: string, alsoBanEmail: boolean = false, banReason: string = '') => {
+    const target = members.find(m => m.id === id);
+    if (!target) return;
+
+    if (alsoBanEmail) {
+      const reason = banReason.trim() || 'حظر دائم مع حذف السجل';
+      const bannedRecord: BannedUserRecord = {
+        id: target.id,
+        email: target.universityEmail,
+        fullName: target.fullName,
+        nationalId: target.nationalId,
+        reason,
+        bannedAt: new Date().toISOString(),
+        bannedBy: currentUser.fullName
+      };
+      setBannedList(prev => {
+        const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase());
+        return [bannedRecord, ...filtered];
+      });
+      addAuditLog('إدراج في القائمة السوداء مع الحذف', target.fullName, `تم حظر البريد ${target.universityEmail} نهائياً`);
+    }
+
+    setMembers(prev => prev.filter(m => m.id !== id));
+    setCommittees(prev => prev.map(c => c.id === target.currentCommitteeId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c));
+
+    if (currentUserId === id) {
+      setIsAuthenticated(false);
+      setCurrentUserId('');
+      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
+    }
+
+    addAuditLog('حذف عضو من الفريق', target.fullName, `تم حذف العضو بواسطة ${currentUser.fullName}${alsoBanEmail ? ' (مع الحظر الدائم)' : ''}`);
     playSound('task');
   };
 
@@ -2009,6 +2137,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithEmail = (email: string, password?: string) => {
     const cleanEmail = email.trim().toLowerCase();
+
+    // Check if blacklisted / banned in bannedList
+    const inBlacklist = bannedList.find(b => b.email?.trim().toLowerCase() === cleanEmail);
+    if (inBlacklist) {
+      return {
+        success: false,
+        message: `تم حظر هذا الحساب نهائياً من استخدام منصة المتطوعين. سبب الحظر: ${inBlacklist.reason || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي'}`,
+        status: 'Banned' as MemberStatus
+      };
+    }
+
     const found = members.find(m => 
       m.universityEmail?.trim().toLowerCase() === cleanEmail || 
       m.fullName?.trim().toLowerCase() === cleanEmail
@@ -2021,10 +2160,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
+    if (found.status === 'Banned') {
+      return {
+        success: false,
+        message: `تم حظر هذا الحساب نهائياً من استخدام منصة المتطوعين. سبب الحظر: ${found.banReason || 'مخالفة اللائحة التنظيمية'}`,
+        status: 'Banned' as MemberStatus,
+        member: found
+      };
+    }
+
     if (found.status === 'Pending' || found.status === 'Applicant') {
       return {
         success: false,
-        message: 'طلب عضويتك قيد المراجعة والاعتماد من قبل رئيس الفريق، سيتم إشعارك فور الاعتماد.',
+        message: 'طلب عضويتك قيد المراجعة والاعتماد من قبل القيادة العليا، سيتم إشعارك فور الاعتماد.',
         status: 'Pending' as MemberStatus,
         member: found
       };
@@ -2048,6 +2196,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCurrentUserId(found.id);
     setIsAuthenticated(true);
+    localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(true));
+    localStorage.setItem(`${STORAGE_KEY}_AUTH_USER_ID`, found.id);
     playSound('normal');
     showNotification('success', `مرحباً بعودتك يا ${found.fullName}!`);
     addAuditLog('تسجيل دخول', found.fullName, 'تسجيل دخول ناجح للمنصة');
@@ -2055,7 +2205,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       success: true,
       message: 'تم تسجيل الدخول بنجاح',
-      status: 'Active' as MemberStatus,
+      status: found.status,
       member: found
     };
   };
@@ -2073,16 +2223,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     bio?: string;
     skills?: { [k: string]: number };
   }) => {
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const cleanNatId = formData.nationalId ? formData.nationalId.trim() : '';
+
+    // Check blacklist / banned
+    const isBlacklisted = bannedList.some(b => 
+      b.email.toLowerCase() === cleanEmail || 
+      (cleanNatId && b.nationalId && b.nationalId.trim() === cleanNatId)
+    );
+
+    if (isBlacklisted) {
+      return {
+        success: false,
+        message: 'عذراً، هذا البريد الإلكتروني أو الرقم القومي محظور نهائياً من التسجيل أو استخدام المنصة.'
+      };
+    }
+
     const existing = members.find(m => 
-      m.universityEmail?.trim().toLowerCase() === formData.email.trim().toLowerCase() ||
-      (formData.nationalId && m.nationalId === formData.nationalId)
+      m.universityEmail?.trim().toLowerCase() === cleanEmail ||
+      (cleanNatId && m.nationalId === cleanNatId)
     );
 
     if (existing) {
+      if (existing.status === 'Banned') {
+        return {
+          success: false,
+          message: 'عذراً، هذا الحساب محظور نهائياً من استخدام المنصة لمخالفة اللائحة التنظيمية.',
+          member: existing
+        };
+      }
       if (existing.status === 'Pending' || existing.status === 'Applicant') {
         return {
           success: false,
-          message: 'يوجد طلب تسجيل معلق بالفعل بهذا البريد الإلكتروني أو الرقم القومي، بانتظار اعتماد رئيس الفريق.',
+          message: 'يوجد طلب تسجيل معلق بالفعل بهذا البريد الإلكتروني أو الرقم القومي، بانتظار اعتماد القيادة العليا.',
           member: existing
         };
       }
@@ -2099,13 +2272,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `user-applicant-${Date.now()}`,
       volunteerId: 'PENDING',
       fullName: formData.fullName.trim(),
-      universityEmail: formData.email.trim().toLowerCase(),
+      universityEmail: cleanEmail,
       college: formData.college || 'جامعة الإسكندرية',
       academicYear: formData.academicYear || 'الفرقة الأولى',
       whatsappNumber: formData.whatsapp || '',
       birthDate: formData.birthDate || '2005-01-01',
       age: 20,
-      nationalId: formData.nationalId || '30000000000000',
+      nationalId: cleanNatId || '30000000000000',
       currentCommitteeId: prefComm ? prefComm.id : 'comm-org',
       currentCommitteeName: prefComm ? prefComm.name : 'لجنة التنظيم',
       preferredCommitteeId: prefComm ? prefComm.id : 'comm-org',
@@ -2161,7 +2334,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     playSound('alert');
-    showNotification('info', 'تم إرسال طلب انضمامك بنجاح وهو الآن بانتظار اعتماد وموافقة رئيس الفريق ومستشار الفريق');
+    showNotification('info', 'تم إرسال طلب انضمامك بنجاح وهو الآن بانتظار اعتماد وموافقة القيادة العليا ومستشار الفريق');
 
     return {
       success: true,
@@ -2240,6 +2413,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setIsAuthenticated(false);
+    setCurrentUserId('');
+    localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+    localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     showNotification('info', 'تم تسجيل الخروج بنجاح.');
   };
 
@@ -2299,7 +2475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isHead,
         isHighLeadershipMember,
 
-        // Authentication & Approvals
+        // Authentication & Approvals & Blacklist
         isAuthenticated,
         pendingMembers,
         loginWithEmail,
@@ -2307,6 +2483,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveMemberRegistration,
         rejectMemberRegistration,
         logout,
+        banMember,
+        unbanMember,
+        bannedList,
+        isUserBanned,
 
         setActiveTab,
         switchSeason,
@@ -2408,3 +2588,4 @@ export const useApp = () => {
   }
   return context;
 };
+

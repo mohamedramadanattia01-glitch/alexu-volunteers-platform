@@ -4,7 +4,8 @@ import {
   LogIn, UserPlus, Shield, Sparkles, Mail, Lock, 
   User, Phone, CreditCard, Building2, Calendar, 
   CheckCircle2, Clock, AlertCircle, ArrowRight, 
-  Crown, Star, Layers, ChevronLeft, RefreshCw, Send, Check, X
+  Crown, Star, Layers, ChevronLeft, RefreshCw, Send, Check, X,
+  ShieldAlert, Ban
 } from 'lucide-react';
 import { Member } from '../../types';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
@@ -12,10 +13,10 @@ import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 export const AuthScreen: React.FC = () => {
   const { 
     loginWithEmail, registerVolunteer, committees, 
-    members, branding, playSound 
+    members, bannedList, isUserBanned, branding, playSound 
   } = useApp();
 
-  const [mode, setMode] = useState<'login' | 'register' | 'pending_status'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'pending_status' | 'banned_status'>('login');
   
   // Google Auth Modal / Simulation state
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
@@ -47,6 +48,15 @@ export const AuthScreen: React.FC = () => {
   // Pending user preview state
   const [pendingApplicant, setPendingApplicant] = useState<Member | null>(null);
 
+  // Banned user details state
+  const [bannedUserDetails, setBannedUserDetails] = useState<{
+    email: string;
+    fullName?: string;
+    reason?: string;
+    bannedAt?: string;
+    bannedBy?: string;
+  } | null>(null);
+
   const collegesList = ALEXANDRIA_UNIVERSITY_COLLEGES;
 
   const academicYearsList = [
@@ -71,7 +81,17 @@ export const AuthScreen: React.FC = () => {
       setLoginLoading(false);
 
       if (!res.success) {
-        if (res.status === 'Pending' && res.member) {
+        if (res.status === 'Banned') {
+          const blacklisted = bannedList.find(b => b.email?.toLowerCase() === loginEmail.trim().toLowerCase());
+          setBannedUserDetails({
+            email: loginEmail.trim(),
+            fullName: res.member?.fullName || blacklisted?.fullName,
+            reason: res.member?.banReason || blacklisted?.reason || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي',
+            bannedAt: res.member?.bannedAt || blacklisted?.bannedAt,
+            bannedBy: res.member?.bannedBy || blacklisted?.bannedBy
+          });
+          setMode('banned_status');
+        } else if (res.status === 'Pending' && res.member) {
           setPendingApplicant(res.member);
           setMode('pending_status');
         } else {
@@ -136,6 +156,22 @@ export const AuthScreen: React.FC = () => {
       setIsGoogleModalOpen(false);
 
       const targetEmail = googleEmailInput.trim().toLowerCase();
+
+      // Check if banned
+      if (isUserBanned(targetEmail)) {
+        const blacklisted = bannedList.find(b => b.email?.toLowerCase() === targetEmail);
+        const mem = members.find(m => m.universityEmail?.toLowerCase() === targetEmail);
+        setBannedUserDetails({
+          email: targetEmail,
+          fullName: mem?.fullName || blacklisted?.fullName,
+          reason: mem?.banReason || blacklisted?.reason || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي',
+          bannedAt: mem?.bannedAt || blacklisted?.bannedAt,
+          bannedBy: mem?.bannedBy || blacklisted?.bannedBy
+        });
+        setMode('banned_status');
+        return;
+      }
+
       const existing = members.find(m => m.universityEmail?.trim().toLowerCase() === targetEmail);
 
       if (existing) {
@@ -144,6 +180,15 @@ export const AuthScreen: React.FC = () => {
         } else if (existing.status === 'Pending' || existing.status === 'Applicant') {
           setPendingApplicant(existing);
           setMode('pending_status');
+        } else if (existing.status === 'Banned') {
+          setBannedUserDetails({
+            email: targetEmail,
+            fullName: existing.fullName,
+            reason: existing.banReason || 'مخالفة اللائحة التنظيمية',
+            bannedAt: existing.bannedAt,
+            bannedBy: existing.bannedBy
+          });
+          setMode('banned_status');
         } else {
           setLoginError('حسابك مؤرشف أو غير مفعل حالياً');
         }
@@ -227,8 +272,8 @@ export const AuthScreen: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab Switcher (Only if not in pending status view) */}
-        {mode !== 'pending_status' && (
+        {/* Tab Switcher (Only if in login or register mode) */}
+        {mode !== 'pending_status' && mode !== 'banned_status' && (
           <div className="flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5 text-xs sm:text-sm font-bold">
             <button
               onClick={() => { setMode('login'); setLoginError(''); }}
@@ -639,6 +684,73 @@ export const AuthScreen: React.FC = () => {
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   <span>العودة لصفحة الدخول</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* 4. BANNED / BLACKLISTED STATUS SCREEN */}
+          {/* ======================================================== */}
+          {mode === 'banned_status' && bannedUserDetails && (
+            <div className="text-center py-5 space-y-4 animate-in fade-in zoom-in-95">
+              <div className="w-20 h-20 mx-auto rounded-3xl bg-rose-500/20 border-2 border-rose-500/50 flex items-center justify-center shadow-xl shadow-rose-500/25 animate-bounce">
+                <ShieldAlert className="w-10 h-10 text-rose-500" />
+              </div>
+
+              <div>
+                <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 font-bold text-xs border border-rose-500/40 inline-flex items-center gap-1.5 mb-2 shadow-sm">
+                  <Ban className="w-3.5 h-3.5 text-rose-400" />
+                  <span>حساب محظور ومستبعد نهائياً ⛔</span>
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-white">
+                  عذراً، تم إيقاف وحظر هذا الحساب
+                </h2>
+                <p className="text-xs text-rose-200/90 mt-2 max-w-md mx-auto leading-relaxed bg-rose-950/40 p-3 rounded-xl border border-rose-800/40">
+                  تم حظر هذا الحساب واستبعاد صاحبه نهائياً من استخدام منصة متطوعي اتحاد طلاب جامعة الإسكندرية بناءً على قرار صادر من القيادة العليا.
+                </p>
+              </div>
+
+              {/* Banned Info Card */}
+              <div className="p-4 rounded-2xl bg-slate-950/90 border border-rose-900/60 text-right space-y-2.5 text-xs max-w-md mx-auto shadow-inner">
+                {bannedUserDetails.fullName && (
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                    <span className="text-slate-400">الاسم:</span>
+                    <span className="font-bold text-white">{bannedUserDetails.fullName}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <span className="text-slate-400">البريد الإلكتروني المحظور:</span>
+                  <span className="font-semibold text-rose-400 font-mono">{bannedUserDetails.email}</span>
+                </div>
+                <div className="border-b border-slate-800/80 pb-2 space-y-1">
+                  <span className="text-slate-400 block">سبب الحظر والاستبعاد:</span>
+                  <span className="font-medium text-rose-300 block bg-rose-950/30 p-2 rounded-lg border border-rose-900/30">
+                    {bannedUserDetails.reason || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي'}
+                  </span>
+                </div>
+                {bannedUserDetails.bannedBy && (
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                    <span className="text-slate-400">الجهة المصدرة للقرار:</span>
+                    <span className="font-bold text-slate-200">{bannedUserDetails.bannedBy}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">الإجراء:</span>
+                  <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-400 font-bold text-[11px] border border-rose-800/50">
+                    حظر دائم وشامل (Blacklisted)
+                  </span>
+                </div>
+              </div>
+
+              {/* Switch Account Button */}
+              <div className="pt-2 flex justify-center">
+                <button
+                  onClick={() => { setMode('login'); setBannedUserDetails(null); }}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-700 shadow-md"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>تسجيل الدخول بحساب آخر</span>
                 </button>
               </div>
             </div>

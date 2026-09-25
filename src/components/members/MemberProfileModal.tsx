@@ -5,7 +5,7 @@ import {
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
   Calendar, Phone, Mail, GraduationCap, Clock, 
   Sparkles, History, Star, ArrowRightLeft, HeartHandshake,
-  Heart, Edit3 
+  Heart, Edit3, Ban, ShieldAlert, RotateCcw 
 } from 'lucide-react';
 
 interface MemberProfileModalProps {
@@ -23,8 +23,10 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   onOpenDigitalPortfolio,
   onOpenEditProfile
 }) => {
-  const { members, revealNationalId, currentUser, badges } = useApp();
+  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember } = useApp();
   const [isNationalIdRevealed, setIsNationalIdRevealed] = useState(false);
+  const [isBanModalOpen, setIsBanModalOpen] = useState(false);
+  const [banReasonInput, setBanReasonInput] = useState('');
 
   if (!isOpen || !memberId) return null;
 
@@ -40,6 +42,17 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
     }
   };
 
+  const handleConfirmBan = () => {
+    const reason = banReasonInput.trim() || 'مخالفة اللائحة التنظيمية وسلوكيات العمل التطوعي';
+    banMember(member.id, reason);
+    setIsBanModalOpen(false);
+    setBanReasonInput('');
+  };
+
+  const handleUnban = () => {
+    unbanMember(member.id);
+  };
+
   const earnedBadges = badges.filter(b => member.badges.includes(b.id));
   const isMe = member.id === currentUser.id;
   const canEdit = isMe || currentUser.role === 'super_admin' || currentUser.role === 'hr_admin';
@@ -48,24 +61,59 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div className="glass-card max-w-3xl w-full p-6 border border-blue-500/30 shadow-2xl bg-slate-950 text-right my-8 max-h-[90vh] overflow-y-auto">
         
+        {/* Banned Alert Banner if Member is Banned */}
+        {member.status === 'Banned' && (
+          <div className="mb-4 p-4 rounded-2xl bg-rose-950/60 border border-rose-600/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
+                <Ban className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="font-bold text-sm text-white flex items-center gap-2">
+                  <span>هذا الحساب محظور ومستبعد نهائياً ⛔</span>
+                  {member.bannedBy && <span className="text-xs text-rose-400">({member.bannedBy})</span>}
+                </div>
+                <p className="text-xs text-rose-300/90 mt-0.5">
+                  السبب: {member.banReason || 'مخالفة اللائحة التنظيمية'}
+                  {member.bannedAt && ` • ${new Date(member.bannedAt).toLocaleDateString('ar-EG')}`}
+                </p>
+              </div>
+            </div>
+
+            {isHighLeadership && (
+              <button
+                onClick={handleUnban}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>إلغاء الحظر</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Header with Background Glow */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 border-b border-slate-800 mb-6 gap-4 relative">
           <div className="flex items-center gap-4">
             <img 
               src={member.avatarUrl} 
               alt="" 
-              className="w-20 h-20 rounded-2xl object-cover border-2 border-blue-500/50 shadow-xl"
+              className={`w-20 h-20 rounded-2xl object-cover border-2 shadow-xl ${
+                member.status === 'Banned' ? 'border-rose-500/60 grayscale' : 'border-blue-500/50'
+              }`}
             />
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/30">
                   {member.currentCommitteeName}
                 </span>
                 <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-sky-950 text-sky-300 font-bold border border-sky-500/40">
                   {member.volunteerId || member.id}
                 </span>
-                <span className="text-xs text-amber-400 font-bold">
-                  المستوى {member.level} ({member.points} XP)
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                  member.status === 'Banned' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400'
+                }`}>
+                  {member.status === 'Banned' ? 'محظور' : `المستوى ${member.level} (${member.points} XP)`}
                 </span>
               </div>
               <h3 className="text-xl font-extrabold text-white">{member.fullName}</h3>
@@ -76,7 +124,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit && onOpenEditProfile && (
+            {canEdit && onOpenEditProfile && member.status !== 'Banned' && (
               <button
                 onClick={() => { onClose(); onOpenEditProfile(member); }}
                 className="btn-secondary text-xs py-2 px-3 cursor-pointer"
@@ -93,6 +141,16 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
               <FileText className="w-3.5 h-3.5" />
               <span>توليد السيرة الذاتية (CV)</span>
             </button>
+
+            {isHighLeadership && !isMe && member.status !== 'Banned' && (
+              <button
+                onClick={() => setIsBanModalOpen(true)}
+                className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-400 hover:text-rose-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>حظر واستبعاد</span>
+              </button>
+            )}
 
             <button 
               onClick={onClose}
@@ -366,6 +424,59 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Ban Confirmation Dialog Modal */}
+        {isBanModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+            <div className="relative w-full max-w-md bg-slate-950 rounded-2xl shadow-2xl border border-rose-600/60 p-6 space-y-4 text-right">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <Ban className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">حظر واستبعاد العضو نهائياً</h3>
+                  <p className="text-xs text-slate-400">إدراج العضو بالقائمة السوداء وحظر حسابه</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                هل أنت متأكد من رغبتك في تطبيق قرار الحظر الدائم على العضو <strong className="text-white font-bold">{member.fullName}</strong>؟
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  سبب قرار الاستبعاد والحظر *
+                </label>
+                <textarea
+                  rows={3}
+                  value={banReasonInput}
+                  onChange={(e) => setBanReasonInput(e.target.value)}
+                  placeholder="اكتب سبب قرار الاستبعاد الرسمي..."
+                  className="glass-input w-full text-xs resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setIsBanModalOpen(false); setBanReasonInput(''); }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBan}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>تأكيد الحظر والإدراج بالقائمة السوداء</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

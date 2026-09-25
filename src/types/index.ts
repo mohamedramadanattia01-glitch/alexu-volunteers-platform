@@ -21,7 +21,17 @@ export interface Permission {
   enabled: boolean;
 }
 
-export type MemberStatus = 'Applicant' | 'Pending' | 'Active' | 'On Leave' | 'Inactive' | 'Alumni' | 'Archived';
+export type MemberStatus = 'Applicant' | 'Pending' | 'Active' | 'On Leave' | 'Inactive' | 'Alumni' | 'Archived' | 'Banned';
+
+export interface BannedUserRecord {
+  id: string;
+  email: string;
+  fullName: string;
+  nationalId?: string;
+  reason: string;
+  bannedAt: string;
+  bannedBy: string;
+}
 
 export interface CommitteeHistoryItem {
   id: string;
@@ -85,6 +95,9 @@ export interface Member {
   password?: string;
   registrationDate?: string;
   rejectionReason?: string;
+  banReason?: string;
+  bannedAt?: string;
+  bannedBy?: string;
   preferredCommitteeId?: string;
   preferredCommitteeName?: string;
 }

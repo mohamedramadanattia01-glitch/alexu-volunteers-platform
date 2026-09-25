@@ -3,7 +3,8 @@ import {
   Member, Committee, Season, Task, EventEntity, AttendanceRecord, 
   AttendanceSession, MemberEvaluationRecord, HeadEvaluationRecord, 
   Complaint, DocumentItem, Announcement, AuditLogItem, SystemNotification,
-  AppBrandingSettings, AppSoundSettings, RolePermissionsMap, EvaluationRubric, HeadEvaluationRubric
+  AppBrandingSettings, AppSoundSettings, RolePermissionsMap, EvaluationRubric, HeadEvaluationRubric,
+  BannedUserRecord
 } from '../types';
 
 export class SupabaseService {
@@ -66,6 +67,7 @@ export class SupabaseService {
     announcements?: Announcement[];
     auditLogs?: AuditLogItem[];
     notifications?: SystemNotification[];
+    bannedUsers?: BannedUserRecord[];
     settings?: {
       branding?: AppBrandingSettings;
       sounds?: AppSoundSettings;
@@ -94,6 +96,7 @@ export class SupabaseService {
         { data: announcementsData },
         { data: auditLogsData },
         { data: notificationsData },
+        { data: bannedUsersData },
         { data: settingsData }
       ] = await Promise.all([
         supabase.from('members').select('*'),
@@ -110,6 +113,7 @@ export class SupabaseService {
         supabase.from('announcements').select('*').order('created_at', { ascending: false }),
         supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(200),
         supabase.from('system_notifications').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('banned_users').select('*').order('banned_at', { ascending: false }),
         supabase.from('app_settings').select('*')
       ]);
 
@@ -394,6 +398,18 @@ export class SupabaseService {
         }));
       }
 
+      if (bannedUsersData && bannedUsersData.length > 0) {
+        result.bannedUsers = bannedUsersData.map((b: any) => ({
+          id: b.id,
+          email: b.email,
+          fullName: b.full_name || '',
+          nationalId: b.national_id,
+          reason: b.reason || 'مخالفة اللائحة التنظيمية',
+          bannedAt: b.banned_at || new Date().toISOString(),
+          bannedBy: b.banned_by || 'القيادة العليا'
+        }));
+      }
+
       return result;
     } catch (err) {
       console.warn('Supabase data load error:', err);
@@ -535,6 +551,72 @@ export class SupabaseService {
       });
     } catch (e) {
       console.error('insertAttendanceRecord failed:', e);
+    }
+  }
+
+  static async upsertBannedUser(banned: BannedUserRecord) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('banned_users').upsert({
+        id: banned.id,
+        email: banned.email,
+        full_name: banned.fullName,
+        national_id: banned.nationalId,
+        reason: banned.reason,
+        banned_at: banned.bannedAt,
+        banned_by: banned.bannedBy
+      });
+    } catch (e) {
+      console.error('upsertBannedUser failed:', e);
+    }
+  }
+
+  static async deleteBannedUser(emailOrId: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('banned_users').delete().or(`id.eq.${emailOrId},email.eq.${emailOrId}`);
+    } catch (e) {
+      console.error('deleteBannedUser failed:', e);
+    }
+  }
+
+  static async upsertDocument(doc: DocumentItem) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('documents').upsert({
+        id: doc.id,
+        title: doc.title,
+        committee_id: doc.committeeId,
+        committee_name: doc.committeeName,
+        category: doc.category,
+        uploaded_by: doc.uploadedBy,
+        uploaded_at: doc.uploadedAt,
+        file_size: doc.fileSize,
+        file_type: doc.fileType,
+        file_name: doc.fileName,
+        description: doc.description,
+        file_url: doc.fileUrl
+      });
+    } catch (e) {
+      console.error('upsertDocument failed:', e);
+    }
+  }
+
+  static async deleteDocument(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('documents').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteDocument failed:', e);
+    }
+  }
+
+  static async deleteMember(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('members').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteMember failed:', e);
     }
   }
 }
