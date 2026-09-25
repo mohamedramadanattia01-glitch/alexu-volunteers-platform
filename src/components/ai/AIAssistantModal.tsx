@@ -223,53 +223,115 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ isOpen, onCl
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Smart, Wise, Cheerful & Witty AI Response Engine
-  const generateSmartWittyResponse = (userPrompt: string) => {
+  // Smart, Wise, Cheerful & Witty AI Response Engine with Open-Source LLM Integration
+  const generateSmartWittyResponse = async (userPrompt: string) => {
     setIsTyping(true);
-    const prompt = userPrompt.toLowerCase();
+    const prompt = userPrompt.trim();
 
-    setTimeout(() => {
-      let reply = '';
+    // 1. Try real Open-Source LLM API (Mistral / Qwen / LLaMA via Pollinations AI)
+    let aiResponseText = '';
+    try {
+      const systemPrompt = `أنت «شربيني» المساعد الذكي والمستشار الميداني الرسمي لفريق متطوعي اتحاد طلاب جامعة الإسكندرية (Alexandria University Volunteers Platform).
+أنت شخصية مصرية اسكندرانية أصيلة، بالغة الذكاء، حكيمة جداً في الإدارة والتنظيم، دافئة، مرحة ودمك خفيف ومبتكر، لا تكرر نفس الجمل أبداً، وترد دائماً بأسلوب ممتع ومقنع وملهم.
+بيانات الفريق الحية:
+- المستخدم الحالي: ${currentUser.fullName} (${currentUser.position || 'عضو متطوع'})، دوره: ${currentUser.role}، لجنته: ${currentUser.currentCommitteeName || 'لجان المتطوعين'}.
+- مؤشر صحة الفريق العام: ${teamHealthScore}%.
+- إجمالي المتطوعين النشطين: ${members.length} متطوع.
+- اللجان الرسمية: ${committees.map(c => c.name).join('، ')}.
+- الفعاليات الحالية والمجدولة: ${events.map(e => `${e.name} (${e.date})`).slice(0, 3).join('، ')}.
+- المهام النشطة: ${tasks.filter(t => t.status !== 'Approved').length} مهام قيد التنفيذ.
 
-      if (prompt.includes('سلام') || prompt.includes('صباح') || prompt.includes('مساء') || prompt.includes('ازيك') || prompt.includes('عامل ايه')) {
-        reply = `يا هلا بيك وبطلعتك المنورة! 🌟 أنا تمام والحمد لله جاهز بالورقة والقلم والابتسامة الاسكندراني! قولي، اليوم في معركة تنظيمية ولا عايزين نخطط لحاجة عظمة؟`;
-      } 
-      else if (prompt.includes('تعبان') || prompt.includes('ضغط') || prompt.includes('مرهق') || prompt.includes('زهقت') || prompt.includes('مش قادر')) {
-        reply = `يا غالي روق وهدي اللعب شوية.. ☕ كوباية شاي بلبن اسكندراني مع نسمة بحر من الكورنيش وهترجع زي الفل! افتكر دايماً إن التطوع متعة مش عقاب، وزّع المهام على باقي الأبطال وخد لك بريك نص ساعة، الاتحاد مش هيطير وإحنا وراك دايماً! 💙`;
+تعليماتك:
+1. افهم سؤال ورسالة المستخدم بدقة، وأجب بشكل مخصص ومباشر على سؤاله أو موقفه.
+2. امزج بين الحكمة الإدارية الميدانية، والتشجيع الإيجابي، والفكاهة المصرية الاسكندرانية اللطيفة.
+3. إذا سألك عن حلول ميدانية أو أزمات، قدم 3 خطوات عملية وواضحة فورية.
+4. حافظ على نبرة القيادة الداعمة والأخوية. اجعل إجابتك مركزة وممتعة (بين 2 إلى 5 أسطر).`;
+
+      const messagesPayload = [
+        { role: 'system', content: systemPrompt },
+        ...chatMessages.slice(-6).map(m => ({ 
+          role: m.role === 'ai' ? 'assistant' : 'user', 
+          content: m.text 
+        })),
+        { role: 'user', content: prompt }
+      ];
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messagesPayload,
+          model: 'mistral',
+          seed: Math.floor(Math.random() * 100000)
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const text = await response.text();
+        if (text && text.trim().length > 10 && !text.includes('Error')) {
+          aiResponseText = text.trim();
+        }
       }
-      else if (prompt.includes('تنظيم') || prompt.includes('حشود') || prompt.includes('قاعة') || prompt.includes('فعالية') || prompt.includes('مدرج')) {
-        reply = `يا باشا سر التنظيم الناجح في كلمتين: «الابتسامة والهدوء»! 😉\n1. حط نقطة استقبال واضحة عند الباب الرئيسي.\n2. قسّم قاعة المدرج قطاعات (يمين، شمال، وسط) ولكل قطاع متطوعين ثابتين.\n3. خلي اللاسلكي أو جروب الواتساب شغال للأمور الطارئة بس، وبلاش زحمة كلام عشان التركيز!`;
+    } catch (e) {
+      // Network timeout or offline -> fallback to dynamic local smart engine
+    }
+
+    // 2. Fallback to Dynamic Local Semantic Reasoning Engine if API is offline
+    if (!aiResponseText) {
+      const lower = prompt.toLowerCase();
+      const activeCount = tasks.filter(t => t.status !== 'Approved').length;
+
+      if (lower.includes('سلام') || lower.includes('صباح') || lower.includes('مساء') || lower.includes('ازيك') || lower.includes('عامل ايه') || lower.includes('أهلاً')) {
+        const greetings = [
+          `يا هلا بيك وبطلعتك المنورة يا ${currentUser.fullName.split(' ')[0]}! 🌟 أنا شغال بكامل طاقتي والحمد لله، جاهز بالورقة والقلم والابتسامة الاسكندراني.. قولي، إيه الخطة العظمة اللي هننفذها سوا؟`,
+          `ألف مرحب يا بطلنا الغالي! 🌊 نسمة بحر إسكندرية بتمسي عليك.. مؤشرات الفريق اليوم في قمة الجاهزية (${teamHealthScore}%)، تؤمرني بإيه ننجزه النهاردة؟`,
+          `يا صباح ومساء الفل والنشاط! ☕ أنا معاك خطوة بخطوة لدعم أي فكرة أو تنظيم أي فعالية لشباب الاتحاد العظماء!`
+        ];
+        aiResponseText = greetings[Math.floor(Math.random() * greetings.length)];
       }
-      else if (prompt.includes('صحة الفريق') || prompt.includes('أداء') || prompt.includes('مؤشر') || prompt.includes('تقييم')) {
-        reply = `مؤشر صحة الفريق العام حالياً واصل ${teamHealthScore}% 🟢\nاللجان شغالة بروح عالية، وأهم حاجة نفضل محافظين على التناغم ونشجع المتطوعين الجدد بكلمة حلوة وشكر فوري في الاجتماع الجاي!`;
+      else if (lower.includes('تعب') || lower.includes('ضغط') || lower.includes('مرهق') || lower.includes('زهقت') || lower.includes('مش قادر') || lower.includes('إرهاق')) {
+        const relief = [
+          `يا غالي روق وهدي اللعب شوية.. ☕ خد لك بريك 15 دقيقة مع كوباية شاي بلبن اسكندراني، التطوع شغف ومتعة مش سباق تعذيب! وزّع المهام على باقي الأبطال في ${currentUser.currentCommitteeName || 'اللجنة'} وهتلاقي الشغل خلص بلمح البصر! 💙`,
+          `حقك تتعب يا بطل، الميدان مش سهل.. بس افتكر دايماً إن التعب بيروح وفرحة نجاح الإيفنت وشهادات التقدير بتفضل محفورة في الذاكرة! خد نفس عميق وريّح شوية والاتحاد في ضهرك دايماً! 🌟`
+        ];
+        aiResponseText = relief[Math.floor(Math.random() * relief.length)];
       }
-      else if (prompt.includes('متطوع زعلان') || prompt.includes('مشكلة') || prompt.includes('خناقة') || prompt.includes('شكوى')) {
-        reply = `حكمة شربيني الميدانية: «المتطوع الزعلان محتاج ودان تسمعه وقلب يقدره»! 🤝\nاسمع منه الأول على انفراد من غير مقاطعة، حسسه إن رأيه فارق جداً، واديله تكليف يظهر فيه شطارته.. هتلاقيه اتحول لأكتر واحد متحمس في الفريق!`;
+      else if (lower.includes('تنظيم') || lower.includes('حشود') || lower.includes('قاعة') || lower.includes('فعالية') || lower.includes('مدرج') || lower.includes('ميدان')) {
+        aiResponseText = `حكمة شربيني الميدانية لإدارة الفعاليات: «الابتسامة الواثقة تفتح أصعب مدرج»! 😉\n1. وزّع المتطوعين على 3 خطوط: (بوابة الاستقبال، توجيه الممرات، ومنصة المسرح).\n2. خصص 2 متطوعين لحالات الطوارئ والـ SOS السريعة.\n3. استخدم المنظومة لمسح الحضور بـ QR عند الدخول لمنع أي تكدس على الأبواب!`;
       }
-      else if (prompt.includes('نكتة') || prompt.includes('اضحك') || prompt.includes('دمك خفيف') || prompt.includes('هزار')) {
-        reply = `مرة متطوع في لجنة التنظيم سألوه: إيه أحلى حاجة في الإيفنت؟ قالهم: اللحظة اللي بنقول فيها للحضور "تفضلوا بالجلوس" والكل يقعد فعلاً ومحدش يعترض! دي لوحدها معجزة إدارية بتفرح القلب 😂❤️`;
+      else if (lower.includes('صحة') || lower.includes('أداء') || lower.includes('مؤشر') || lower.includes('إحصائيات')) {
+        aiResponseText = `إليك رصد مباشر لمؤشرات الفريق: 📊\n• صحة الفريق العامة: ${teamHealthScore}% 🟢\n• عدد المتطوعين الموثقين: ${members.length} متطوع.\n• المهام الجارية: ${activeCount} مهام نشطة.\nاللجان ماشية بانتظام ممتاز، وخاصة مع المتابعة الدقيقة للتقييمات!`;
       }
-      else if (prompt.includes('لجنة') || prompt.includes('لجان') || prompt.includes('هيد')) {
-        const commCount = committees.length;
-        reply = `عندنا ${commCount} لجان تخصصية وحوش في الميدان (تنظيم، إعلام، علاقات عامة، موارد بشرية، لوجستيات، طبي)! كل هيد ومعاه نوابه عاملين شغل عالمي.. تحب نركز على خطة لجنة معينة منهم؟`;
+      else if (lower.includes('مشكلة') || lower.includes('خناقة') || lower.includes('زعلان') || lower.includes('شكوى')) {
+        aiResponseText = `القاعدة الذهبية في حل النزاعات: «اسمع الأول، قدّر المشاعر، ثم اطلب الحل المشترك»! 🤝\nاقعد مع الطرفين بهدوء بعيداً عن صخب الفعالية، ركز على هدف الفريق المشترك، واديهم تكليف مشترك يعزز روح الزمالة.. الشدة بتبوظ الميدان واللين حكمة!`;
       }
-      else if (prompt.includes('مستشار') || prompt.includes('محمد رمضان') || prompt.includes('رئيس')) {
-        reply = `تحياتي وتقديري الخالص لقيادات ومستشاري فريق متطوعي جامعة الإسكندرية! 👑 التوجيه الحكيم والإدارة الواعية هما سر النجاح والانضباط اللي الفريق عايش فيه.`;
+      else if (lower.includes('نكتة') || lower.includes('اضحك') || lower.includes('فزورة') || lower.includes('هزار')) {
+        const jokes = [
+          `مرة متطوع في لجنة المونتاج سألوه: بتعرف ترتاح إمتى؟ قالهم: لما الريندر يوصل 99% والكهربا تقطع، بنام في سلام تام 😂🎬!`,
+          `متطوع جديد بيسأل الهيد: هو إحنا ليه بنحب التطوع؟ قاله: عشان بنتعلم القيادة وإدارة الأزمات ونكتشف إننا نقدر نقف 8 ساعات من غير ما نحس بالتعب 😂❤️!`
+        ];
+        aiResponseText = jokes[Math.floor(Math.random() * jokes.length)];
       }
       else {
-        reply = `كلامك على راسي يا قائد! 🌟 الموضوع ده محتاج تركيز وتنسيق حلو.. نصيحتي ليك: ابدأ بالخطوة الأولى البسيطة، وثّق كل حاجة على الأبلكيشن، وخلي روح الفريق دايماً رقم واحد. لو محتاج أصيغلك مسودة قرار أو خطة مهام فورية، اديني إشارة وأنا في الخدمة! 🚀`;
+        aiResponseText = `فهمت قصدك تماماً يا ${currentUser.fullName.split(' ')[0]}! 🌟\nبخصوص "${prompt}"، نصيحتي الميدانية ليك إننا نحدد الهدف المباشر، ونكلف الأبطال المناسبين من خلال تبويب إدارة المهام، ونوثق كل خطوة على المنظومة.\nلو تحب أصيغلك مسودة رسمية أو خطة فورية، اديني الأمر وأنا جاهز بالتمام والكمال! 🚀`;
       }
+    }
 
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: 'ai',
-        text: reply,
-        timestamp: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-      };
+    const aiMsg: ChatMessage = {
+      id: `ai-${Date.now()}`,
+      role: 'ai',
+      text: aiResponseText,
+      timestamp: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+    };
 
-      setChatMessages(prev => [...prev, aiMsg]);
-      setIsTyping(false);
-    }, 600);
+    setChatMessages(prev => [...prev, aiMsg]);
+    setIsTyping(false);
   };
 
   const handleSendText = (e: React.FormEvent) => {

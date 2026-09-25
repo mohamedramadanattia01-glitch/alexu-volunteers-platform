@@ -1087,6 +1087,105 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
         </div>
       )}
 
+      {/* Broadcast Voice Order Modal */}
+      {showVoiceOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-card max-w-lg w-full p-6 border border-amber-500/40 shadow-2xl bg-slate-950 text-right space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <Volume2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">بث توجيه صوتي حي للميدان 🎙️</h3>
+                  <p className="text-xs text-slate-400">إذاعة تعليمات صوتية فورية لفرق المتطوعين</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowVoiceOrderModal(false)} 
+                className="text-slate-400 hover:text-white cursor-pointer text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBroadcastVoiceOrder} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">عنوان التوجيه الميداني *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: تعليمات فتح الباب الرئيسي واستقبال الضيوف..."
+                  value={orderTitle}
+                  onChange={(e) => setOrderTitle(e.target.value)}
+                  className="glass-input text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">درجة الأهمية</label>
+                  <select
+                    value={orderPriority}
+                    onChange={(e) => setOrderPriority(e.target.value as any)}
+                    className="glass-input text-xs"
+                  >
+                    <option value="urgent">🚨 توجيه عاجل وفوري</option>
+                    <option value="standard">📢 توجيه إرشادي عام</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">اللجنة المستهدفة</label>
+                  <select
+                    value={orderTargetCommittee}
+                    onChange={(e) => setOrderTargetCommittee(e.target.value)}
+                    className="glass-input text-xs"
+                  >
+                    <option value="all">كافة لجان المتطوعين</option>
+                    {committees.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Voice Recorder */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Radio className="w-4 h-4 text-amber-400" />
+                  <span>تسجيل الصوت المباشر:</span>
+                </label>
+                <VoiceRecorder
+                  onRecordingComplete={(audioUrl, dur) => {
+                    setOrderAudioUrl(audioUrl);
+                    setOrderDuration(dur);
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button 
+                  type="button" 
+                  onClick={() => setShowVoiceOrderModal(false)} 
+                  className="btn-secondary text-xs py-2 px-4 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={!orderTitle.trim() || !orderAudioUrl}
+                  className="btn-primary text-xs py-2 px-5 font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>بث التوجيه الصوتي فوراً 🚀</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -56,12 +56,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 w-full glass-card border-b border-white/10 bg-slate-900/95 backdrop-blur-md px-2.5 sm:px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
         
-        {/* Logo & Union Identity */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Logo & Union Identity (Compact on mobile for maximum action bar width) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <div 
             onClick={isHighLeadership ? onOpenSettings : undefined}
             title={isHighLeadership ? "تعديل الشعار وإعدادات المنصة" : (branding.appTitle || "فريق المتطوعين")}
-            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 p-0.5 shadow-lg shadow-blue-500/30 flex items-center justify-center transition-all overflow-hidden shrink-0 group relative ${isHighLeadership ? 'cursor-pointer hover:scale-105' : 'cursor-default'}`}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 p-0.5 shadow-lg shadow-blue-500/30 flex items-center justify-center transition-all overflow-hidden shrink-0 group relative ${isHighLeadership ? 'cursor-pointer hover:scale-105' : 'cursor-default'}`}
           >
             {branding.logoUrl ? (
               <img src={branding.logoUrl} alt="شعار اتحاد طلاب جامعة الإسكندرية" className="w-full h-full object-contain bg-white rounded-[10px] p-0.5" />
@@ -77,14 +77,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-xs sm:text-base font-bold text-white tracking-wide truncate max-w-[140px] sm:max-w-none">
+          <div className="hidden lg:block">
+            <div className="flex items-center gap-1">
+              <h1 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate max-w-[140px] xl:max-w-none">
                 {branding.appTitle || 'فريق المتطوعين'}
               </h1>
             </div>
-            <p className="text-[9px] sm:text-[11px] text-slate-400 hidden sm:block truncate max-w-xs">
-              {branding.subtitle || 'اتحاد طلاب جامعة الإسكندرية • Alexandria University'}
+            <p className="text-[9px] text-slate-400 hidden xl:block truncate max-w-xs">
+              {branding.subtitle || 'اتحاد طلاب جامعة الإسكندرية'}
             </p>
           </div>
         </div>
@@ -201,7 +201,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Notifications Center */}
           <div className="relative">
             <button
-              onClick={() => { setShowNotifMenu(!showNotifMenu); setShowPersonaMenu(false); }}
+              type="button"
+              onClick={() => { 
+                setShowNotifMenu(prev => !prev); 
+                setShowPersonaMenu(false); 
+              }}
               title="مركز الإشعارات والتنبيهات الميدانية"
               className={`relative p-1.5 sm:p-2 rounded-lg border transition-all cursor-pointer ${
                 showNotifMenu 
@@ -218,7 +222,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {showNotifMenu && (
-              <div className="absolute left-0 mt-2 w-80 sm:w-[420px] md:w-[450px] glass-card bg-slate-950/95 backdrop-blur-xl border border-blue-500/40 shadow-2xl shadow-blue-500/10 p-4 z-50 animate-in fade-in rounded-2xl text-right">
+              <>
+                <div 
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs" 
+                  onClick={() => setShowNotifMenu(false)} 
+                />
+                <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:left-0 top-14 sm:top-full mt-2 w-auto sm:w-[420px] max-w-[calc(100vw-16px)] glass-card bg-slate-950/98 backdrop-blur-2xl border border-blue-500/40 shadow-2xl shadow-blue-500/20 p-3 sm:p-4 z-50 animate-in fade-in rounded-2xl text-right">
                 
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
@@ -435,6 +444,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
               </div>
+              </>
             )}
           </div>
 
@@ -490,7 +500,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {isHighLeadership && showPersonaMenu && (
-              <div className="absolute left-0 mt-2 w-72 sm:w-80 glass-dropdown p-2.5 z-50 animate-in fade-in">
+              <>
+                <div 
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs" 
+                  onClick={() => setShowPersonaMenu(false)} 
+                />
+                <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:left-0 top-14 sm:top-full mt-2 w-auto sm:w-80 max-w-[calc(100vw-16px)] glass-dropdown p-2.5 z-50 animate-in fade-in bg-slate-950/98 backdrop-blur-2xl border border-blue-500/40 shadow-2xl">
                 <div className="px-2.5 py-2 border-b border-slate-800 flex items-center justify-between mb-1">
                   <div>
                     <div className="text-xs font-bold text-blue-400">تبديل دور المستخدم (Persona)</div>
@@ -535,6 +550,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ))}
                 </div>
               </div>
+              </>
             )}
           </div>
 

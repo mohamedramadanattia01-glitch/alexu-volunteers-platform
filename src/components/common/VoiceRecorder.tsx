@@ -55,6 +55,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplet
         reader.onloadend = () => {
           const base64data = reader.result as string;
           setRecordedAudioUrl(base64data);
+          onRecordingComplete(base64data, duration || 1);
         };
         stream.getTracks().forEach(track => track.stop());
       };
@@ -92,6 +93,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplet
     setDuration(0);
     setIsPlayingPreview(false);
     setErrorMsg(null);
+    onRecordingComplete('', 0);
   };
 
   const togglePreview = () => {
