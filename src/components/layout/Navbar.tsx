@@ -89,14 +89,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Center Quick Actions: Personal Profile, AI, Complaints, SOS */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* Center & Actions Row: Horizontally Scrollable Roll Container on Mobile */}
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none max-w-[calc(100vw-110px)] sm:max-w-none py-0.5 px-0.5 touch-pan-x flex-nowrap shrink">
           
           {/* Direct Profile Tab Button */}
           <button
             onClick={() => setActiveTab('profile')}
             title="الصفحة الشخصية وكارنيه العضوية"
-            className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-xs font-semibold text-blue-300 transition-all cursor-pointer shadow-sm"
+            className="shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-xs font-semibold text-blue-300 transition-all cursor-pointer shadow-sm"
           >
             <User className="w-3.5 h-3.5 text-blue-400" />
             <span className="hidden md:inline">الصفحة الشخصية</span>
@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => setActiveTab('complaints')}
             title="منظومة الشكاوى والمقترحات"
-            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+            className={`shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
               newComplaintsCount > 0
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
                 : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
@@ -125,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onOpenAIChat}
             title="المساعد الشخصي الذكي «شربيني»"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 hover:from-blue-600/30 hover:to-purple-600/30 border border-purple-500/40 text-xs font-bold text-purple-300 transition-all cursor-pointer shadow-sm shadow-purple-500/10 hover:scale-105"
+            className="shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 hover:from-blue-600/30 hover:to-purple-600/30 border border-purple-500/40 text-xs font-bold text-purple-300 transition-all cursor-pointer shadow-sm shadow-purple-500/10 hover:scale-105"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-spin" />
             <span className="hidden md:inline">شربيني AI</span>
@@ -136,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenApprovalsModal}
               title="طلبات الانضمام والتسجيل الجديدة بانتظار الاعتماد"
-              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+              className={`shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                 pendingMembers.length > 0
                   ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/10 animate-pulse'
                   : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
@@ -155,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* SOS Emergency Live Indicator */}
           <button
             onClick={onOpenSOSModal}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               openSOSCount > 0 
                 ? 'bg-rose-600 hover:bg-rose-500 text-white sos-pulse shadow-lg shadow-rose-600/40' 
                 : 'bg-slate-800/80 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-600/40 text-slate-300 hover:text-rose-400'
@@ -170,23 +170,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-        </div>
-
-        {/* Left Side: Install App + Settings + Notifications + Persona Switcher + Logout */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          
           {/* PWA Install Button */}
           {onOpenInstallModal && (
             <button
               onClick={onOpenInstallModal}
               title="تثبيت التطبيق على الموبايل (PWA)"
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600/30 to-sky-500/30 hover:from-blue-600/40 hover:to-sky-500/40 border border-sky-400/40 text-xs font-bold text-sky-200 transition-all cursor-pointer shadow-sm animate-pulse"
+              className="shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600/30 to-sky-500/30 hover:from-blue-600/40 hover:to-sky-500/40 border border-sky-400/40 text-xs font-bold text-sky-200 transition-all cursor-pointer shadow-sm animate-pulse"
             >
               <Smartphone className="w-3.5 h-3.5 text-sky-300" />
               <span className="hidden sm:inline">تثبيت التطبيق 📱</span>
             </button>
           )}
 
+        </div>
+
+        {/* Left Side: Settings + Notifications + Persona Switcher + Logout */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          
           {/* Settings Trigger (Restricted to High Leadership) */}
           {isHighLeadership && (
             <button

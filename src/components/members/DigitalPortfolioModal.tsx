@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Member } from '../../types';
-import { X, Printer, Download, Award, CheckCircle2, Shield, Calendar, Sparkles } from 'lucide-react';
+import { X, Printer, Download, Award, CheckCircle2, Shield, Calendar, Sparkles, FileDown } from 'lucide-react';
+import { downloadMemberPortfolioPDF } from '../../utils/pdfExport';
 
 interface DigitalPortfolioModalProps {
   member: Member | null;
@@ -10,7 +11,8 @@ interface DigitalPortfolioModalProps {
 }
 
 export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ member, isOpen, onClose }) => {
-  const { badges, tasks, attendanceRecords, branding } = useApp();
+  const { badges, tasks, attendanceRecords, branding, members, showNotification } = useApp();
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   if (!isOpen || !member) return null;
 
@@ -22,6 +24,19 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      setIsExportingPDF(true);
+      await downloadMemberPortfolioPDF(member, members, branding);
+      showNotification('success', 'تم تحميل ملف الـ PDF المعتمد بنجاح!');
+    } catch (err) {
+      console.error(err);
+      showNotification('error', 'حدث خطأ أثناء تحميل الـ PDF، يمكنك استخدام زر الطباعة');
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
   return (
@@ -37,11 +52,19 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleDownloadPDF}
+              disabled={isExportingPDF}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/30 transition-all"
+            >
+              <FileDown className="w-4 h-4" />
+              <span>{isExportingPDF ? 'جاري إنشاء PDF...' : 'تحميل PDF مباشر 📄'}</span>
+            </button>
+            <button
               onClick={handlePrint}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-blue-500/30"
             >
               <Printer className="w-4 h-4" />
-              <span>طباعة / حفظ كـ PDF</span>
+              <span>طباعة المستند</span>
             </button>
             <button 
               onClick={onClose}

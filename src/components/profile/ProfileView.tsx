@@ -5,9 +5,11 @@ import {
   User, Award, Shield, CheckCircle2, Clock, Calendar, 
   Sparkles, FileText, Download, Edit3, MessageSquare, 
   Copy, Check, Heart, BookOpen, Star, AlertCircle, 
-  TrendingUp, QrCode, Phone, Mail, GraduationCap, ShieldCheck 
+  TrendingUp, QrCode, Phone, Mail, GraduationCap, ShieldCheck,
+  Layers, Briefcase, FileDown, CheckCircle
 } from 'lucide-react';
 import { exportAttendanceToExcel } from '../../utils/excelExport';
+import { downloadMemberPortfolioPDF } from '../../utils/pdfExport';
 
 interface ProfileViewProps {
   onOpenEditProfile: () => void;
@@ -24,9 +26,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenQRModal,
   onSelectTask
 }) => {
-  const { currentUser, tasks, attendanceRecords, badges, branding, isHighLeadership, members, events } = useApp();
+  const { currentUser, tasks, attendanceRecords, badges, branding, isHighLeadership, members, events, committees } = useApp();
   const [copiedId, setCopiedId] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'attendance' | 'badges'>('overview');
+  const [leadershipTab, setLeadershipTab] = useState<'overview' | 'history' | 'committees' | 'authorities'>('overview');
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   // Filter personal data
   const myTasks = tasks.filter(t => t.assignedToMemberIds.includes(currentUser.id));
@@ -42,6 +46,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleExportMyAttendance = () => {
     exportAttendanceToExcel(myAttendance, `المتطوع_${currentUser.fullName}`);
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsExportingPDF(true);
+    try {
+      await downloadMemberPortfolioPDF(currentUser, members, branding);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
   const totalHours = myAttendance.reduce((acc, curr) => acc + (curr.durationMinutes || 300), 0) / 60;
@@ -184,6 +199,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             >
               <Edit3 className="w-4 h-4" />
               <span>تعديل الملف وروابط السوشيال</span>
+            </button>
+
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isExportingPDF}
+              className="px-3 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50"
+              title="تصدير وتحميل البورتفوليو الرقمي بصيغة PDF فورياً"
+            >
+              <FileDown className={`w-4 h-4 ${isExportingPDF ? 'animate-bounce text-amber-400' : 'text-sky-400'}`} />
+              <span>{isExportingPDF ? 'جاري تجهيز PDF...' : 'تحميل PDF مباشر 📄'}</span>
             </button>
 
             <button
@@ -526,231 +551,522 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {/* 4. Tab Navigation Bar */}
-      <div className="flex rounded-2xl bg-slate-900/80 p-1.5 border border-slate-800">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-            activeTab === 'overview' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          نظرة عامة والمهارات
-        </button>
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'tasks' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <span>سجل مهامي</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myTasks.length}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'attendance' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <span>سجل الحضور والانصراف</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myAttendance.length}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('badges')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeTab === 'badges' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <span>الأوسمة والشهادات</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myBadges.length}</span>
-        </button>
-      </div>
+      {isHighLeadership ? (
+        <div className="flex flex-wrap rounded-2xl bg-slate-900/80 p-1.5 border border-purple-500/30 gap-1">
+          <button
+            onClick={() => setLeadershipTab('overview')}
+            className={`flex-1 min-w-[140px] py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              leadershipTab === 'overview' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>الملف الإداري والقيادي</span>
+          </button>
+          <button
+            onClick={() => setLeadershipTab('history')}
+            className={`flex-1 min-w-[140px] py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              leadershipTab === 'history' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>السجل التاريخي والمسيرة</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{currentUser.committeeHistory?.length || 0}</span>
+          </button>
+          <button
+            onClick={() => setLeadershipTab('committees')}
+            className={`flex-1 min-w-[140px] py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              leadershipTab === 'committees' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>اللجان والفعاليات المشرف عليها</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{committees.length}</span>
+          </button>
+          <button
+            onClick={() => setLeadershipTab('authorities')}
+            className={`flex-1 min-w-[140px] py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              leadershipTab === 'authorities' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>الصلاحيات والبروتوكول المركزي</span>
+          </button>
+        </div>
+      ) : (
+        <div className="flex rounded-2xl bg-slate-900/80 p-1.5 border border-slate-800">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              activeTab === 'overview' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            نظرة عامة والمهارات
+          </button>
+          <button
+            onClick={() => setActiveTab('tasks')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'tasks' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>سجل مهامي</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myTasks.length}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'attendance' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>سجل الحضور والانصراف</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myAttendance.length}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('badges')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'badges' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>الأوسمة والشهادات</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px]">{myBadges.length}</span>
+          </button>
+        </div>
+      )}
 
       {/* 5. Tab Contents */}
 
-      {/* Tab 1: Overview & Skills */}
-      {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+      {/* High Leadership Tab Contents */}
+      {isHighLeadership ? (
+        <div className="space-y-6">
           
-          {/* Skills Breakdown */}
-          <div className="glass-card p-5">
-            <h4 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-              <Award className="w-4 h-4 text-sky-400" />
-              <span>مصفوفة المهارات والكفاءات المعتمدة</span>
-            </h4>
-            <div className="space-y-3">
-              {currentUser.skills && Object.keys(currentUser.skills).length > 0 ? (
-                Object.entries(currentUser.skills).map(([skill, score], i) => (
-                  <div key={i}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-300 font-medium">{skill}</span>
-                      <span className="text-sky-400 font-bold font-mono">{score} / 5</span>
+          {/* Leadership Tab 1: Executive Overview */}
+          {leadershipTab === 'overview' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+              {/* Executive Credentials */}
+              <div className="glass-card p-5 border-purple-500/30 bg-purple-950/10 space-y-4">
+                <h4 className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  <span>بيانات الصفة الإشرافية والاعتماد الرسمي</span>
+                </h4>
+                <div className="space-y-2.5 text-xs text-slate-300">
+                  <div className="flex justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">المنصب الرسمي:</span>
+                    <span className="font-bold text-white">{currentUser.position || 'مستشار الفريق'}</span>
+                  </div>
+                  <div className="flex justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">الجهة التابع لها:</span>
+                    <span className="font-bold text-amber-300">اتحاد طلاب جامعة الإسكندرية</span>
+                  </div>
+                  <div className="flex justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">نطاق الإشراف:</span>
+                    <span className="font-bold text-emerald-400">إشراف كلي وشامل على جميع اللجان والعمليات</span>
+                  </div>
+                  <div className="flex justify-between p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">الموسم التشغيلي:</span>
+                    <span className="font-bold text-sky-400 font-mono">2026 / 2027</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-900/20 border border-purple-500/30 text-[11px] text-purple-200">
+                  👑 <strong>المظلة الإدارية:</strong> بصفتك عضواً في القيادة العليا، ملفك التعريفي هو وثيقة اعتماد رسمي للقرارات والشهادات الصادرة من المنظومة.
+                </div>
+              </div>
+
+              {/* Leadership Competencies */}
+              <div className="glass-card p-5 border-blue-500/30 space-y-4">
+                <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-sky-400" />
+                  <span>الكفاءات القيادية والاستراتيجية المعتمدة</span>
+                </h4>
+                <div className="space-y-3">
+                  {currentUser.skills && Object.keys(currentUser.skills).length > 0 ? (
+                    Object.entries(currentUser.skills).map(([skill, score], i) => (
+                      <div key={i}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-300 font-medium">{skill}</span>
+                          <span className="text-sky-400 font-bold font-mono">{score} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-purple-600 to-sky-400 h-full rounded-full"
+                            style={{ width: `${(score / 5) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-slate-400 py-3 text-center">
+                      كفاءات قيادية وإشراف استراتيجي شامل
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-blue-600 to-sky-400 h-full rounded-full"
-                        style={{ width: `${(score / 5) * 100}%` }}
-                      />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Leadership Tab 2: Career History & Milestones */}
+          {leadershipTab === 'history' && (
+            <div className="glass-card p-5 border-slate-800 text-right space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white">السجل التاريخي والترقيات والمسيرة القيادية</h4>
+                  <p className="text-[11px] text-slate-400">توثيق المحطات القيادية واللجان ومسيرة التطوع السابقة</p>
+                </div>
+                <button
+                  onClick={onOpenEditProfile}
+                  className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>تعديل وإضافة محطات</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {currentUser.committeeHistory && currentUser.committeeHistory.length > 0 ? (
+                  currentUser.committeeHistory.map((hist, i) => (
+                    <div key={i} className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 text-xs flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{hist.role}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px]">
+                            {hist.committeeName}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded">
+                            {hist.season}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">{hist.reason}</p>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          {hist.startDate} حتى {hist.endDate}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                    <p className="font-bold text-white">{currentUser.currentCommitteeName} — {currentUser.position}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">عضوية قيادية نشطة منذ {currentUser.joinDate}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Leadership Tab 3: Supervised Committees & Events */}
+          {leadershipTab === 'committees' && (
+            <div className="space-y-6 text-right">
+              {/* Committees Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {committees.map(comm => (
+                  <div key={comm.id} className="glass-card p-4 border-slate-800 hover:border-blue-500/40 transition-all space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-white">{comm.name}</h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        {comm.code}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">رئيس اللجنة:</span>
+                        <span className="font-semibold text-white">{comm.headName || '—'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">نائب رئيس اللجنة:</span>
+                        <span className="font-semibold text-white">{comm.viceName || '—'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">عدد الأعضاء:</span>
+                        <span className="font-bold text-emerald-400 font-mono">{comm.memberCount} عضو</span>
+                      </div>
                     </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500 py-4 text-center">لا توجد مهارات مسجلة بعد</p>
-              )}
-            </div>
-          </div>
+                ))}
+              </div>
 
-          {/* Committee History Log */}
-          <div className="glass-card p-5">
-            <h4 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-400" />
-              <span>السجل التاريخي للترقيات واللجان</span>
-            </h4>
-            <div className="space-y-3">
-              {currentUser.committeeHistory && currentUser.committeeHistory.length > 0 ? (
-                currentUser.committeeHistory.map((hist, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                    <div>
-                      <p className="font-bold text-white">{hist.committeeName} — {hist.role}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{hist.reason}</p>
-                      <span className="text-[10px] text-slate-500 font-mono mt-1 block">
-                        {hist.startDate} حتى {hist.endDate} ({hist.season})
+              {/* Events List Under Supervision */}
+              <div className="glass-card p-5 border-slate-800 space-y-3">
+                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  <span>الفعاليات المعتمدة للموسم الحالي ({events.length})</span>
+                </h4>
+                {events.length === 0 ? (
+                  <div className="text-xs text-slate-500 text-center py-4 bg-slate-900/40 rounded-xl border border-slate-800">
+                    لا توجد فعاليات مسجلة حالياً. عند إطلاق فعاليات جديدة ستظهر هنا وفي غرفة العمليات.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {events.map(ev => (
+                      <div key={ev.id} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-white">{ev.name}</p>
+                          <p className="text-[11px] text-slate-400">{ev.location} • {ev.date}</p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                          {ev.status === 'Live' ? 'جارية الآن 🟢' : 'معتمدة'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Leadership Tab 4: Central Authorities & Protocol */}
+          {leadershipTab === 'authorities' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-right">
+              <div className="glass-card p-4 border-purple-500/30 bg-purple-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-purple-400 font-bold text-xs">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>اعتماد وقبول المتطوعين</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  مراجعة طلبات الانضمام المعلقة، تعيين اللجان والأدوار الرسمية وتوليد الأكواد التطوعية المعتمدة.
+                </p>
+              </div>
+
+              <div className="glass-card p-4 border-blue-500/30 bg-blue-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs">
+                  <Layers className="w-4 h-4" />
+                  <span>إدارة وهيكلة اللجان</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  تأسيس اللجان التخصصية، تعيين رؤساء اللجان ونوابهم وتحديد الأهداف والمسؤوليات التشغيلية.
+                </p>
+              </div>
+
+              <div className="glass-card p-4 border-emerald-500/30 bg-emerald-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                  <Calendar className="w-4 h-4" />
+                  <span>إطلاق الفعاليات وغرفة العمليات</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  بدء وإغلاق الفعاليات الميدانية، متابعة البث المباشر الميداني للقطاعات وجلسات التحضير بالـ QR.
+                </p>
+              </div>
+
+              <div className="glass-card p-4 border-rose-500/30 bg-rose-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-rose-400 font-bold text-xs">
+                  <Shield className="w-4 h-4" />
+                  <span>القرارات التأديبية والقائمة السوداء</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  حظر واستبعاد المخالفين للائحة التنظيمية وتطبيق قرارات التصفية وحظر الدخول للمنظومة نهائياً.
+                </p>
+              </div>
+
+              <div className="glass-card p-4 border-amber-500/30 bg-amber-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                  <FileText className="w-4 h-4" />
+                  <span>إصدار الوثائق والشهادات</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  اعتماد الشهادات والمستندات بختم اتحاد طلاب جامعة الإسكندرية وتوقيعات القيادة العليا الحية.
+                </p>
+              </div>
+
+              <div className="glass-card p-4 border-sky-500/30 bg-sky-950/10 space-y-2">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs">
+                  <Sparkles className="w-4 h-4" />
+                  <span>التخصيص والتحكم المركزي</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  التحكم في الهوية البصرية، الشعار، الختم، شريط الأخبار التفاعلي وإعدادات التنبيهات الصوتية.
+                </p>
+              </div>
+            </div>
+          )}
+
+        </div>
+      ) : (
+        /* Regular Volunteer Tab Contents */
+        <div>
+          {/* Tab 1: Overview & Skills */}
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+              
+              {/* Skills Breakdown */}
+              <div className="glass-card p-5">
+                <h4 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-sky-400" />
+                  <span>مصفوفة المهارات والكفاءات المعتمدة</span>
+                </h4>
+                <div className="space-y-3">
+                  {currentUser.skills && Object.keys(currentUser.skills).length > 0 ? (
+                    Object.entries(currentUser.skills).map(([skill, score], i) => (
+                      <div key={i}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-300 font-medium">{skill}</span>
+                          <span className="text-sky-400 font-bold font-mono">{score} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-blue-600 to-sky-400 h-full rounded-full"
+                            style={{ width: `${(score / 5) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 py-4 text-center">لا توجد مهارات مسجلة بعد</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Committee History Log */}
+              <div className="glass-card p-5">
+                <h4 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-emerald-400" />
+                  <span>السجل التاريخي للترقيات واللجان</span>
+                </h4>
+                <div className="space-y-3">
+                  {currentUser.committeeHistory && currentUser.committeeHistory.length > 0 ? (
+                    currentUser.committeeHistory.map((hist, i) => (
+                      <div key={i} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                        <div>
+                          <p className="font-bold text-white">{hist.committeeName} — {hist.role}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{hist.reason}</p>
+                          <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                            {hist.startDate} حتى {hist.endDate} ({hist.season})
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                      <p className="font-bold text-white">{currentUser.currentCommitteeName} — {currentUser.position}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">عضوية نشطة منذ {currentUser.joinDate}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* Tab 2: My Tasks */}
+          {activeTab === 'tasks' && (
+            <div className="space-y-4 text-right">
+              {myTasks.length === 0 ? (
+                <div className="glass-card p-8 text-center text-slate-400 text-xs">
+                  لا توجد مهام مسندة إليك حالياً.
+                </div>
+              ) : (
+                myTasks.map(task => (
+                  <div key={task.id} className="glass-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-slate-800 hover:border-slate-700 transition-all">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          task.priority === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                          task.priority === 'High' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {task.priority === 'Critical' ? 'حرجة جداً' : task.priority === 'High' ? 'أولوية عالية' : 'عادية'}
+                        </span>
+                        <h4 className="text-xs sm:text-sm font-bold text-white">{task.title}</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-400">{task.description}</p>
+                      <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                        <span>الموعد النهائي: {task.deadline}</span>
+                        <span>•</span>
+                        <span className="text-amber-400 font-bold">+{task.xpReward} XP</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+                      <span className={`px-3 py-1 rounded-xl text-xs font-bold ${
+                        task.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                        task.status === 'Submitted' ? 'bg-amber-500/20 text-amber-400' :
+                        task.status === 'In Progress' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {task.status === 'Approved' ? 'تم الاعتماد ✓' :
+                         task.status === 'Submitted' ? 'قيد المراجعة' :
+                         task.status === 'In Progress' ? 'جاري التنفيذ' : 'مسندة'}
                       </span>
                     </div>
                   </div>
                 ))
-              ) : (
-                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
-                  <p className="font-bold text-white">{currentUser.currentCommitteeName} — {currentUser.position}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">عضوية نشطة منذ {currentUser.joinDate}</p>
-                </div>
               )}
             </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* Tab 2: My Tasks */}
-      {activeTab === 'tasks' && (
-        <div className="space-y-4 text-right">
-          {myTasks.length === 0 ? (
-            <div className="glass-card p-8 text-center text-slate-400 text-xs">
-              لا توجد مهام مسندة إليك حالياً.
-            </div>
-          ) : (
-            myTasks.map(task => (
-              <div key={task.id} className="glass-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-slate-800 hover:border-slate-700 transition-all">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      task.priority === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                      task.priority === 'High' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'
-                    }`}>
-                      {task.priority === 'Critical' ? 'حرجة جداً' : task.priority === 'High' ? 'أولوية عالية' : 'عادية'}
-                    </span>
-                    <h4 className="text-xs sm:text-sm font-bold text-white">{task.title}</h4>
-                  </div>
-                  <p className="text-[11px] text-slate-400">{task.description}</p>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span>الموعد النهائي: {task.deadline}</span>
-                    <span>•</span>
-                    <span className="text-amber-400 font-bold">+{task.xpReward} XP</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
-                  <span className={`px-3 py-1 rounded-xl text-xs font-bold ${
-                    task.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                    task.status === 'Submitted' ? 'bg-amber-500/20 text-amber-400' :
-                    task.status === 'In Progress' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-300'
-                  }`}>
-                    {task.status === 'Approved' ? 'تم الاعتماد ✓' :
-                     task.status === 'Submitted' ? 'قيد المراجعة' :
-                     task.status === 'In Progress' ? 'جاري التنفيذ' : 'مسندة'}
-                  </span>
-                </div>
-              </div>
-            ))
           )}
-        </div>
-      )}
 
-      {/* Tab 3: My Attendance History with Check-in / Check-out */}
-      {activeTab === 'attendance' && (
-        <div className="glass-card p-5 text-right space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-white">سجل الحضور والانصراف الميداني المعتمد</h4>
-              <p className="text-[11px] text-slate-400">توثيق دقيق بمواعيد تسجيل الدخول والخروج وعدد الساعات الفعلية</p>
-            </div>
-            <button
-              onClick={handleExportMyAttendance}
-              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
-            >
-              <Download className="w-3.5 h-3.5 text-sky-400" />
-              <span>تصدير سجلي (Excel)</span>
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 pb-2">
-                  <th className="py-2.5 font-bold">الفعالية / اليوم</th>
-                  <th className="py-2.5 font-bold">التاريخ</th>
-                  <th className="py-2.5 font-bold">تسجيل الحضور (Check-in)</th>
-                  <th className="py-2.5 font-bold">تسجيل الانصراف (Check-out)</th>
-                  <th className="py-2.5 font-bold">إجمالي الساعات</th>
-                  <th className="py-2.5 font-bold">الحالة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {myAttendance.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-6 text-slate-500 text-xs">
-                      لا توجد سجلات حضور مسجلة حتى الآن
-                    </td>
-                  </tr>
-                ) : (
-                  myAttendance.map(rec => (
-                    <tr key={rec.id} className="hover:bg-slate-900/40">
-                      <td className="py-3 font-bold text-white">{rec.eventName}</td>
-                      <td className="py-3 text-slate-300 font-mono">{rec.date}</td>
-                      <td className="py-3 text-emerald-400 font-mono">{rec.checkInTime || '—'}</td>
-                      <td className="py-3 text-sky-400 font-mono">{rec.checkOutTime || '—'}</td>
-                      <td className="py-3 text-slate-300 font-mono">{rec.durationFormatted || '5 ساعات'}</td>
-                      <td className="py-3">
-                        <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
-                          {rec.status === 'Present' ? 'حاضر' : rec.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Badges Showcase */}
-      {activeTab === 'badges' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-right">
-          {myBadges.map(badge => (
-            <div key={badge.id} className="glass-card p-5 border-amber-500/30 bg-amber-950/10 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-2xl shrink-0 shadow-lg">
-                {badge.icon}
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs sm:text-sm font-bold text-white">{badge.titleAr}</h4>
-                  <span className="text-[10px] font-bold text-amber-400">+{badge.xpReward} XP</span>
+          {/* Tab 3: My Attendance History */}
+          {activeTab === 'attendance' && (
+            <div className="glass-card p-5 text-right space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white">سجل الحضور والانصراف الميداني المعتمد</h4>
+                  <p className="text-[11px] text-slate-400">توثيق دقيق بمواعيد تسجيل الدخول والخروج وعدد الساعات الفعلية</p>
                 </div>
-                <p className="text-[11px] text-slate-300">{badge.description}</p>
-                <span className="text-[10px] text-slate-500 block pt-1">المعيار: {badge.criteria}</span>
+                <button
+                  onClick={handleExportMyAttendance}
+                  className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
+                >
+                  <Download className="w-3.5 h-3.5 text-sky-400" />
+                  <span>تصدير سجلي (Excel)</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 pb-2">
+                      <th className="py-2.5 font-bold">الفعالية / اليوم</th>
+                      <th className="py-2.5 font-bold">التاريخ</th>
+                      <th className="py-2.5 font-bold">تسجيل الحضور (Check-in)</th>
+                      <th className="py-2.5 font-bold">تسجيل الانصراف (Check-out)</th>
+                      <th className="py-2.5 font-bold">إجمالي الساعات</th>
+                      <th className="py-2.5 font-bold">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {myAttendance.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-6 text-slate-500 text-xs">
+                          لا توجد سجلات حضور مسجلة حتى الآن
+                        </td>
+                      </tr>
+                    ) : (
+                      myAttendance.map(rec => (
+                        <tr key={rec.id} className="hover:bg-slate-900/40">
+                          <td className="py-3 font-bold text-white">{rec.eventName}</td>
+                          <td className="py-3 text-slate-300 font-mono">{rec.date}</td>
+                          <td className="py-3 text-emerald-400 font-mono">{rec.checkInTime || '—'}</td>
+                          <td className="py-3 text-sky-400 font-mono">{rec.checkOutTime || '—'}</td>
+                          <td className="py-3 text-slate-300 font-mono">{rec.durationFormatted || '5 ساعات'}</td>
+                          <td className="py-3">
+                            <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                              {rec.status === 'Present' ? 'حاضر' : rec.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Tab 4: Badges Showcase */}
+          {activeTab === 'badges' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-right">
+              {myBadges.map(badge => (
+                <div key={badge.id} className="glass-card p-5 border-amber-500/30 bg-amber-950/10 flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-2xl shrink-0 shadow-lg">
+                    {badge.icon}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs sm:text-sm font-bold text-white">{badge.titleAr}</h4>
+                      <span className="text-[10px] font-bold text-amber-400">+{badge.xpReward} XP</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">{badge.description}</p>
+                    <span className="text-[10px] text-slate-500 block pt-1">المعيار: {badge.criteria}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

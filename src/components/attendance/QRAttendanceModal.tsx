@@ -5,7 +5,8 @@ import jsQR from 'jsqr';
 import { 
   QrCode, X, RefreshCw, CheckCircle2, Clock, 
   MapPin, ShieldCheck, UserCheck, AlertCircle, Plus, 
-  Layers, Download, Award, Sparkles, Navigation, Check, Camera
+  Layers, Download, Award, Sparkles, Navigation, Check, Camera,
+  FlipHorizontal, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { exportAttendanceToExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
@@ -60,11 +61,13 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
   const [isProcessingScan, setIsProcessingScan] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Evaluation Modal Trigger
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
@@ -154,33 +157,77 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   }, [handleMemberScan, isProcessingScan, lastScannedPayload, showNotification]);
 
   // Handle Camera lifecycle
-  const startCamera = async () => {
+  const startCamera = async (targetFacingMode = facingMode) => {
     setCameraPermissionError(null);
+    stopCamera();
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: { ideal: targetFacingMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          });
+        } catch (subErr) {
+          // Fallback to any available video stream
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+
         mediaStreamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.play();
+          await videoRef.current.play();
         }
         setIsCameraActive(true);
         animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
       } else {
-        setCameraPermissionError('المتصفح لا يدعم الوصول للكاميرا');
+        setCameraPermissionError('المتصفح لا يدعم الوصول المباشر للكاميرا');
       }
     } catch (err: any) {
       console.warn('Camera access denied or unavailable:', err);
-      setCameraPermissionError('يرجى السماح بصلاحية الكاميرا لمسح الـ QR كود تلقائياً');
+      setCameraPermissionError('يرجى السماح بصلاحية الكاميرا من إعدادات المتصفح أو مسح الكود من صورة');
       setIsCameraActive(false);
     }
+  };
+
+  const handleToggleFacingMode = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    startCamera(nextMode);
+  };
+
+  // Decode QR from uploaded image file
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code && code.data) {
+            handleMemberScan('check-in', code.data);
+            showNotification('success', '🎯 تم مسح رمز الـ QR من الصورة بنجاح وتسجيل الحضور!');
+          } else {
+            showNotification('info', 'لم يتم العثور على رمز QR واضح في الصورة المرفوعة.');
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const stopCamera = () => {
@@ -665,7 +712,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 <span>⚠️ {cameraPermissionError}</span>
                 <button
                   type="button"
-                  onClick={startCamera}
+                  onClick={() => startCamera()}
                   className="px-2.5 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg text-[10px]"
                 >
                   إعادة المحاولة
@@ -699,6 +746,27 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                   {/* Laser line */}
                   <div className="absolute inset-x-8 top-1/2 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-lg shadow-emerald-400 animate-pulse pointer-events-none" />
                   
+                  {/* Top Controls Overlay */}
+                  <div className="absolute top-2 inset-x-2 flex items-center justify-between px-2">
+                    <button
+                      type="button"
+                      onClick={handleToggleFacingMode}
+                      className="px-2.5 py-1 rounded-lg bg-black/70 border border-white/20 text-white text-[10px] font-bold flex items-center gap-1 hover:bg-black/90 cursor-pointer"
+                    >
+                      <FlipHorizontal className="w-3 h-3 text-sky-400" />
+                      <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="p-1 rounded-lg bg-black/70 border border-white/20 text-slate-300 hover:text-white"
+                      title="إيقاف"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                   <div className="absolute bottom-2 inset-x-2 py-1 px-2 rounded-lg bg-black/75 backdrop-blur-sm text-center text-[10px] text-emerald-300 font-bold border border-emerald-500/30">
                     {isProcessingScan ? '⏳ جاري التحقق وتسجيل الحضور...' : '📷 الكاميرا نشطة: وجهها نحو كود الحضور وسيسجل تلقائياً'}
                   </div>
@@ -717,16 +785,36 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                     اضغط تشغيل الكاميرا لتوجيهها نحو كود المشرف وسيقوم النظام بفك التشفير وتوثيق الحضور والـ GPS تلقائياً
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>تشغيل كاميرا المسح الآن</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startCamera()}
+                      className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-blue-600/30"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>تشغيل كاميرا المسح الآن 📷</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn-secondary text-xs py-2 px-3.5 flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white border-slate-700"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-sky-400" />
+                      <span>مسح كود QR من صورة 📁</span>
+                    </button>
+                  </div>
                 </>
               )}
+
+              {/* Hidden File Input for Image QR Decoding */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+              />
 
               {/* Manual Backup Buttons (Check-in & Check-out) */}
               <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-2 z-10 border-t border-slate-800/80 w-full">

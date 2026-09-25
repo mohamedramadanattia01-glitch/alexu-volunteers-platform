@@ -9,7 +9,7 @@ import {
   MemberStatus, AttendanceSession, DailySessionEvaluation, GPSLocation,
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
   HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
-  BannedUserRecord
+  BannedUserRecord, CommitteeHistoryItem
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -198,6 +198,7 @@ interface AppContextType {
     tiktokUrl?: string;
     instagramUrl?: string;
     linkedinUrl?: string;
+    committeeHistory?: CommitteeHistoryItem[];
   }) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
   rateComplaintResolution: (complaintId: string, rating: number) => void;
@@ -1148,37 +1149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase ban record error:', e));
   };
 
-  // Self Profile update for regular members & leadership
-  const updateMemberSelfProfile = (memberId: string, profileData: { 
-    fullName?: string;
-    nationalId?: string;
-    phone?: string;
-    whatsappNumber?: string;
-    college?: string;
-    academicYear?: string;
-    bloodType?: string;
-    emergencyContact?: string;
-    address?: string;
-    avatarUrl?: string; 
-    bio?: string; 
-    hobbies?: string[]; 
-    learningAspirations?: string[];
-    facebookUrl?: string;
-    tiktokUrl?: string;
-    instagramUrl?: string;
-    linkedinUrl?: string;
-  }) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        const updated = { ...m, ...profileData };
-        SupabaseService.upsertMember(updated).catch(e => console.warn('Supabase profile sync error:', e));
-        return updated;
-      }
-      return m;
-    }));
-    addAuditLog('تعديل الملف الشخصي', `عضو ID: ${memberId}`, 'قام العضو بتحديث وتوثيق بياناته الشخصية المعتمدة');
-    showNotification('success', 'تم حفظ وتحديث بياناتك الشخصية بنجاح وتحديث السجل العام للفريق ✓');
-  };
+
 
   // Archive Member
   const archiveMember = (id: string, reason: string) => {
@@ -2596,6 +2567,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
     localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     showNotification('info', 'تم تسجيل الخروج بنجاح.');
+  };
+
+  const updateMemberSelfProfile = (
+    memberId: string,
+    profileData: {
+      fullName?: string;
+      nationalId?: string;
+      phone?: string;
+      whatsappNumber?: string;
+      college?: string;
+      academicYear?: string;
+      bloodType?: string;
+      emergencyContact?: string;
+      address?: string;
+      avatarUrl?: string;
+      bio?: string;
+      hobbies?: string[];
+      learningAspirations?: string[];
+      facebookUrl?: string;
+      tiktokUrl?: string;
+      instagramUrl?: string;
+      linkedinUrl?: string;
+      committeeHistory?: CommitteeHistoryItem[];
+    }
+  ) => {
+    let updatedMember: Member | null = null;
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        updatedMember = {
+          ...m,
+          ...profileData,
+          phone: profileData.phone || m.phone || profileData.whatsappNumber || m.whatsappNumber,
+          whatsappNumber: profileData.whatsappNumber || profileData.phone || m.whatsappNumber,
+          committeeHistory: profileData.committeeHistory !== undefined ? profileData.committeeHistory : m.committeeHistory
+        };
+        return updatedMember;
+      }
+      return m;
+    }));
+
+    addAuditLog('تحديث الملف الشخصي', `عضو: ${profileData.fullName || memberId}`, 'قام العضو بتحديث بياناته الشخصية ومسيرته التطوعية');
+    showNotification('success', 'تم حفظ وتحديث بيانات ملفك الشخصي ومسيرتك التطوعية بنجاح ✓');
+    playSound('task');
+
+    if (updatedMember) {
+      SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase profile update error:', e));
+    }
   };
 
   const switchSeason = (seasonId: string) => {
