@@ -7,21 +7,11 @@ import {
 } from 'lucide-react';
 import { Member } from '../../types';
 
-interface MemberBirthInfo {
-  birthMonth: number;
-  birthDay: number;
-  birthYear: number;
-  nextAge: number;
-  diffDays: number;
-  isToday: boolean;
-  isThisWeek: boolean;
-  isThisMonth: boolean;
-  formattedDate: string;
-}
+import { getMemberExactBirthData, MemberExactBirthData } from '../../utils/nationalId';
 
 interface MemberBirthdayItem {
   member: Member;
-  info: MemberBirthInfo;
+  info: MemberExactBirthData;
 }
 
 export const BirthdaysView: React.FC = () => {
@@ -50,55 +40,9 @@ export const BirthdaysView: React.FC = () => {
   const currentDay = today.getDate();
 
   // Helper to extract birth date info (from birthDate string or Egyptian nationalId)
-  const getMemberBirthInfo = (m: Member): MemberBirthInfo | null => {
-    let bMonth = 0;
-    let bDay = 0;
-    let bYear = 2000;
-
-    if (m.birthDate && m.birthDate.includes('-')) {
-      const parts = m.birthDate.split('-');
-      if (parts.length === 3) {
-        bYear = parseInt(parts[0], 10);
-        bMonth = parseInt(parts[1], 10);
-        bDay = parseInt(parts[2], 10);
-      }
-    } else if (m.nationalId && m.nationalId.length === 14) {
-      // Egyptian National ID format: C YY MM DD SS SSS K
-      const century = m.nationalId[0] === '3' ? 2000 : 1900;
-      const yy = parseInt(m.nationalId.substring(1, 3), 10);
-      bYear = century + yy;
-      bMonth = parseInt(m.nationalId.substring(3, 5), 10);
-      bDay = parseInt(m.nationalId.substring(5, 7), 10);
-    }
-
-    if (!bMonth || !bDay) {
-      return null;
-    }
-
-    // Calculate days until next birthday
-    const thisYearBday = new Date(today.getFullYear(), bMonth - 1, bDay);
-    if (thisYearBday < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-      thisYearBday.setFullYear(today.getFullYear() + 1);
-    }
-
-    const diffTime = thisYearBday.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const isToday = bMonth === currentMonth && bDay === currentDay;
-    const isThisWeek = diffDays > 0 && diffDays <= 7;
-    const isThisMonth = bMonth === currentMonth;
-    const nextAge = today.getFullYear() - bYear + (thisYearBday.getFullYear() > today.getFullYear() ? 1 : 0);
-
-    return {
-      birthMonth: bMonth,
-      birthDay: bDay,
-      birthYear: bYear,
-      nextAge,
-      diffDays,
-      isToday,
-      isThisWeek,
-      isThisMonth,
-      formattedDate: `${bDay} / ${bMonth}`
-    };
+  const getMemberBirthInfo = (m: Member): MemberExactBirthData | null => {
+    const data = getMemberExactBirthData(m);
+    return data.isValid ? data : null;
   };
 
   // Compile member list with birthday info strictly typed
@@ -128,7 +72,9 @@ export const BirthdaysView: React.FC = () => {
       const matchName = m.fullName.toLowerCase().includes(q);
       const matchComm = m.currentCommitteeName?.toLowerCase().includes(q);
       const matchPhone = m.phone?.includes(q) || m.whatsappNumber?.includes(q);
-      if (!matchName && !matchComm && !matchPhone) return false;
+      const matchNatId = m.nationalId?.includes(q);
+      const matchGov = info.governorate?.toLowerCase().includes(q);
+      if (!matchName && !matchComm && !matchPhone && !matchNatId && !matchGov) return false;
     }
 
     if (selectedCommitteeFilter !== 'all' && m.currentCommitteeId !== selectedCommitteeFilter) {
@@ -146,15 +92,16 @@ export const BirthdaysView: React.FC = () => {
   const committeesList = Array.from(new Set(members.map(m => m.currentCommitteeName).filter(Boolean)));
 
   // Generate personalized greeting text
-  const generateMessage = (m: Member, info?: MemberBirthInfo | null) => {
+  const generateMessage = (m: Member, info?: MemberExactBirthData | null) => {
+    const ageVal = info ? (info.isToday ? info.currentAge : info.nextAge) : (m.age || 20);
     return greetingTemplate
       .replace(/{name}/g, m.fullName)
       .replace(/{committee}/g, m.currentCommitteeName || 'لجان المتطوعين')
       .replace(/{position}/g, m.position || 'عضو متطوع')
-      .replace(/{age}/g, (info?.nextAge || m.age || '').toString());
+      .replace(/{age}/g, ageVal.toString());
   };
 
-  const handleOpenCustomModal = (m: Member, info: MemberBirthInfo) => {
+  const handleOpenCustomModal = (m: Member, info: MemberExactBirthData) => {
     setSelectedMemberForCustomMessage(m);
     setCustomGreetingText(generateMessage(m, info));
   };
@@ -167,7 +114,8 @@ export const BirthdaysView: React.FC = () => {
   };
 
   const handleSendWhatsApp = (m: Member, customText?: string) => {
-    const textToSend = customText || generateMessage(m, getMemberBirthInfo(m));
+    const info = getMemberBirthInfo(m);
+    const textToSend = customText || generateMessage(m, info);
     const phone = (m.whatsappNumber || m.phone || '').replace(/[^0-9]/g, '');
     const cleanPhone = phone.startsWith('0') ? `20${phone.substring(1)}` : phone;
 
@@ -297,12 +245,31 @@ export const BirthdaysView: React.FC = () => {
                     <span className="absolute -bottom-1 -right-1 text-sm">🎂</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold text-white truncate">{m.fullName}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white truncate">{m.fullName}</h4>
+                      {info.genderAr && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-normal">
+                          {info.genderAr}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-pink-300 font-medium truncate">{m.position} • {m.currentCommitteeName}</p>
-                    <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                      <span>العمر: <strong className="text-white font-mono">{info.nextAge} سنة</strong></span>
+                    <div className="text-[10px] text-slate-300 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span>العمر اليوم: <strong className="text-pink-300 font-bold font-mono">{info.currentAge} سنة</strong> 🎂</span>
                       <span>•</span>
-                      <span>الهاتف: <strong className="text-slate-200 font-mono">{m.phone || m.whatsappNumber || 'غير مسجل'}</strong></span>
+                      <span>تاريخ الميلاد: <strong className="text-white font-mono">{info.formattedFullDate}</strong></span>
+                      {info.governorate && (
+                        <>
+                          <span>•</span>
+                          <span className="text-slate-400">محافظة {info.governorate}</span>
+                        </>
+                      )}
+                      {info.zodiacSign && (
+                        <>
+                          <span>•</span>
+                          <span className="text-amber-300/90">{info.zodiacSign}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -348,7 +315,7 @@ export const BirthdaysView: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="بحث بالاسم، اللجنة، أو رقم الهاتف..."
+            placeholder="بحث بالاسم، اللجنة، المحافظة، الرقم القومي أو الهاتف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="glass-input pr-9 text-xs w-full"
@@ -403,7 +370,7 @@ export const BirthdaysView: React.FC = () => {
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <h3 className="text-xs font-bold text-white flex items-center gap-2">
             <Calendar className="w-4 h-4 text-sky-400" />
-            <span>جدول أعياد الميلاد المرتب زمنياً ({filteredList.length} متطوع)</span>
+            <span>جدول أعياد الميلاد الموثق والمستخرج من الرقم القومي ({filteredList.length} متطوع)</span>
           </h3>
           <span className="text-[11px] text-slate-400">مرتب بالأقرب تاريخاً</span>
         </div>
@@ -433,23 +400,40 @@ export const BirthdaysView: React.FC = () => {
                       className="w-10 h-10 rounded-xl object-cover border border-slate-700 shrink-0"
                     />
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-xs sm:text-sm font-bold text-white truncate">{m.fullName}</h4>
                         {info.isToday && (
-                          <span className="px-2 py-0.5 rounded-full bg-pink-500 text-slate-950 text-[10px] font-black">
-                            عيد ميلاده اليوم 🎂
+                          <span className="px-2 py-0.5 rounded-full bg-pink-500 text-slate-950 text-[10px] font-black animate-pulse">
+                            عيد ميلاده اليوم 🎂 ({info.currentAge} سنة)
                           </span>
                         )}
                         {info.isThisWeek && !info.isToday && (
                           <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
-                            بعد {info.diffDays} {info.diffDays === 1 ? 'يوم' : 'أيام'} 🎈
+                            بعد {info.diffDays} {info.diffDays === 1 ? 'يوم' : 'أيام'} 🎈 (يكمل {info.nextAge} سنة)
+                          </span>
+                        )}
+                        {!info.isToday && !info.isThisWeek && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            (السن الحالي: {info.currentAge} سنة)
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                      <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                         <span className="text-sky-300 font-medium">{m.currentCommitteeName || 'متطوع'}</span>
                         <span>•</span>
-                        <span>تاريخ الميلاد: <strong className="text-white font-mono">{info.formattedDate}</strong> ({info.nextAge} سنة)</span>
+                        <span>تاريخ الميلاد: <strong className="text-white font-mono">{info.formattedFullDate}</strong></span>
+                        {info.governorate && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-400">محافظة {info.governorate}</span>
+                          </>
+                        )}
+                        {info.zodiacSign && (
+                          <>
+                            <span>•</span>
+                            <span className="text-amber-300/80">{info.zodiacSign}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

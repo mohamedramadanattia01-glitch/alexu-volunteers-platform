@@ -8,6 +8,7 @@ import {
   History, Award, Trash2, Calendar
 } from 'lucide-react';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
+import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
 
 interface EditMemberProfileModalProps {
   member: Member;
@@ -126,9 +127,14 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanNatId = nationalId.trim() || member.nationalId;
+    const parsed = parseEgyptianNationalId(cleanNatId);
+
     updateMemberSelfProfile(member.id, {
       fullName: fullName.trim() || member.fullName,
-      nationalId: nationalId.trim() || member.nationalId,
+      nationalId: cleanNatId,
+      birthDate: parsed.isValid ? parsed.birthDate : member.birthDate,
+      age: parsed.isValid ? parsed.age : member.age,
       phone: phone.trim() || member.phone,
       whatsappNumber: whatsappNumber.trim() || member.whatsappNumber,
       college,
@@ -253,17 +259,51 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               </div>
 
               {/* National ID */}
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-slate-300 font-bold mb-1">الرقم القومي (14 رقم) *</label>
                 <input
                   type="text"
                   required
                   maxLength={14}
                   value={nationalId}
-                  onChange={(e) => setNationalId(e.target.value)}
+                  onChange={(e) => setNationalId(normalizeNumerals(e.target.value).replace(/[^0-9]/g, '').slice(0, 14))}
                   placeholder="14 رقماً قومياً..."
                   className="glass-input text-xs font-mono"
                 />
+
+                {/* Real-time National ID extraction badge */}
+                {nationalId.length > 0 && (() => {
+                  const p = parseEgyptianNationalId(nationalId);
+                  if (p.isValid) {
+                    return (
+                      <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs text-emerald-300 animate-in fade-in space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-[11px] text-emerald-400">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>الرقم القومي صحيح ومطابق للمواصفات الرسمية:</span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 flex flex-wrap gap-x-3 gap-y-0.5 pr-4">
+                          <span>📅 تاريخ الميلاد: <strong className="text-white font-mono">{p.formattedDate}</strong></span>
+                          <span>🎂 العمر الدقيق: <strong className="text-emerald-300 font-bold font-mono">{p.age} سنة</strong></span>
+                          <span>🏛️ المحافظة: <strong className="text-white">{p.governorate}</strong></span>
+                          <span>👤 النوع: <strong className="text-white">{p.genderAr}</strong></span>
+                          {p.zodiacSign && <span>✨ {p.zodiacSign}</span>}
+                        </div>
+                      </div>
+                    );
+                  } else if (nationalId.length === 14) {
+                    return (
+                      <div className="mt-2 p-2 rounded-xl bg-red-950/30 border border-red-500/40 text-[11px] text-red-300 flex items-center gap-1.5 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                        <span>⚠️ {p.errorMessage}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="text-[10px] text-slate-400 mt-1 pr-1">
+                      متبقي {14 - nationalId.length} أرقام لاستخراج تاريخ الميلاد والعمر الدقيق
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Protected Read-Only Email */}

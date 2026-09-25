@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Member } from '../../types';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
+import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
 
 export const AuthScreen: React.FC = () => {
   const { 
@@ -117,6 +118,9 @@ export const AuthScreen: React.FC = () => {
 
     setRegLoading(true);
     setTimeout(() => {
+      const natResult = parseEgyptianNationalId(regNationalId);
+      const effectiveBirthDate = natResult.isValid ? natResult.birthDate : regBirthDate;
+
       const res = registerVolunteer({
         fullName: regFullName,
         email: regEmail,
@@ -125,7 +129,7 @@ export const AuthScreen: React.FC = () => {
         academicYear: regAcademicYear,
         whatsapp: regWhatsapp,
         nationalId: regNationalId || '30500000000000',
-        birthDate: regBirthDate,
+        birthDate: effectiveBirthDate,
         preferredCommitteeId: regPreferredCommId,
         bio: regBio
       });
@@ -565,13 +569,56 @@ export const AuthScreen: React.FC = () => {
                         type="text"
                         maxLength={14}
                         value={regNationalId}
-                        onChange={e => setRegNationalId(e.target.value)}
+                        onChange={e => {
+                          const val = normalizeNumerals(e.target.value).replace(/[^0-9]/g, '').slice(0, 14);
+                          setRegNationalId(val);
+                          if (val.length === 14) {
+                            const p = parseEgyptianNationalId(val);
+                            if (p.isValid) {
+                              setRegBirthDate(p.birthDate);
+                            }
+                          }
+                        }}
                         placeholder="30501010204419"
-                        className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-blue-500 rounded-xl pr-9 pl-3 py-2 text-xs text-white focus:outline-none transition-all"
+                        className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-blue-500 rounded-xl pr-9 pl-3 py-2 text-xs text-white focus:outline-none transition-all font-mono"
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Real-time National ID Extraction Info Card */}
+                {regNationalId.length > 0 && (() => {
+                  const p = parseEgyptianNationalId(regNationalId);
+                  if (p.isValid) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs text-emerald-300 animate-in fade-in space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-[11px] text-emerald-400">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>تم استخراج وتدقيق بيانات الرقم القومي بنجاح:</span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 flex flex-wrap gap-x-3 gap-y-1 pr-5">
+                          <span>📅 تاريخ الميلاد: <strong className="text-white font-mono">{p.formattedDate}</strong></span>
+                          <span>🎂 السن الدقيق: <strong className="text-emerald-300 font-bold font-mono">{p.age} سنة</strong></span>
+                          <span>🏛️ المحافظة: <strong className="text-white">{p.governorate}</strong></span>
+                          <span>👤 النوع: <strong className="text-white">{p.genderAr}</strong></span>
+                          {p.zodiacSign && <span>✨ {p.zodiacSign}</span>}
+                        </div>
+                      </div>
+                    );
+                  } else if (regNationalId.length === 14) {
+                    return (
+                      <div className="p-2 rounded-xl bg-red-950/30 border border-red-500/40 text-[11px] text-red-300 flex items-center gap-1.5 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                        <span>⚠️ {p.errorMessage}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="text-[10px] text-slate-400 pr-1">
+                      متبقي {14 - regNationalId.length} أرقام لاستخراج تاريخ الميلاد والمحافظة تلقائياً
+                    </div>
+                  );
+                })()}
 
                 {/* Preferred Committee */}
                 <div>

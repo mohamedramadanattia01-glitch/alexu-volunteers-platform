@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, isHighLeadershipMember } from '../../context/AppContext';
 import { Member } from '../../types';
+import { getMemberExactBirthData } from '../../utils/nationalId';
 import { 
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
   Calendar, Phone, Mail, GraduationCap, Clock, 
@@ -258,10 +259,31 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">تاريخ الميلاد والعمر:</span>
-                <span className="text-slate-300">{member.birthDate} ({member.age} سنة)</span>
-              </div>
+              {(() => {
+                const bData = getMemberExactBirthData(member);
+                return (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">تاريخ الميلاد والسن:</span>
+                      <span className="text-slate-200 font-medium">
+                        {bData.formattedFullDate} (<strong className="text-sky-300 font-bold font-mono">{bData.currentAge} سنة</strong>)
+                      </span>
+                    </div>
+                    {bData.governorate && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">المحافظة (الرقم القومي):</span>
+                        <span className="text-slate-300 font-medium">محافظة {bData.governorate}</span>
+                      </div>
+                    )}
+                    {bData.zodiacSign && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">البرج الفلكي:</span>
+                        <span className="text-amber-300 font-medium">{bData.zodiacSign}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">تاريخ الانضمام:</span>
                 <span className="text-slate-300">{member.joinDate}</span>

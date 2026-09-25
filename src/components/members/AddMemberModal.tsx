@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { UserPlus, X } from 'lucide-react';
+import { UserPlus, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
+import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
 
 interface AddMemberModalProps {
   isOpen: boolean;
@@ -15,24 +16,27 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
   const [college, setCollege] = useState<string>(ALEXANDRIA_UNIVERSITY_COLLEGES[1]); // كلية الهندسة
   const [academicYear, setAcademicYear] = useState('الفرقة الثانية');
   const [whatsappNumber, setWhatsappNumber] = useState('+2010');
-  const [nationalId, setNationalId] = useState('30501010200000');
+  const [nationalId, setNationalId] = useState('30401010200000');
   const [committeeId, setCommitteeId] = useState(committees[0]?.id || 'comm-org');
   const [position, setPosition] = useState('عضو متطوع');
 
   if (!isOpen) return null;
 
   const currentComm = committees.find(c => c.id === committeeId);
+  const parsedNatId = parseEgyptianNationalId(nationalId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) return;
 
     addMember({
-      fullName,
+      fullName: fullName.trim(),
       college,
       academicYear,
       whatsappNumber,
-      nationalId,
+      nationalId: nationalId.trim(),
+      birthDate: parsedNatId.isValid ? parsedNatId.birthDate : '2004-01-01',
+      age: parsedNatId.isValid ? parsedNatId.age : 21,
       currentCommitteeId: committeeId,
       currentCommitteeName: currentComm ? currentComm.name : 'لجنة التنظيم',
       position
@@ -110,12 +114,37 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
               <label className="block text-xs font-bold text-slate-300 mb-1">الرقم القومي (14 رقم)</label>
               <input 
                 type="text"
+                maxLength={14}
                 value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
+                onChange={(e) => setNationalId(normalizeNumerals(e.target.value).replace(/[^0-9]/g, '').slice(0, 14))}
                 className="glass-input text-xs font-mono"
+                placeholder="30401010200000"
               />
             </div>
           </div>
+
+          {/* Real-time National ID Extraction Info */}
+          {nationalId.length > 0 && (
+            parsedNatId.isValid ? (
+              <div className="p-2.5 rounded-xl bg-blue-950/30 border border-blue-500/40 text-xs text-blue-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-[11px] text-sky-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>تم استخراج وتدقيق بيانات الرقم القومي:</span>
+                </div>
+                <div className="text-[10px] text-slate-300 flex flex-wrap gap-x-3 gap-y-0.5 pr-5">
+                  <span>📅 تاريخ الميلاد: <strong className="text-white font-mono">{parsedNatId.formattedDate}</strong></span>
+                  <span>🎂 العمر: <strong className="text-sky-300 font-bold font-mono">{parsedNatId.age} سنة</strong></span>
+                  <span>🏛️ المحافظة: <strong className="text-white">{parsedNatId.governorate}</strong></span>
+                  <span>👤 النوع: <strong className="text-white">{parsedNatId.genderAr}</strong></span>
+                </div>
+              </div>
+            ) : nationalId.length === 14 ? (
+              <div className="p-2 rounded-xl bg-red-950/30 border border-red-500/40 text-[11px] text-red-300 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                <span>⚠️ {parsedNatId.errorMessage}</span>
+              </div>
+            ) : null
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

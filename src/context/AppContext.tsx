@@ -26,6 +26,7 @@ import { generateCommitteeVolunteerId } from '../utils/volunteerId';
 import { isHighLeadershipRole, getRoleOfficialTitle } from '../utils/roleUtils';
 import { SupabaseService } from '../services/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { getMemberExactBirthData } from '../utils/nationalId';
 
 export const isHighLeadershipMember = (member?: Member | null): boolean => {
   if (!member) return false;
@@ -183,6 +184,8 @@ interface AppContextType {
   updateMemberSelfProfile: (memberId: string, profileData: { 
     fullName?: string;
     nationalId?: string;
+    birthDate?: string;
+    age?: number;
     phone?: string;
     whatsappNumber?: string;
     college?: string;
@@ -841,6 +844,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const memberRole = memberData.role || 'member';
     const volunteerId = memberData.volunteerId || generateCommitteeVolunteerId(commId, memberRole, members);
 
+    const birthData = getMemberExactBirthData({
+      nationalId: memberData.nationalId,
+      birthDate: memberData.birthDate,
+      age: memberData.age
+    });
+
     const newMember: Member = {
       id: newId,
       volunteerId,
@@ -849,8 +858,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       college: memberData.college || 'جامعة الإسكندرية',
       academicYear: memberData.academicYear || 'الفرقة الأولى',
       whatsappNumber: memberData.whatsappNumber || '+201000000000',
-      birthDate: memberData.birthDate || '2005-01-01',
-      age: memberData.age || 21,
+      birthDate: birthData.birthDate,
+      age: birthData.currentAge,
       nationalId: memberData.nationalId || '30501010200000',
       currentCommitteeId: commId,
       currentCommitteeName: memberData.currentCommitteeName || 'لجنة التنظيم',
@@ -908,6 +917,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const commId = m.currentCommitteeId || 'comm-org';
       const role = m.role || 'member';
       const volId = m.volunteerId || generateCommitteeVolunteerId(commId, role, members);
+      const rawNatId = m.nationalId || (m as any).national_id || '30400000000000';
+      const rawBirthDate = m.birthDate || (m as any).birth_date;
+
+      const birthData = getMemberExactBirthData({
+        nationalId: rawNatId,
+        birthDate: rawBirthDate,
+        age: m.age
+      });
 
       return {
         id: m.id || `user-imp-${Date.now()}-${idx}`,
@@ -917,9 +934,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         college: m.college || (m as any).faculty || 'جامعة الإسكندرية',
         academicYear: m.academicYear || 'الفرقة الثالثة',
         whatsappNumber: m.whatsappNumber || (m as any).phone || '+201000000000',
-        birthDate: '2004-01-01',
-        age: 21,
-        nationalId: '30400000000000',
+        birthDate: birthData.birthDate,
+        age: birthData.currentAge,
+        nationalId: rawNatId,
         currentCommitteeId: commId,
         currentCommitteeName: m.currentCommitteeName || 'لجنة التنظيم',
         position: m.position || 'عضو متطوع',
@@ -967,7 +984,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Update Member
   const updateMember = (id: string, updates: Partial<Member>) => {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    setMembers(prev => prev.map(m => {
+      if (m.id !== id) return m;
+      const combined = { ...m, ...updates };
+      if (updates.nationalId !== undefined || updates.birthDate !== undefined) {
+        const bData = getMemberExactBirthData({
+          nationalId: combined.nationalId,
+          birthDate: combined.birthDate,
+          age: combined.age
+        });
+        combined.birthDate = bData.birthDate;
+        combined.age = bData.currentAge;
+      }
+      return combined;
+    }));
     addAuditLog('تعديل بيانات عضو', `ID: ${id}`, 'تم تحديث ملف العضو');
   };
 
@@ -2418,6 +2448,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const prefComm = committees.find(c => c.id === formData.preferredCommitteeId) || committees[0];
 
+    const birthData = getMemberExactBirthData({
+      nationalId: cleanNatId,
+      birthDate: formData.birthDate,
+      age: 20
+    });
+
     const newMember: Member = {
       id: `user-applicant-${Date.now()}`,
       volunteerId: 'PENDING',
@@ -2426,8 +2462,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       college: formData.college || 'جامعة الإسكندرية',
       academicYear: formData.academicYear || 'الفرقة الأولى',
       whatsappNumber: formData.whatsapp || '',
-      birthDate: formData.birthDate || '2005-01-01',
-      age: 20,
+      birthDate: birthData.birthDate,
+      age: birthData.currentAge,
       nationalId: cleanNatId || '30000000000000',
       currentCommitteeId: prefComm ? prefComm.id : 'comm-org',
       currentCommitteeName: prefComm ? prefComm.name : 'لجنة التنظيم',
@@ -2574,6 +2610,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     profileData: {
       fullName?: string;
       nationalId?: string;
+      birthDate?: string;
+      age?: number;
       phone?: string;
       whatsappNumber?: string;
       college?: string;
@@ -2595,9 +2633,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let updatedMember: Member | null = null;
     setMembers(prev => prev.map(m => {
       if (m.id === memberId) {
+        const rawNatId = profileData.nationalId !== undefined ? profileData.nationalId : m.nationalId;
+        const rawBirthDate = profileData.birthDate !== undefined ? profileData.birthDate : m.birthDate;
+        const bData = getMemberExactBirthData({
+          nationalId: rawNatId,
+          birthDate: rawBirthDate,
+          age: profileData.age !== undefined ? profileData.age : m.age
+        });
+
         updatedMember = {
           ...m,
           ...profileData,
+          birthDate: bData.birthDate,
+          age: bData.currentAge,
+          nationalId: rawNatId,
           phone: profileData.phone || m.phone || profileData.whatsappNumber || m.whatsappNumber,
           whatsappNumber: profileData.whatsappNumber || profileData.phone || m.whatsappNumber,
           committeeHistory: profileData.committeeHistory !== undefined ? profileData.committeeHistory : m.committeeHistory

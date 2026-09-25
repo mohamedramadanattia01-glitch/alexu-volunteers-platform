@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { exportAttendanceToExcel } from '../../utils/excelExport';
 import { downloadMemberPortfolioPDF } from '../../utils/pdfExport';
+import { getMemberExactBirthData } from '../../utils/nationalId';
 
 interface ProfileViewProps {
   onOpenEditProfile: () => void;
@@ -438,6 +439,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <span className="text-slate-500">الرقم القومي:</span>
                 <span className="font-mono">{currentUser.nationalId || '—'}</span>
               </div>
+              {(() => {
+                const userBirth = getMemberExactBirthData(currentUser);
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">تاريخ الميلاد والسن:</span>
+                      <span className="font-mono text-slate-200">{userBirth.formattedFullDate} ({userBirth.currentAge} سنة)</span>
+                    </div>
+                    {userBirth.governorate && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">المحافظة:</span>
+                        <span className="text-slate-300">محافظة {userBirth.governorate}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">البريد الجامعي:</span>
                 <span className="font-mono text-[10px]">{currentUser.universityEmail}</span>
