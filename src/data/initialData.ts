@@ -22,6 +22,27 @@ export const initialSeasons: Season[] = [
 
 export const initialCommittees: Committee[] = [
   {
+    id: 'comm-leadership',
+    name: 'القيادة العليا والمجلس الاستشاري',
+    code: 'LEAD',
+    description: 'المجلس الاستشاري، رئاسة الاتحاد، ونواب الرئيس، وإدارة العمليات والجودة وشؤون العضوية.',
+    responsibilities: [
+      'التوجيه الاستراتيجي وحوكمة العمل التطوعي',
+      'الإشراف الميداني واعتماد الخطط والقرارات',
+      'إدارة الأزمات الكبرى وبلاغات الطوارئ',
+      'التحكيم النهائي في التظلمات وتطوير الكوادر'
+    ],
+    memberCount: 1,
+    activeTasksCount: 0,
+    completedTasksCount: 0,
+    attendanceRate: 100,
+    performanceScore: 100,
+    healthScore: 100,
+    seasonId: 'season-2026-2027',
+    color: '#f59e0b',
+    icon: 'Crown'
+  },
+  {
     id: 'comm-org',
     name: 'لجنة التنظيم',
     code: 'OC',
@@ -161,8 +182,8 @@ export const initialMembers: Member[] = [
     birthDate: '1995-01-01',
     age: 30,
     nationalId: '29501010200000',
-    currentCommitteeId: 'comm-org',
-    currentCommitteeName: 'القيادة العليا للفريق',
+    currentCommitteeId: 'comm-leadership',
+    currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
     position: 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية',
     role: 'advisor',
     joinDate: '2026-09-01',
@@ -347,8 +368,8 @@ export const initialNotifications: SystemNotification[] = [
     title: '👑 مرحباً بك في المنظومة الرقمية الرسمية',
     message: 'أهلاً بك يا أستاذ محمد رمضان (مستشار الفريق). المنظومة مهيأة وجاهزة لاستقبال وتسجيل المتطوعين الجدد واعتمادهم رسمياً.',
     type: 'announcement',
-    read: false,
-    createdAt: 'الآن',
+    read: true,
+    createdAt: 'سابقاً',
     linkTab: 'members'
   }
 ];

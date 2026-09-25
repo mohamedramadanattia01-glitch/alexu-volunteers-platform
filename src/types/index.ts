@@ -478,6 +478,7 @@ export interface MemberEvaluationRecord {
   evaluatorId: string;
   evaluatorName: string;
   evaluatorRole: Role;
+  evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
   scores: { [criterionId: string]: number }; // points earned per criterion
   totalScore: number;
   maxTotalScore: number;
@@ -496,6 +497,7 @@ export interface HeadEvaluationRecord {
   evaluatorId: string;
   evaluatorName: string;
   evaluatorRole: Role;
+  evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
   scores: { [criterionId: string]: number };
   totalScore: number;
   maxTotalScore: number;
