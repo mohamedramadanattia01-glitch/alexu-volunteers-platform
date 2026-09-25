@@ -235,31 +235,32 @@ export const AuthScreen: React.FC = () => {
         {/* Creative Central Logo & Branding Header */}
         <div className="p-6 sm:p-8 text-center relative border-b border-white/10 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950/80">
           
-          {/* Glowing Animated Central Logo Container */}
-          <div className="relative mx-auto w-24 h-24 sm:w-28 sm:h-28 mb-4 group cursor-pointer">
-            {/* Outer Pulsing Aura Ring */}
-            <div className="absolute -inset-2 bg-gradient-to-tr from-blue-600 via-sky-400 to-indigo-500 rounded-3xl blur-md opacity-70 group-hover:opacity-100 transition-all duration-700 animate-pulse" />
+          {/* Glowing Animated Central Logo Container (Transparent & Creative) */}
+          <div className="relative mx-auto w-28 h-28 sm:w-32 sm:h-32 mb-4 group flex items-center justify-center">
+            {/* Outer Glowing Holographic Aura */}
+            <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500 via-sky-400 to-purple-600 rounded-full blur-xl opacity-60 group-hover:opacity-90 transition-all duration-700 animate-pulse" />
             
-            {/* Rotating Ambient Border */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-sky-400 rounded-2xl p-[2px] shadow-2xl shadow-blue-500/40">
-              <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center overflow-hidden p-1.5 shadow-inner">
-                {branding.logoUrl ? (
-                  <img 
-                    src={branding.logoUrl} 
-                    alt="اتحاد طلاب جامعة الإسكندرية" 
-                    className="w-full h-full object-contain transform transition-transform duration-500 group-hover:scale-105" 
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-tr from-blue-950 via-slate-950 to-sky-950 flex flex-col items-center justify-center rounded-xl border border-blue-500/30">
-                    <span className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-sky-300 tracking-wider">
-                      AU
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-400 tracking-widest mt-0.5">
-                      ALEX U
-                    </span>
-                  </div>
-                )}
-              </div>
+            {/* Rotating Subtle Tech Orbit */}
+            <div className="absolute -inset-2 rounded-full border border-dashed border-sky-400/30 animate-[spin_20s_linear_infinite]" />
+
+            {/* Pure Transparent Logo Container */}
+            <div className="relative w-full h-full bg-transparent flex items-center justify-center p-1">
+              {branding.logoUrl ? (
+                <img 
+                  src={branding.logoUrl} 
+                  alt="اتحاد طلاب جامعة الإسكندرية" 
+                  className="w-full h-full object-contain filter drop-shadow-[0_8px_20px_rgba(56,189,248,0.4)] transform transition-transform duration-500 group-hover:scale-110" 
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-tr from-blue-950 via-slate-950 to-sky-950 flex flex-col items-center justify-center rounded-2xl border border-blue-500/30 shadow-xl">
+                  <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-sky-300 tracking-wider">
+                    AU
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 tracking-widest mt-0.5">
+                    ALEX U
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

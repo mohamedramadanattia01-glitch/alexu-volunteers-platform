@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ALL_ROLES_INFO, getRoleShortLabel } from '../../utils/roleUtils';
 import { 
@@ -39,6 +39,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'sos' | 'task' | 'announcement' | 'eval'>('all');
 
+  const notifRef = useRef<HTMLDivElement>(null);
+  const personaRef = useRef<HTMLDivElement>(null);
+
+  // Global click-away listener to automatically dismiss notifications or persona dropdown
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (showNotifMenu && notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifMenu(false);
+      }
+      if (showPersonaMenu && personaRef.current && !personaRef.current.contains(e.target as Node)) {
+        setShowPersonaMenu(false);
+      }
+    };
+
+    if (showNotifMenu || showPersonaMenu) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [showNotifMenu, showPersonaMenu]);
+
   const unreadNotifs = notifications.filter(n => !n.read);
   const openSOSCount = sosAlerts.filter(s => s.status === 'Open' || s.status === 'Acknowledged').length;
   const newComplaintsCount = complaints.filter(c => c.status === 'New').length;
@@ -56,15 +81,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 w-full glass-card border-b border-white/10 bg-slate-900/95 backdrop-blur-md px-2.5 sm:px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
         
-        {/* Logo & Union Identity (Compact on mobile for maximum action bar width) */}
+        {/* Logo & Union Identity (Transparent and perfectly fitted) */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <div 
             onClick={isHighLeadership ? onOpenSettings : undefined}
             title={isHighLeadership ? "تعديل الشعار وإعدادات المنصة" : (branding.appTitle || "فريق المتطوعين")}
-            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 p-0.5 shadow-lg shadow-blue-500/30 flex items-center justify-center transition-all overflow-hidden shrink-0 group relative ${isHighLeadership ? 'cursor-pointer hover:scale-105' : 'cursor-default'}`}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-transparent p-0.5 shadow-lg shadow-blue-500/20 flex items-center justify-center transition-all shrink-0 group relative ${isHighLeadership ? 'cursor-pointer hover:scale-105' : 'cursor-default'}`}
           >
             {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt="شعار اتحاد طلاب جامعة الإسكندرية" className="w-full h-full object-contain bg-white rounded-[10px] p-0.5" />
+              <img src={branding.logoUrl} alt="شعار اتحاد طلاب جامعة الإسكندرية" className="w-full h-full object-contain filter drop-shadow-md" />
             ) : (
               <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center font-bold text-blue-400 text-xs sm:text-base">
                 AU
@@ -199,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Notifications Center */}
-          <div className="relative">
+          <div className="relative" ref={notifRef}>
             <button
               type="button"
               onClick={() => { 
@@ -449,7 +474,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* User Profile Badge & Persona Switcher (Dropdown only for High Leadership) */}
-          <div className="relative">
+          <div className="relative" ref={personaRef}>
             {isHighLeadership ? (
               <button
                 onClick={() => { setShowPersonaMenu(!showPersonaMenu); setShowNotifMenu(false); }}

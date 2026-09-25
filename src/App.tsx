@@ -43,6 +43,7 @@ import { CelebrationOverlay } from './components/common/CelebrationOverlay';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PendingApprovalsModal } from './components/members/PendingApprovalsModal';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
+import { SplashScreen } from './components/common/SplashScreen';
 import { Member, Task } from './types';
 
 const MainAppContent: React.FC = () => {
@@ -313,8 +314,18 @@ const MainAppContent: React.FC = () => {
 };
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   return (
     <AppProvider>
+      <AnimatePresence mode="wait">
+        {showSplash && (
+          <SplashScreen 
+            onFinish={() => setShowSplash(false)} 
+            durationMs={1300} 
+          />
+        )}
+      </AnimatePresence>
       <MainAppContent />
     </AppProvider>
   );
