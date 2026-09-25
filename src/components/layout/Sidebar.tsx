@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Zap, Users, Layers, CheckSquare, 
   Calendar, QrCode, Target, GraduationCap, Trophy, 
   Bot, Megaphone, FolderGit2, ShieldAlert, 
-  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake
+  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -25,6 +25,12 @@ export const Sidebar: React.FC = () => {
       badge: currentUser.volunteerId || undefined,
       badgeColor: 'bg-blue-600/30 text-blue-200 font-mono text-[9px]',
       roles: ['*']
+    },
+    { 
+      id: 'org-hierarchy', 
+      label: 'الهيكل الإداري وخريطة المهام 🏛️', 
+      icon: Building2, 
+      roles: ['*'] 
     },
     { 
       id: 'birthdays', 

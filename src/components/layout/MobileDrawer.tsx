@@ -5,7 +5,8 @@ import {
   CheckSquare, Calendar, QrCode, Target, 
   GraduationCap, Trophy, Bot, 
   Megaphone, FolderGit2, ShieldAlert, BarChart3, 
-  HeartPulse, MessageSquare, Sliders, User, Smartphone, Download 
+  HeartPulse, MessageSquare, Sliders, User, Smartphone, Download,
+  Building2, Cake 
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -35,6 +36,18 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
       icon: User,
       badge: currentUser.volunteerId || undefined,
       roles: ['*']
+    },
+    { 
+      id: 'org-hierarchy', 
+      label: 'الهيكل الإداري وخريطة المهام 🏛️', 
+      icon: Building2, 
+      roles: ['*'] 
+    },
+    { 
+      id: 'birthdays', 
+      label: 'أعياد الميلاد والمناسبات 🎂', 
+      icon: Cake, 
+      roles: ['super_admin', 'vice_president', 'advisor', 'general_coordinator', 'operations_manager', 'quality_officer', 'hr_admin', 'head', 'vice_head'] 
     },
     { id: 'live-command', label: 'غرفة العمليات الحية', icon: Zap, highlight: isLiveCommandCenterActive, roles: ['super_admin', 'vice_president', 'advisor', 'general_coordinator', 'operations_manager', 'head', 'vice_head', 'event_manager'] },
     { id: 'members', label: 'سجل الأعضاء والتوظيف', icon: Users, roles: ['super_admin', 'vice_president', 'advisor', 'general_coordinator', 'operations_manager', 'quality_officer', 'hr_admin'] },

@@ -27,6 +27,7 @@ import { AddMemberModal } from './components/members/AddMemberModal';
 import { ImportMembersModal } from './components/members/ImportMembersModal';
 import { CommitteesView } from './components/committees/CommitteesView';
 import { CommitteeModal } from './components/committees/CommitteeModal';
+import { OrgChartView } from './components/hierarchy/OrgChartView';
 import { BirthdaysView } from './components/birthdays/BirthdaysView';
 import { EvaluationsView } from './components/evaluations/EvaluationsView';
 import { LeaderboardView } from './components/gamification/LeaderboardView';
@@ -44,7 +45,7 @@ import { AuthScreen } from './components/auth/AuthScreen';
 import { PendingApprovalsModal } from './components/members/PendingApprovalsModal';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 import { SplashScreen } from './components/common/SplashScreen';
-import { Member, Task } from './types';
+import { Member, Task, EventEntity } from './types';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, setActiveTab, tasks, branding, currentUser, isAuthenticated } = useApp();
@@ -64,6 +65,7 @@ const MainAppContent: React.FC = () => {
   const [isPendingApprovalsOpen, setIsPendingApprovalsOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
+  const [selectedEventForEdit, setSelectedEventForEdit] = useState<EventEntity | null>(null);
   const [selectedMemberIdForProfile, setSelectedMemberIdForProfile] = useState<string | null>(null);
   const [selectedMemberForEdit, setSelectedMemberForEdit] = useState<Member | null>(null);
   const [selectedMemberForTransfer, setSelectedMemberForTransfer] = useState<Member | null>(null);
@@ -171,6 +173,10 @@ const MainAppContent: React.FC = () => {
                 />
               )}
 
+              {activeTab === 'org-hierarchy' && (
+                <OrgChartView />
+              )}
+
               {activeTab === 'birthdays' && (
                 <BirthdaysView />
               )}
@@ -194,6 +200,7 @@ const MainAppContent: React.FC = () => {
                 <EventsList
                   onOpenNewEvent={() => setIsNewEventOpen(true)}
                   onOpenLiveCommand={() => setActiveTab('live-command')}
+                  onEditEvent={(ev) => setSelectedEventForEdit(ev)}
                 />
               )}
 
@@ -258,7 +265,14 @@ const MainAppContent: React.FC = () => {
       <QRAttendanceModal isOpen={isQROpen} onClose={() => setIsQROpen(false)} />
       <AIAssistantModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
       <TaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
-      <EventModal isOpen={isNewEventOpen} onClose={() => setIsNewEventOpen(false)} />
+      <EventModal 
+        isOpen={isNewEventOpen || !!selectedEventForEdit} 
+        eventToEdit={selectedEventForEdit}
+        onClose={() => {
+          setIsNewEventOpen(false);
+          setSelectedEventForEdit(null);
+        }} 
+      />
       <CommitteeModal isOpen={isNewCommOpen} onClose={() => setIsNewCommOpen(false)} />
       <AddMemberModal isOpen={isAddMemberOpen} onClose={() => setIsAddMemberOpen(false)} />
       <ImportMembersModal isOpen={isImportMembersOpen} onClose={() => setIsImportMembersOpen(false)} />

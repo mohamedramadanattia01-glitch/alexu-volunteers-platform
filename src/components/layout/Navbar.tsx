@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ALL_ROLES_INFO, getRoleShortLabel } from '../../utils/roleUtils';
 import { 
-  Bell, AlertTriangle, ChevronDown, CheckCircle, 
-  Sparkles, Search, LogOut, Check, X,
-  Sliders, MessageSquare, Volume2, VolumeX, Image as ImageIcon, User,
-  Crown, Star, Shield, UserCheck, Download, Smartphone
+  Bell, AlertTriangle, CheckCircle, 
+  Sparkles, LogOut, X,
+  Sliders, MessageSquare, User,
+  UserCheck, Smartphone
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -28,32 +27,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenInstallModal
 }) => {
   const { 
-    currentUser, members, switchPersona, 
+    currentUser, 
     sosAlerts, notifications, markNotificationRead, 
     markAllNotificationsRead, deleteNotification, clearAllNotifications,
-    setActiveTab, teamHealthScore,
+    setActiveTab,
     branding, complaints, isHighLeadership, pendingMembers, logout
   } = useApp();
 
-  const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'sos' | 'task' | 'announcement' | 'eval'>('all');
 
   const notifRef = useRef<HTMLDivElement>(null);
-  const personaRef = useRef<HTMLDivElement>(null);
 
-  // Global click-away listener to automatically dismiss notifications or persona dropdown
+  // Global click-away listener to automatically dismiss notifications dropdown
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (showNotifMenu && notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifMenu(false);
       }
-      if (showPersonaMenu && personaRef.current && !personaRef.current.contains(e.target as Node)) {
-        setShowPersonaMenu(false);
-      }
     };
 
-    if (showNotifMenu || showPersonaMenu) {
+    if (showNotifMenu) {
       document.addEventListener('mousedown', handleOutsideClick);
       document.addEventListener('touchstart', handleOutsideClick);
     }
@@ -62,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('touchstart', handleOutsideClick);
     };
-  }, [showNotifMenu, showPersonaMenu]);
+  }, [showNotifMenu]);
 
   const unreadNotifs = notifications.filter(n => !n.read);
   const openSOSCount = sosAlerts.filter(s => s.status === 'Open' || s.status === 'Acknowledged').length;
@@ -227,10 +221,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative" ref={notifRef}>
             <button
               type="button"
-              onClick={() => { 
-                setShowNotifMenu(prev => !prev); 
-                setShowPersonaMenu(false); 
-              }}
+              onClick={() => setShowNotifMenu(prev => !prev)}
               title="مركز الإشعارات والتنبيهات الميدانية"
               className={`relative p-1.5 sm:p-2 rounded-lg border transition-all cursor-pointer ${
                 showNotifMenu 
@@ -473,111 +464,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* User Profile Badge & Persona Switcher (Dropdown only for High Leadership) */}
-          <div className="relative" ref={personaRef}>
-            {isHighLeadership ? (
-              <button
-                onClick={() => { setShowPersonaMenu(!showPersonaMenu); setShowNotifMenu(false); }}
-                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 hover:border-blue-500/40 transition-all cursor-pointer"
-                title="تبديل المنظور (صلاحية الإدارة العليا فقط)"
-              >
-                <img 
-                  src={currentUser.avatarUrl} 
-                  alt={currentUser.fullName} 
-                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40"
-                />
-                <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                    {currentUser.fullName.split(' ')[0]}
-                    <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
-                      {currentUser.volunteerId || 'AU-001'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 leading-tight">
-                    {currentUser.position}
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
-            ) : (
-              <div 
-                onClick={() => setActiveTab('profile')}
-                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 border border-slate-700 transition-all cursor-pointer hover:border-blue-500/40"
-                title="عرض ملفك الشخصي"
-              >
-                <img 
-                  src={currentUser.avatarUrl} 
-                  alt={currentUser.fullName} 
-                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40"
-                />
-                <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                    {currentUser.fullName.split(' ')[0]}
-                    <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
-                      {currentUser.volunteerId || 'VOL'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 leading-tight">
-                    {currentUser.position}
-                  </div>
-                </div>
+          {/* User Profile Badge (Direct Profile Navigation - No Persona Switching) */}
+          <button 
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 sm:pr-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 hover:border-blue-500/40 transition-all cursor-pointer shadow-sm group"
+            title="الانتقال إلى الملف الشخصي وكارنيه العضوية"
+          >
+            <img 
+              src={currentUser.avatarUrl} 
+              alt={currentUser.fullName} 
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40 group-hover:border-blue-400 transition-all"
+            />
+            <div className="text-right hidden sm:block">
+              <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
+                <span className="truncate max-w-[90px]">{currentUser.fullName.split(' ')[0]}</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
+                  {currentUser.volunteerId || 'AU-001'}
+                </span>
               </div>
-            )}
-
-            {isHighLeadership && showPersonaMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs" 
-                  onClick={() => setShowPersonaMenu(false)} 
-                />
-                <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:left-0 top-14 sm:top-full mt-2 w-auto sm:w-80 max-w-[calc(100vw-16px)] glass-dropdown p-2.5 z-50 animate-in fade-in bg-slate-950/98 backdrop-blur-2xl border border-blue-500/40 shadow-2xl">
-                <div className="px-2.5 py-2 border-b border-slate-800 flex items-center justify-between mb-1">
-                  <div>
-                    <div className="text-xs font-bold text-blue-400">تبديل دور المستخدم (Persona)</div>
-                    <div className="text-[10px] text-slate-400">اختبر المنصة من منظور القيادة أو الأعضاء</div>
-                  </div>
-                  <button
-                    onClick={() => { setActiveTab('profile'); setShowPersonaMenu(false); }}
-                    className="p-1 text-xs bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg transition-all"
-                    title="الانتقال للملف الشخصي"
-                  >
-                    <User className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="max-h-80 overflow-y-auto py-1 space-y-1">
-                  {members.map(member => (
-                    <button
-                      key={member.id}
-                      onClick={() => { switchPersona(member.id); setShowPersonaMenu(false); }}
-                      className={`w-full text-right p-2 rounded-xl flex items-center gap-2 hover:bg-slate-800/80 transition-all cursor-pointer ${
-                        member.id === currentUser.id ? 'bg-blue-600/20 border border-blue-500/30 shadow-sm' : ''
-                      }`}
-                    >
-                      <img src={member.avatarUrl} alt="" className="w-7 h-7 rounded-lg object-cover" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate flex items-center justify-between">
-                          <span className="truncate">{member.fullName}</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 mr-1 border ${
-                            ALL_ROLES_INFO[member.role]?.badgeClass || 'bg-slate-700 text-slate-300 border-slate-600'
-                          }`}>
-                            {ALL_ROLES_INFO[member.role]?.icon} {getRoleShortLabel(member.role, member.currentCommitteeName)}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-                          <span className="text-sky-400 font-mono font-bold text-[9px]">{member.volunteerId}</span>
-                          <span>•</span>
-                          <span className="truncate">{member.position}</span>
-                        </div>
-                      </div>
-                      {member.id === currentUser.id && <Check className="w-4 h-4 text-blue-400 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
+              <div className="text-[10px] text-slate-400 leading-tight truncate max-w-[110px]">
+                {currentUser.position}
               </div>
-              </>
-            )}
-          </div>
+            </div>
+          </button>
 
           {/* Logout Button */}
           <button

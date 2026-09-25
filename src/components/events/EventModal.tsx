@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { EventEntity } from '../../types';
 import { 
   Calendar, Clock, MapPin, Users, Plus, X, Sparkles, 
-  Sun, Sunset, Compass, CheckCircle2, Award, Zap
+  Sun, Sunset, Compass, CheckCircle2, Award, Zap, Edit3, Save
 } from 'lucide-react';
 
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
+  eventToEdit?: EventEntity | null;
 }
 
-export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose }) => {
-  const { committees, createEvent, showNotification } = useApp();
+export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventToEdit }) => {
+  const { committees, createEvent, updateEvent, showNotification } = useApp();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [name, setName] = useState('');
@@ -21,6 +23,26 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose }) => {
   const [location, setLocation] = useState('مركز مؤتمرات جامعة الإسكندرية');
   const [description, setDescription] = useState('');
   const [expectedMembersCount, setExpectedMembersCount] = useState<number>(30);
+
+  useEffect(() => {
+    if (eventToEdit) {
+      setName(eventToEdit.name || '');
+      setDate(eventToEdit.date || todayStr);
+      setStartTime(eventToEdit.startTime || '09:00 ص');
+      setEndTime(eventToEdit.endTime || '03:00 م');
+      setLocation(eventToEdit.location || 'مركز مؤتمرات جامعة الإسكندرية');
+      setDescription(eventToEdit.description || '');
+      setExpectedMembersCount(eventToEdit.expectedMembersCount || 30);
+    } else {
+      setName('');
+      setDate(todayStr);
+      setStartTime('09:00 ص');
+      setEndTime('03:00 م');
+      setLocation('مركز مؤتمرات جامعة الإسكندرية');
+      setDescription('');
+      setExpectedMembersCount(30);
+    }
+  }, [eventToEdit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -53,7 +75,23 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    // Default quotas per committee
+    if (eventToEdit) {
+      updateEvent(eventToEdit.id, {
+        name: name.trim(),
+        date,
+        startTime,
+        endTime,
+        location: location.trim(),
+        description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
+        expectedMembersCount,
+      });
+
+      showNotification('success', `تم حفظ وتحديث بيانات الفعالية "${name}" بنجاح 💾`);
+      onClose();
+      return;
+    }
+
+    // Default quotas per committee for new events
     const quotas: Record<string, any> = {};
     const perComm = Math.max(2, Math.round(expectedMembersCount / (committees.length || 6)));
     
@@ -91,11 +129,15 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 sticky top-0 bg-slate-950/90 backdrop-blur-md z-10">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30">
-              <Calendar className="w-5 h-5" />
+              {eventToEdit ? <Edit3 className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="text-base font-black text-white">إضافة وجدولة فعالية كبرى جديدة</h3>
-              <p className="text-[11px] text-slate-400">تخطيط وتوزيع كوادر المتطوعين وتحديد المواعيد الميدانية</p>
+              <h3 className="text-base font-black text-white">
+                {eventToEdit ? 'تعديل بيانات الفعالية الميدانية' : 'إضافة وجدولة فعالية كبرى جديدة'}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {eventToEdit ? 'تحديث المواعيد، الموقع، وتوزيع المتطوعين' : 'تخطيط وتوزيع كوادر المتطوعين وتحديد المواعيد الميدانية'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white cursor-pointer">
@@ -370,10 +412,23 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose }) => {
             </button>
             <button 
               type="submit" 
-              className="btn-primary text-xs py-2 px-6 font-bold cursor-pointer flex items-center gap-1.5 shadow-lg shadow-sky-600/30"
+              className={`btn-primary text-xs py-2 px-6 font-bold cursor-pointer flex items-center gap-1.5 shadow-lg ${
+                eventToEdit 
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/30' 
+                  : 'shadow-sky-600/30'
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>جدولة واعتماد الفعالية 🚀</span>
+              {eventToEdit ? (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>حفظ وتحديث بيانات الفعالية 💾</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>جدولة واعتماد الفعالية 🚀</span>
+                </>
+              )}
             </button>
           </div>
 
