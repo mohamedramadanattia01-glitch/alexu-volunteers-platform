@@ -456,6 +456,45 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Certified Skills & Certificates (المهارات المعتمدة والشهادات) */}
+        {member.certifiedSkills && member.certifiedSkills.length > 0 && (
+          <div>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-amber-400" />
+              <span>المهارات والشهادات المعتمدة الموثقة ({member.certifiedSkills.length})</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {member.certifiedSkills.map((cert) => (
+                <div 
+                  key={cert.id}
+                  className="p-3 rounded-xl bg-slate-900/70 border border-amber-500/30 flex flex-col justify-between space-y-1 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <span className="font-bold text-amber-300 text-xs">{cert.skillName}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                      {cert.issueDate}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-300">
+                    🏛️ {cert.provider}
+                  </div>
+                  {cert.credentialUrl && (
+                    <a 
+                      href={cert.credentialUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-[10px] text-sky-400 hover:underline truncate block"
+                    >
+                      رابط / كود الاعتماد: {cert.credentialUrl}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Committee Transfer History */}
         <div>
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">

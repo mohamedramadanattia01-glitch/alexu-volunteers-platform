@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Member, CommitteeHistoryItem } from '../../types';
+import { Member, CommitteeHistoryItem, CertifiedSkillItem } from '../../types';
 import { 
   X, User, Upload, Sparkles, Heart, GraduationCap, 
   Plus, Check, Phone, FileText, Camera, Lock,
   ShieldCheck, MapPin, AlertCircle, HeartHandshake,
-  History, Award, Trash2, Calendar
+  History, Award, Trash2, Calendar, Link as LinkIcon
 } from 'lucide-react';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
@@ -52,6 +52,13 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
 
   const [newHobby, setNewHobby] = useState('');
   const [newAspiration, setNewAspiration] = useState('');
+
+  // Certified Skills & Certificates (المهارات المعتمدة والشهادات)
+  const [certifiedSkills, setCertifiedSkills] = useState<CertifiedSkillItem[]>(member.certifiedSkills || []);
+  const [newSkillName, setNewSkillName] = useState('');
+  const [newSkillProvider, setNewSkillProvider] = useState('');
+  const [newSkillIssueDate, setNewSkillIssueDate] = useState('');
+  const [newSkillCredentialUrl, setNewSkillCredentialUrl] = useState('');
 
   // Committee & Career History (Editable by Member)
   const [committeeHistory, setCommitteeHistory] = useState<CommitteeHistoryItem[]>(member.committeeHistory || []);
@@ -125,6 +132,26 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
     setCommitteeHistory(committeeHistory.filter(h => h.id !== id));
   };
 
+  const handleAddCertifiedSkill = () => {
+    if (!newSkillName.trim() || !newSkillProvider.trim()) return;
+    const newSkill: CertifiedSkillItem = {
+      id: `skill-cert-${Date.now()}`,
+      skillName: newSkillName.trim(),
+      provider: newSkillProvider.trim(),
+      issueDate: newSkillIssueDate.trim() || new Date().getFullYear().toString(),
+      credentialUrl: newSkillCredentialUrl.trim() || undefined
+    };
+    setCertifiedSkills([newSkill, ...certifiedSkills]);
+    setNewSkillName('');
+    setNewSkillProvider('');
+    setNewSkillIssueDate('');
+    setNewSkillCredentialUrl('');
+  };
+
+  const handleRemoveCertifiedSkill = (id: string) => {
+    setCertifiedSkills(certifiedSkills.filter(s => s.id !== id));
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNatId = nationalId.trim() || member.nationalId;
@@ -150,6 +177,7 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
       linkedinUrl,
       hobbies,
       learningAspirations,
+      certifiedSkills,
       committeeHistory
     });
     onClose();
@@ -606,6 +634,115 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
                   + {sa}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Certified Skills & Official Certificates (المهارات المعتمدة والشهادات) */}
+          <div className="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-amber-500/30">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-white flex items-center gap-1.5 text-xs sm:text-sm">
+                <Award className="w-4 h-4 text-amber-400" />
+                <span>المهارات المعتمدة والشهادات التدريبية (Certified Skills & Certificates):</span>
+              </label>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold">
+                {certifiedSkills.length} شهادات معتمدة
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              أضف المهارات والشهادات والاعتمادات التي حصلت عليها مع توثيق الجهة المانحة وتاريخ الحصول عليها لتظهر في ملفك وسيرتك الذاتية.
+            </p>
+
+            {/* Certified Skills List */}
+            <div className="space-y-2">
+              {certifiedSkills.length === 0 ? (
+                <div className="text-center py-3 text-xs text-slate-500 bg-slate-950/40 rounded-lg border border-slate-800/60">
+                  لم تقم بإضافة شهادات أو مهارات معتمدة بعد. أضف مهاراتك من النموذج أدناه.
+                </div>
+              ) : (
+                certifiedSkills.map((s) => (
+                  <div 
+                    key={s.id} 
+                    className="p-3 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-amber-300 text-sm">{s.skillName}</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/30 font-semibold">
+                          🏛️ {s.provider}
+                        </span>
+                        <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded font-mono">
+                          📅 {s.issueDate}
+                        </span>
+                      </div>
+                      {s.credentialUrl && (
+                        <div className="text-[10px] text-sky-400 truncate max-w-sm flex items-center gap-1">
+                          <LinkIcon className="w-3 h-3" />
+                          <span>{s.credentialUrl}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCertifiedSkill(s.id)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      title="حذف هذه المهارة المعتمدة"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add New Certified Skill Form */}
+            <div className="p-3 rounded-lg bg-slate-950/90 border border-slate-800 space-y-2.5">
+              <div className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" />
+                <span>إضافة مهارة / شهادة معتمدة جديدة:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="اسم المهارة أو الشهادة (مثال: إدارة المشاريع الاحترافية PMP)"
+                  value={newSkillName}
+                  onChange={(e) => setNewSkillName(e.target.value)}
+                  className="glass-input text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="الجهة أو المكان المانح (مثال: معهد جوته، جوجل، نقابة المهندسين)"
+                  value={newSkillProvider}
+                  onChange={(e) => setNewSkillProvider(e.target.value)}
+                  className="glass-input text-xs"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="تاريخ أو عام الحصول عليها (مثال: 2026 أو مايو 2025)"
+                  value={newSkillIssueDate}
+                  onChange={(e) => setNewSkillIssueDate(e.target.value)}
+                  className="glass-input text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="رابط أو كود التحقق من الشهادة (اختياري)..."
+                  value={newSkillCredentialUrl}
+                  onChange={(e) => setNewSkillCredentialUrl(e.target.value)}
+                  className="glass-input text-xs"
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={handleAddCertifiedSkill}
+                  disabled={!newSkillName.trim() || !newSkillProvider.trim()}
+                  className="btn-primary text-xs px-4 py-2 shrink-0 disabled:opacity-50 flex items-center gap-1 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة المهارة المعتمدة</span>
+                </button>
+              </div>
             </div>
           </div>
 

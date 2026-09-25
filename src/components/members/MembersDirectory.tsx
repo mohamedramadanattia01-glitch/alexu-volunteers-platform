@@ -9,7 +9,6 @@ import {
   Printer, Table, Grid, Sparkles, Mail, Lock
 } from 'lucide-react';
 import { exportMembersToExcel } from '../../utils/excelExport';
-import { RecruitmentPipeline } from '../recruitment/RecruitmentPipeline';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 
 interface MembersDirectoryProps {
@@ -30,7 +29,7 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
     deleteMember, banMember, unbanMember, filterOutMember, showNotification 
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'master_grid' | 'recruitment'>('directory');
+  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'master_grid'>('directory');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommittee, setSelectedCommittee] = useState('all');
   const [selectedCollege, setSelectedCollege] = useState('all');
@@ -137,24 +136,7 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
           <Table className="w-3.5 h-3.5 text-emerald-300" />
           <span>📊 شيت وقاعدة بيانات كل الأعضاء (Master Grid)</span>
         </button>
-
-        <button
-          onClick={() => setActiveSubTab('recruitment')}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all cursor-pointer ${
-            activeSubTab === 'recruitment'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-          <span>مسار الاستقطاب والمقابلات (Recruitment)</span>
-        </button>
       </div>
-
-      {activeSubTab === 'recruitment' ? (
-        <RecruitmentPipeline />
-      ) : (
-        <>
           {/* Header */}
           <div className="glass-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -732,9 +714,6 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
               </div>
             </div>
           )}
-        </>
-      )}
-
-    </div>
-  );
-};
+        </div>
+      );
+    };

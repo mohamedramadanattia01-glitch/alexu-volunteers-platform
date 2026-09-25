@@ -13,7 +13,11 @@ interface HeadDashboardProps {
 export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onSelectMember }) => {
   const { currentUser, committees, members, tasks, setActiveTab } = useApp();
 
-  const myCommittee = committees.find(c => c.id === currentUser.currentCommitteeId) || committees[0];
+  const myCommittee = committees.find(c => c.id === currentUser.currentCommitteeId) || 
+    committees.find(c => c.id !== 'comm-leadership') || 
+    committees[0] || 
+    { id: 'comm-org', name: 'لجنة التنظيم', description: 'إدارة الفعاليات والتنظيم الميداني', healthScore: 95, attendanceRate: 95 };
+
   const committeeMembers = members.filter(m => m.currentCommitteeId === myCommittee.id && m.status === 'Active');
   const committeeTasks = tasks.filter(t => t.committeeId === myCommittee.id);
   const pendingTasks = committeeTasks.filter(t => t.status === 'Submitted' || t.status === 'Under Review');
@@ -44,10 +48,10 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
           <div className="flex items-center gap-4 bg-slate-950/70 p-4 rounded-2xl border border-blue-500/30 shadow-xl">
             <div className="text-right">
               <div className="text-xs font-bold text-slate-400">مؤشر صحة اللجنة (Health Score)</div>
-              <div className="text-xs text-emerald-400 font-medium">{myCommittee.healthScore >= 90 ? 'أداء ممتاز 🟢' : 'أداء جيد 🟡'}</div>
+              <div className="text-xs text-emerald-400 font-medium">{(myCommittee.healthScore || 0) >= 90 ? 'أداء ممتاز 🟢' : 'أداء جيد 🟡'}</div>
             </div>
             <div className="w-14 h-14 rounded-full border-4 border-slate-800 border-t-blue-500 flex items-center justify-center text-lg font-extrabold text-white font-mono">
-              {myCommittee.healthScore}%
+              {myCommittee.healthScore || 0}%
             </div>
           </div>
         </div>
@@ -95,7 +99,7 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
 
         <div className="glass-card p-4">
           <div className="text-xs font-bold text-slate-400">نسبة حضور اللجنة</div>
-          <div className="text-2xl font-extrabold text-emerald-400 mt-1 font-mono">{myCommittee.attendanceRate}%</div>
+          <div className="text-2xl font-extrabold text-emerald-400 mt-1 font-mono">{myCommittee.attendanceRate || 0}%</div>
           <div className="text-[11px] text-emerald-400 mt-1">التزام ميداني مرتفع</div>
         </div>
 

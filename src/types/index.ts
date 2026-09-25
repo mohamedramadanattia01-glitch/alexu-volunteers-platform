@@ -91,6 +91,7 @@ export interface Member {
   bio?: string;
   hobbies?: string[];
   learningAspirations?: string[];
+  certifiedSkills?: CertifiedSkillItem[];
   facebookUrl?: string;
   tiktokUrl?: string;
   instagramUrl?: string;
@@ -104,6 +105,15 @@ export interface Member {
   bannedBy?: string;
   preferredCommitteeId?: string;
   preferredCommitteeName?: string;
+}
+
+export interface CertifiedSkillItem {
+  id: string;
+  skillName: string; // اسم المهارة
+  provider: string; // المكان أو الجهة المانحة للشهادة
+  issueDate: string; // تاريخ الحصول عليها (أو العام)
+  credentialUrl?: string; // رابط أو كود الشهادة
+  notes?: string;
 }
 
 export interface Committee {

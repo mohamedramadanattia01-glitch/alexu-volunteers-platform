@@ -9,7 +9,8 @@ import {
   MemberStatus, AttendanceSession, DailySessionEvaluation, GPSLocation,
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
   HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
-  BannedUserRecord, CommitteeHistoryItem, EventRSVP, AttendancePointsConfig
+  BannedUserRecord, CommitteeHistoryItem, EventRSVP, AttendancePointsConfig,
+  CertifiedSkillItem
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -203,9 +204,10 @@ interface AppContextType {
     emergencyContact?: string;
     address?: string;
     avatarUrl?: string; 
-    bio?: string; 
+    bio?: string;
     hobbies?: string[]; 
     learningAspirations?: string[];
+    certifiedSkills?: CertifiedSkillItem[];
     facebookUrl?: string;
     tiktokUrl?: string;
     instagramUrl?: string;
@@ -2820,6 +2822,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bio?: string;
       hobbies?: string[];
       learningAspirations?: string[];
+      certifiedSkills?: CertifiedSkillItem[];
       facebookUrl?: string;
       tiktokUrl?: string;
       instagramUrl?: string;
@@ -2846,7 +2849,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           nationalId: rawNatId,
           phone: profileData.phone || m.phone || profileData.whatsappNumber || m.whatsappNumber,
           whatsappNumber: profileData.whatsappNumber || profileData.phone || m.whatsappNumber,
-          committeeHistory: profileData.committeeHistory !== undefined ? profileData.committeeHistory : m.committeeHistory
+          committeeHistory: profileData.committeeHistory !== undefined ? profileData.committeeHistory : m.committeeHistory,
+          certifiedSkills: profileData.certifiedSkills !== undefined ? profileData.certifiedSkills : (m.certifiedSkills || [])
         };
         return updatedMember;
       }

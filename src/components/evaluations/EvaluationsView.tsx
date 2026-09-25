@@ -545,40 +545,54 @@ export const EvaluationsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {committeeHeads.map(head => (
-                    <tr key={head.id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="py-3 font-mono text-sky-400 font-bold text-[11px]">
-                        {head.volunteerId || head.id}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-2.5">
-                          <img 
-                            src={head.avatarUrl} 
-                            alt="" 
-                            className="w-7 h-7 rounded-lg object-cover border border-amber-500/40 shrink-0" 
-                          />
-                          <span className="font-bold text-white">{head.fullName}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 text-slate-300">{head.currentCommitteeName}</td>
-                      <td className="py-3 font-semibold text-amber-300">{head.position}</td>
-                      <td className="py-3 font-mono text-purple-400 font-bold">{head.performance.leadership || 85}%</td>
-                      <td className="py-3">
-                        <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold font-mono text-xs border border-amber-500/30">
-                          {head.performance.overallScore}%
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <button
-                          onClick={() => handleOpenEvaluateHead(head)}
-                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer shadow-md shadow-amber-500/20 flex items-center gap-1"
-                        >
-                          <Crown className="w-3 h-3" />
-                          <span>تقييم قيادي جديد</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {committeeHeads.map(head => {
+                    const myHeadEvals = headEvaluations.filter(e => e.headId === head.id);
+                    const hasEvals = myHeadEvals.length > 0;
+                    const avgScore = hasEvals 
+                      ? Math.round(myHeadEvals.reduce((a, b) => a + b.percentage, 0) / myHeadEvals.length)
+                      : (head.performance?.evaluationsCount && head.performance.evaluationsCount > 0 ? head.performance.overallScore : 0);
+
+                    return (
+                      <tr key={head.id} className="hover:bg-slate-900/40 transition-colors">
+                        <td className="py-3 font-mono text-sky-400 font-bold text-[11px]">
+                          {head.volunteerId || head.id}
+                        </td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-2.5">
+                            <img 
+                              src={head.avatarUrl} 
+                              alt="" 
+                              className="w-7 h-7 rounded-lg object-cover border border-amber-500/40 shrink-0" 
+                            />
+                            <span className="font-bold text-white">{head.fullName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 text-slate-300">{head.currentCommitteeName}</td>
+                        <td className="py-3 font-semibold text-amber-300">{head.position}</td>
+                        <td className="py-3 font-mono text-purple-400 font-bold">
+                          {hasEvals ? `${avgScore}%` : '0%'}
+                        </td>
+                        <td className="py-3">
+                          <span className={`px-3 py-1 rounded-full font-bold font-mono text-xs border ${
+                            hasEvals 
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}>
+                            {hasEvals ? `${avgScore}%` : 'لم يُقيّم بعد'}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <button
+                            onClick={() => handleOpenEvaluateHead(head)}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer shadow-md shadow-amber-500/20 flex items-center gap-1"
+                          >
+                            <Crown className="w-3 h-3" />
+                            <span>تقييم قيادي جديد</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
