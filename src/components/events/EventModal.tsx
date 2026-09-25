@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { EventEntity } from '../../types';
+import { EventEntity, EventCommitteeQuota } from '../../types';
 import { 
   Calendar, Clock, MapPin, Users, Plus, X, Sparkles, 
-  Sun, Sunset, Compass, CheckCircle2, Award, Zap, Edit3, Save
+  Sun, Sunset, Compass, CheckCircle2, Award, Zap, Edit3, Save,
+  Crown, Layers, CheckSquare, Square
 } from 'lucide-react';
 
 interface EventModalProps {
@@ -22,9 +23,17 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
   const [endTime, setEndTime] = useState('03:00 م');
   const [location, setLocation] = useState('مركز مؤتمرات جامعة الإسكندرية');
   const [description, setDescription] = useState('');
-  const [expectedMembersCount, setExpectedMembersCount] = useState<number>(30);
+  const [targetAudience, setTargetAudience] = useState<'all' | 'heads_leadership' | 'members_only'>('all');
+  
+  // Committee selection and specific quotas map: { [commId]: number }
+  const [selectedCommIds, setSelectedCommIds] = useState<string[]>([]);
+  const [commQuotasMap, setCommQuotasMap] = useState<{ [commId: string]: number }>({});
 
   useEffect(() => {
+    // Filter operational committees (or all)
+    const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
+    const defaultCommIds = operationalComms.length > 0 ? operationalComms.map(c => c.id) : committees.map(c => c.id);
+
     if (eventToEdit) {
       setName(eventToEdit.name || '');
       setDate(eventToEdit.date || todayStr);
@@ -32,7 +41,22 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setEndTime(eventToEdit.endTime || '03:00 م');
       setLocation(eventToEdit.location || 'مركز مؤتمرات جامعة الإسكندرية');
       setDescription(eventToEdit.description || '');
-      setExpectedMembersCount(eventToEdit.expectedMembersCount || 30);
+      setTargetAudience(eventToEdit.targetAudience || 'all');
+
+      if (eventToEdit.committeeQuotas && Object.keys(eventToEdit.committeeQuotas).length > 0) {
+        const activeIds = Object.keys(eventToEdit.committeeQuotas);
+        setSelectedCommIds(activeIds);
+        const qMap: { [commId: string]: number } = {};
+        activeIds.forEach(id => {
+          qMap[id] = eventToEdit.committeeQuotas[id]?.required || 5;
+        });
+        setCommQuotasMap(qMap);
+      } else {
+        setSelectedCommIds(eventToEdit.selectedCommitteeIds || defaultCommIds);
+        const qMap: { [commId: string]: number } = {};
+        defaultCommIds.forEach(id => { qMap[id] = 5; });
+        setCommQuotasMap(qMap);
+      }
     } else {
       setName('');
       setDate(todayStr);
@@ -40,11 +64,43 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setEndTime('03:00 م');
       setLocation('مركز مؤتمرات جامعة الإسكندرية');
       setDescription('');
-      setExpectedMembersCount(30);
+      setTargetAudience('all');
+      setSelectedCommIds(defaultCommIds);
+      const qMap: { [commId: string]: number } = {};
+      defaultCommIds.forEach(id => { qMap[id] = 5; });
+      setCommQuotasMap(qMap);
     }
-  }, [eventToEdit, isOpen]);
+  }, [eventToEdit, isOpen, committees]);
 
   if (!isOpen) return null;
+
+  // Toggle committee inclusion
+  const handleToggleCommittee = (commId: string) => {
+    setSelectedCommIds(prev => {
+      if (prev.includes(commId)) {
+        return prev.filter(id => id !== commId);
+      } else {
+        if (!commQuotasMap[commId]) {
+          setCommQuotasMap(q => ({ ...q, [commId]: 5 }));
+        }
+        return [...prev, commId];
+      }
+    });
+  };
+
+  // Change quota for a specific committee
+  const handleQuotaChange = (commId: string, count: number) => {
+    const val = Math.max(1, count);
+    setCommQuotasMap(prev => ({
+      ...prev,
+      [commId]: val
+    }));
+  };
+
+  // Live total required members calculation
+  const totalRequiredMembers = selectedCommIds.reduce((acc, commId) => {
+    return acc + (commQuotasMap[commId] || 5);
+  }, 0);
 
   // Date Presets
   const handleSetPresetDate = (daysFromNow: number) => {
@@ -75,6 +131,20 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       return;
     }
 
+    // Build structured quotas
+    const structuredQuotas: { [commId: string]: EventCommitteeQuota } = {};
+    selectedCommIds.forEach(commId => {
+      const commObj = committees.find(c => c.id === commId);
+      const req = commQuotasMap[commId] || 5;
+      structuredQuotas[commId] = {
+        committeeId: commId,
+        committeeName: commObj?.name || 'لجنة تخصصية',
+        required: req,
+        assigned: req,
+        present: 0
+      };
+    });
+
     if (eventToEdit) {
       updateEvent(eventToEdit.id, {
         name: name.trim(),
@@ -83,27 +153,16 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
         endTime,
         location: location.trim(),
         description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
-        expectedMembersCount,
+        targetAudience,
+        selectedCommitteeIds: selectedCommIds,
+        committeeQuotas: structuredQuotas,
+        expectedMembersCount: totalRequiredMembers || 20,
       });
 
       showNotification('success', `تم حفظ وتحديث بيانات الفعالية "${name}" بنجاح 💾`);
       onClose();
       return;
     }
-
-    // Default quotas per committee for new events
-    const quotas: Record<string, any> = {};
-    const perComm = Math.max(2, Math.round(expectedMembersCount / (committees.length || 6)));
-    
-    committees.forEach(c => {
-      quotas[c.id] = {
-        committeeId: c.id,
-        committeeName: c.name,
-        required: perComm,
-        assigned: perComm,
-        present: 0
-      };
-    });
 
     createEvent({
       name: name.trim(),
@@ -112,31 +171,33 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       endTime,
       location: location.trim(),
       description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
-      expectedMembersCount,
-      committeeQuotas: quotas,
+      targetAudience,
+      selectedCommitteeIds: selectedCommIds,
+      committeeQuotas: structuredQuotas,
+      expectedMembersCount: totalRequiredMembers || 20,
       status: 'Planned'
     });
 
-    showNotification('success', `تم جدولة وإضافة الفعالية "${name}" بنجاح في المنظومة 🎉`);
+    showNotification('success', `تم جدولة وإضافة الفعالية "${name}" وتخصيص اللجان بنجاح 🎉`);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="glass-card max-w-xl w-full p-5 sm:p-6 border border-sky-500/40 shadow-2xl bg-slate-950 text-right rounded-2xl max-h-[90vh] overflow-y-auto">
+      <div className="glass-card max-w-2xl w-full p-5 sm:p-6 border border-sky-500/40 shadow-2xl bg-slate-950 text-right rounded-2xl max-h-[90vh] overflow-y-auto">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 sticky top-0 bg-slate-950/90 backdrop-blur-md z-10">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 sticky top-0 bg-slate-950/95 backdrop-blur-md z-10">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30">
               {eventToEdit ? <Edit3 className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
             </div>
             <div>
               <h3 className="text-base font-black text-white">
-                {eventToEdit ? 'تعديل بيانات الفعالية الميدانية' : 'إضافة وجدولة فعالية كبرى جديدة'}
+                {eventToEdit ? 'تعديل وتخصيص بيانات الفعالية' : 'إضافة وتخصيص فعالية ميدانية جديدة'}
               </h3>
               <p className="text-[11px] text-slate-400">
-                {eventToEdit ? 'تحديث المواعيد، الموقع، وتوزيع المتطوعين' : 'تخطيط وتوزيع كوادر المتطوعين وتحديد المواعيد الميدانية'}
+                تحديد الفئة المستهدفة، اختيار اللجان المطلوبة، وتعيين كوتة الأعداد الميدانية
               </p>
             </div>
           </div>
@@ -153,11 +214,116 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
             <input 
               type="text"
               required
-              placeholder="مثال: هاكاثون الابتكار 2026 / استقبال الطلاب الجدد / مؤتمر القيادة..."
+              placeholder="مثال: هاكاثون الابتكار 2026 / استقبال الطلاب الجدد / اجتماع مجلس القيادة..."
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="glass-input text-xs"
             />
+          </div>
+
+          {/* 1. TARGET AUDIENCE SELECTOR (NEW) */}
+          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-2">
+            <label className="block text-xs font-bold text-white flex items-center gap-1.5">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span>الفئة المستهدفة بالفعالية وتخصيص الحضور:</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setTargetAudience('all')}
+                className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                  targetAudience === 'all'
+                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-md'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                👥 لكل الفريق (عام)
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setTargetAudience('heads_leadership')}
+                className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                  targetAudience === 'heads_leadership'
+                    ? 'bg-amber-500/30 border-amber-400 text-amber-300 shadow-md'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                👑 للهيدات والإدارة العليا فقط
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetAudience('members_only')}
+                className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                  targetAudience === 'members_only'
+                    ? 'bg-purple-600/30 border-purple-400 text-purple-200 shadow-md'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                🌟 للأعضاء المتطوعين فقط
+              </button>
+            </div>
+          </div>
+
+          {/* 2. COMMITTEES SELECTION & QUOTA PER COMMITTEE (NEW) */}
+          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-sky-400" />
+                <span>اختيار اللجان المطلوبة وتحديد العدد المطلوب من كل لجنة:</span>
+              </label>
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                إجمالي المطلوب: {totalRequiredMembers} متطوع
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {committees.map(comm => {
+                const isSelected = selectedCommIds.includes(comm.id);
+                const quota = commQuotasMap[comm.id] || 5;
+
+                return (
+                  <div
+                    key={comm.id}
+                    className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                      isSelected
+                        ? 'bg-slate-950 border-sky-500/40 text-white'
+                        : 'bg-slate-950/40 border-slate-800 text-slate-500'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCommittee(comm.id)}
+                      className="flex items-center gap-2 text-right flex-1 cursor-pointer"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-sky-400 shrink-0" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-600 shrink-0" />
+                      )}
+                      <span className={`font-bold ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                        {comm.name}
+                      </span>
+                    </button>
+
+                    {isSelected && (
+                      <div className="flex items-center gap-1 shrink-0 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700">
+                        <span className="text-[10px] text-slate-400">العدد:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={quota}
+                          onChange={(e) => handleQuotaChange(comm.id, Number(e.target.value))}
+                          className="w-12 bg-transparent text-center font-mono font-bold text-amber-300 text-xs focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* DATE PICKER & SMART SHORTCUTS */}
@@ -360,33 +526,6 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Expected Volunteers Count & Quota Slider */}
-          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span>العدد المستهدف للمتطوعين:</span>
-              </label>
-              <span className="text-sm font-black text-emerald-400 font-mono">
-                {expectedMembersCount} متطوع
-              </span>
-            </div>
-
-            <input 
-              type="range"
-              min={10}
-              max={300}
-              step={5}
-              value={expectedMembersCount}
-              onChange={(e) => setExpectedMembersCount(Number(e.target.value))}
-              className="w-full accent-emerald-500 cursor-pointer"
-            />
-
-            <p className="text-[10px] text-slate-400">
-              سيتم توزيع النصاب التقديري بالتساوي على لجان الفريق (حوالي {Math.round(expectedMembersCount / (committees.length || 6))} متطوع لكل لجنة).
-            </p>
           </div>
 
           {/* Description */}

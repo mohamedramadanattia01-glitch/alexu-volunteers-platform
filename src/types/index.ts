@@ -235,12 +235,34 @@ export type EventStatus =
   | 'Cancelled' 
   | 'Archived';
 
+export interface EventRSVP {
+  memberId: string;
+  memberName: string;
+  memberVolunteerId?: string;
+  committeeId: string;
+  committeeName: string;
+  role: Role;
+  status: 'Attending' | 'Apologized';
+  apologyReason?: string;
+  expectedArrivalTime?: string;
+  registeredAt: string;
+}
+
 export interface EventCommitteeQuota {
   committeeId: string;
   committeeName: string;
   required: number;
-  assigned: number;
-  present: number;
+  assigned?: number;
+  present?: number;
+}
+
+export interface AttendancePointsConfig {
+  onTimePoints: number; // e.g. 30 (حضور في الموعد)
+  minorDelayThresholdMinutes: number; // e.g. 15 (حد التأخير الخفيف)
+  minorDelayPoints: number; // e.g. 20 (تأخير حتى ربع ساعة)
+  majorDelayPoints: number; // e.g. 10 (تأخير كبير بدون عذر)
+  excusedAbsencePoints: number; // e.g. 0 (غياب بعذر مقبول)
+  unexcusedAbsencePenalty: number; // e.g. -15 (خصم غياب بدون عذر)
 }
 
 export interface EventEntity {
@@ -253,7 +275,10 @@ export interface EventEntity {
   description: string;
   eventManagerId: string;
   eventManagerName: string;
+  targetAudience?: 'all' | 'heads_leadership' | 'members_only';
+  selectedCommitteeIds?: string[];
   committeeQuotas: { [committeeId: string]: EventCommitteeQuota };
+  rsvps?: { [memberId: string]: EventRSVP };
   status: EventStatus;
   expectedMembersCount: number;
   actualAttendanceCount: number;

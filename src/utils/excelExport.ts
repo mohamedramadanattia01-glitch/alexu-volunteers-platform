@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx';
-import { AttendanceRecord, Member, Complaint, MemberEvaluationRecord, HeadEvaluationRecord, Task, AnnouncementPoll } from '../types';
+import { 
+  AttendanceRecord, Member, Complaint, MemberEvaluationRecord, 
+  HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig 
+} from '../types';
 
 /**
  * Universal Excel (.xlsx) & CSV Exporter with SheetJS
@@ -390,4 +393,129 @@ export const exportPollResultsToExcel = (poll: AnnouncementPoll, announcementTit
   const cleanTitle = announcementTitle.replace(/[\s\/:*?"<>|]+/g, '_');
   const fileName = `نتائج_استطلاع_${cleanTitle}_${new Date().toISOString().slice(0, 10)}`;
   downloadExcelWorkbook(aoaData, fileName, 'نتائج الاستطلاع');
+};
+
+/**
+ * 8. Export Event Roster & RSVPs to Excel (.xlsx)
+ */
+export const exportEventRosterToExcel = (event: EventEntity, rsvps: EventRSVP[]) => {
+  const confirmedAttendees = rsvps.filter(r => r.status === 'Attending');
+  const apologies = rsvps.filter(r => r.status === 'Apologized');
+
+  const headers = [
+    'الرقم التطوعي',
+    'الاسم الكامل',
+    'اللجنة التخصصية',
+    'الدور / الصفة',
+    'حالة الحضور',
+    'وقت الحضور المتوقع',
+    'سبب الاعتذار (إن وجد)',
+    'تاريخ وتوقيت التسجيل'
+  ];
+
+  const rows = rsvps.map(r => [
+    r.memberVolunteerId || r.memberId,
+    r.memberName,
+    r.committeeName,
+    r.role,
+    r.status === 'Attending' ? 'مؤكد الحضور ✓' : 'اعتذار عن الحضور ⚠️',
+    r.expectedArrivalTime || event.startTime,
+    r.apologyReason || '—',
+    r.registeredAt
+  ]);
+
+  const aoaData = [
+    ['كشف وإحصائية حضور وتأكيدات فعالية اتحاد طلاب جامعة الإسكندرية'],
+    [`اسم الفعالية: ${event.name}`],
+    [`تاريخ الفعالية: ${event.date} (${event.startTime} - ${event.endTime})`],
+    [`الموقع الميداني: ${event.location}`],
+    [`المستهدف الكلي: ${event.expectedMembersCount} متطوع`],
+    [`إجمالي المؤكدين للحضور: ${confirmedAttendees.length} | إجمالي المعتذرين: ${apologies.length}`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  const cleanEventName = event.name.replace(/[\s\/:*?"<>|]+/g, '_');
+  const fileName = `كشف_حضور_فعالية_${cleanEventName}_${event.date}`;
+  downloadExcelWorkbook(aoaData, fileName, 'كشف الحضور والاعتذارات');
+};
+
+/**
+ * 9. Export Daily Post-Event Attendance & Evaluations Report to Excel (.xlsx)
+ */
+export const exportPostEventDailyReportToExcel = (
+  event: EventEntity,
+  attendance: AttendanceRecord[],
+  absentMembers: Member[],
+  pointsConfig: AttendancePointsConfig
+) => {
+  const attendeesHeaders = [
+    'الرقم التطوعي',
+    'اسم المتطوع',
+    'اللجنة',
+    'حالة الحضور',
+    'وقت الدخول الفعلي',
+    'وقت الانصراف',
+    'إجمالي الساعات الميدانية',
+    'نقاط الحضور والانضباط المكتسبة',
+    'التقييم اليومي الشامل (%)',
+    'ملاحظات الهيد والتقييم'
+  ];
+
+  const attendeesRows = attendance.map(a => {
+    let pts = pointsConfig.onTimePoints;
+    if (a.status === 'Late') pts = pointsConfig.minorDelayPoints;
+    else if (a.status === 'Excused') pts = pointsConfig.excusedAbsencePoints;
+    else if (a.status === 'Absent') pts = pointsConfig.unexcusedAbsencePenalty;
+
+    return [
+      a.memberVolunteerId || a.memberId,
+      a.memberName,
+      a.committeeName,
+      a.status === 'Present' ? 'حاضر بالموعد' : a.status === 'Late' ? 'متأخر' : a.status === 'Excused' ? 'غياب بعذر' : 'غائب',
+      a.checkInTime || '—',
+      a.checkOutTime || '—',
+      a.durationFormatted || '—',
+      `${pts} نقطة`,
+      a.dailyEvaluation?.totalDailyScore ? `${a.dailyEvaluation.totalDailyScore}/30` : '—',
+      a.dailyEvaluation?.notes || '—'
+    ];
+  });
+
+  const absentHeaders = [
+    'الرقم التطوعي',
+    'اسم العضو الغائب',
+    'اللجنة التخصصية',
+    'حالة الغياب والجزاء',
+    'خصم النقاط المقدر'
+  ];
+
+  const absentRows = absentMembers.map(m => [
+    m.volunteerId || m.id,
+    m.fullName,
+    m.currentCommitteeName,
+    'غائب عن الفعالية بدون تسجيل',
+    `${pointsConfig.unexcusedAbsencePenalty} نقطة`
+  ]);
+
+  const aoaData = [
+    ['التقرير الختامي اليومي وإحصائية الحضور وتقييمات الفعالية الميدانية'],
+    [`اسم الفعالية: ${event.name}`],
+    [`التاريخ: ${event.date}`],
+    [`الموقع: ${event.location}`],
+    [`إجمالي الحاضرين: ${attendance.length} | إجمالي المتغيبين: ${absentMembers.length}`],
+    [],
+    ['=== سجل تفاصيل الحاضرين والتقييمات اليومية ==='],
+    attendeesHeaders,
+    ...attendeesRows,
+    [],
+    ['=== سجل الأعضاء المتغيبين عن الفعالية ==='],
+    absentHeaders,
+    ...absentRows
+  ];
+
+  const cleanEventName = event.name.replace(/[\s\/:*?"<>|]+/g, '_');
+  const fileName = `التقرير_اليومي_الختامي_${cleanEventName}_${event.date}`;
+  downloadExcelWorkbook(aoaData, fileName, 'التقرير اليومي الختامي');
 };

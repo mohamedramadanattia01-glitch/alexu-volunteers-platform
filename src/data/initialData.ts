@@ -3,7 +3,7 @@ import {
   SOSAlert, EvaluationTemplate, TrainingCourse, BadgeItem, 
   Announcement, AuditLogItem, DocumentItem, RecruitmentCandidate, Permission, SystemNotification,
   Complaint, AppSoundSettings, AppBrandingSettings, RolePermissionsMap, EvaluationRubric,
-  HeadEvaluationRubric, HeadEvaluationRecord
+  HeadEvaluationRubric, HeadEvaluationRecord, AttendancePointsConfig
 } from '../types';
 
 export const initialSeasons: Season[] = [
@@ -191,13 +191,13 @@ export const initialMembers: Member[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     password: 'admin',
     performance: {
-      overallScore: 100,
+      overallScore: 0,
       attendanceRate: 100,
       taskCompletionRate: 100,
-      taskQuality: 5.0,
+      taskQuality: 0,
       commitment: 100,
       teamwork: 100,
-      leadership: 100,
+      leadership: 0,
       evaluationsCount: 0
     },
     skills: {
@@ -527,3 +527,12 @@ export const initialHeadEvaluationRubric: HeadEvaluationRubric = {
 };
 
 export const initialHeadEvaluations: HeadEvaluationRecord[] = [];
+
+export const initialAttendancePointsConfig: AttendancePointsConfig = {
+  onTimePoints: 30,
+  minorDelayThresholdMinutes: 15,
+  minorDelayPoints: 20,
+  majorDelayPoints: 10,
+  excusedAbsencePoints: 0,
+  unexcusedAbsencePenalty: -15,
+};

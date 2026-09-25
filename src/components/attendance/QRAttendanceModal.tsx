@@ -56,7 +56,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Camera video feed & QR decoding state
+  const [manualCodeInput, setManualCodeInput] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
@@ -156,41 +156,77 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
   }, [handleMemberScan, isProcessingScan, lastScannedPayload, showNotification]);
 
-  // Handle Camera lifecycle
+  // Handle Camera lifecycle with robust multi-tier fallback
   const startCamera = async (targetFacingMode = facingMode) => {
     setCameraPermissionError(null);
     stopCamera();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraPermissionError('المتصفح الحالي لا يدعم فتح الكاميرا مباشرة. يمكنك استخدام المسح من صورة أو التسجيل اليدوي أدناه.');
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+
+    // Tier 1: Try ideal facingMode and resolution
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        let stream: MediaStream;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: { ideal: targetFacingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+    } catch (tier1Err) {
+      console.warn('Tier 1 camera constraints failed, attempting Tier 2:', tier1Err);
+      
+      // Tier 2: Try basic facingMode
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: targetFacingMode }
+        });
+      } catch (tier2Err) {
+        console.warn('Tier 2 camera constraints failed, attempting Tier 3 generic video:', tier2Err);
+        
+        // Tier 3: Try any generic video device
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: { ideal: targetFacingMode },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
+            video: true
           });
-        } catch (subErr) {
-          // Fallback to any available video stream
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (tier3Err: any) {
+          console.error('All camera initialization tiers failed:', tier3Err);
+          let errorMsg = 'تعذر تشغيل الكاميرا. ';
+          if (tier3Err.name === 'NotAllowedError' || tier3Err.name === 'PermissionDeniedError') {
+            errorMsg += 'يرجى السماح بصلاحية الكاميرا من إعدادات المتصفح (Permission Allowed).';
+          } else if (tier3Err.name === 'NotFoundError' || tier3Err.name === 'DevicesNotFoundError') {
+            errorMsg += 'لم يتم العثور على كاميرا متصلة بالجهاز.';
+          } else if (tier3Err.name === 'NotReadableError' || tier3Err.name === 'TrackStartError') {
+            errorMsg += 'الكاميرا مستخدمة حالياً من قبل تطبيق آخر.';
+          } else {
+            errorMsg += 'يرجى التأكد من صلاحيات الكاميرا أو استخدام زر التسجيل المباشر أدناه.';
+          }
+          setCameraPermissionError(errorMsg);
+          setIsCameraActive(false);
+          return;
         }
-
-        mediaStreamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
-        }
-        setIsCameraActive(true);
-        animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
-      } else {
-        setCameraPermissionError('المتصفح لا يدعم الوصول المباشر للكاميرا');
       }
-    } catch (err: any) {
-      console.warn('Camera access denied or unavailable:', err);
-      setCameraPermissionError('يرجى السماح بصلاحية الكاميرا من إعدادات المتصفح أو مسح الكود من صورة');
-      setIsCameraActive(false);
+    }
+
+    if (stream) {
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.muted = true;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('Video play auto-resume error:', playErr);
+        }
+      }
+      setIsCameraActive(true);
+      animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
     }
   };
 
@@ -816,25 +852,50 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 className="hidden"
               />
 
-              {/* Manual Backup Buttons (Check-in & Check-out) */}
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-2 z-10 border-t border-slate-800/80 w-full">
-                <button
-                  type="button"
-                  onClick={() => handleMemberScan('check-in')}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>تأكيد الحضور (Check-In)</span>
-                </button>
+              {/* Manual Backup Input & Action Buttons */}
+              <div className="space-y-3 mt-4 pt-3 z-10 border-t border-slate-800/80 w-full">
+                {/* Manual Code / Token Direct Entry */}
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <input
+                    type="text"
+                    value={manualCodeInput}
+                    onChange={(e) => setManualCodeInput(e.target.value)}
+                    placeholder="أدخل كود الجلسة أو رمز الـ QR يدوياً إذا تعذرت الكاميرا..."
+                    className="glass-input text-xs w-full py-2"
+                  />
+                  {manualCodeInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleMemberScan('check-in', manualCodeInput.trim());
+                        setManualCodeInput('');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-all"
+                    >
+                      تسجيل بالكود
+                    </button>
+                  )}
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleMemberScan('check-out')}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <Clock className="w-3.5 h-3.5 text-sky-400" />
-                  <span>تسجيل الانصراف (Check-Out)</span>
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleMemberScan('check-in')}
+                    className="flex-1 min-w-[140px] py-2 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>تأكيد الحضور المباشر (Check-In)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMemberScan('check-out')}
+                    className="flex-1 min-w-[140px] py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-sky-400" />
+                    <span>تسجيل الانصراف (Check-Out)</span>
+                  </button>
+                </div>
               </div>
 
             </div>

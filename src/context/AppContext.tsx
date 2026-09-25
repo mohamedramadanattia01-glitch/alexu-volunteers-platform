@@ -9,7 +9,7 @@ import {
   MemberStatus, AttendanceSession, DailySessionEvaluation, GPSLocation,
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
   HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
-  BannedUserRecord, CommitteeHistoryItem
+  BannedUserRecord, CommitteeHistoryItem, EventRSVP, AttendancePointsConfig
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -19,7 +19,8 @@ import {
   initialCandidates, initialPermissions, initialNotifications,
   initialComplaints, initialSoundSettings, initialBrandingSettings,
   initialRolePermissionsMap, initialEvaluationRubric,
-  initialHeadEvaluationRubric, initialHeadEvaluations
+  initialHeadEvaluationRubric, initialHeadEvaluations,
+  initialAttendancePointsConfig
 } from '../data/initialData';
 import { playAppTone } from '../utils/soundEngine';
 import { generateCommitteeVolunteerId } from '../utils/volunteerId';
@@ -104,6 +105,10 @@ interface AppContextType {
   createEvent: (eventData: Partial<EventEntity>) => void;
   updateEvent: (id: string, updates: Partial<EventEntity>) => void;
   deleteEvent: (id: string) => void;
+  respondToEventRSVP: (eventId: string, status: 'Attending' | 'Apologized', expectedArrivalTime?: string, apologyReason?: string) => void;
+  sendEventDayReminder: (eventId: string) => void;
+  attendancePointsConfig: AttendancePointsConfig;
+  updateAttendancePointsConfig: (config: AttendancePointsConfig) => void;
   recordAttendance: (memberId: string, eventId: string, actionType: 'check-in' | 'check-out') => { success: boolean; message: string };
   recordAttendanceWithGPS: (params: { 
     memberId: string; 
@@ -419,6 +424,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(`${STORAGE_KEY}_HEAD_EVAL_RUBRIC`);
     return saved ? JSON.parse(saved) : initialHeadEvaluationRubric;
   });
+
+  const [attendancePointsConfig, setAttendancePointsConfig] = useState<AttendancePointsConfig>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`);
+    return saved ? JSON.parse(saved) : initialAttendancePointsConfig;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`, JSON.stringify(attendancePointsConfig));
+  }, [attendancePointsConfig]);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [celebrationData, setCelebrationData] = useState<{ active: boolean; badgeTitle: string; points: number } | null>(null);
@@ -1560,6 +1574,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEvents(prev => prev.filter(e => e.id !== id));
     addAuditLog('حذف فعالية', evt?.name || id, `تم حذف الفعالية بواسطة ${currentUser.fullName}`);
     showNotification('success', `تم حذف الفعالية "${evt?.name || ''}" بنجاح`);
+  };
+
+  // Event RSVP & Attendance Confirmation / Apology
+  const respondToEventRSVP = (
+    eventId: string,
+    status: 'Attending' | 'Apologized',
+    expectedArrivalTime?: string,
+    apologyReason?: string
+  ) => {
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    setEvents(prev => prev.map(ev => {
+      if (ev.id === eventId) {
+        const rsvps = ev.rsvps || {};
+        const userRSVP: EventRSVP = {
+          memberId: currentUser.id,
+          memberName: currentUser.fullName,
+          memberVolunteerId: currentUser.volunteerId,
+          committeeId: currentUser.currentCommitteeId,
+          committeeName: currentUser.currentCommitteeName,
+          role: currentUser.role,
+          status,
+          apologyReason: status === 'Apologized' ? apologyReason : undefined,
+          expectedArrivalTime: status === 'Attending' ? (expectedArrivalTime || ev.startTime) : undefined,
+          registeredAt: now
+        };
+        return {
+          ...ev,
+          rsvps: {
+            ...rsvps,
+            [currentUser.id]: userRSVP
+          }
+        };
+      }
+      return ev;
+    }));
+
+    addAuditLog(
+      status === 'Attending' ? 'تأكيد حضور فعالية' : 'اعتذار عن حضور فعالية',
+      currentUser.fullName,
+      `الفعالية ID: ${eventId} - ${status === 'Attending' ? `موعد الحضور: ${expectedArrivalTime || 'في الموعد المحدد'}` : `السبب: ${apologyReason || 'عذر شخصي'}`}`
+    );
+
+    showNotification(
+      'success',
+      status === 'Attending'
+        ? 'تم تسجيل وتأكيد حضورك في الفعالية بنجاح ✓'
+        : 'تم تسجيل اعتذارك وإخطار قيادة اللجنة بالسبب'
+    );
+  };
+
+  // Send Event Day Reminder Notification to Attending Members
+  const sendEventDayReminder = (eventId: string) => {
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetEvent) return;
+
+    const notif: SystemNotification = {
+      id: `notif-event-day-${Date.now()}`,
+      title: `🔔 تذكير: اليوم موعد فعالية "${targetEvent.name}"`,
+      message: `نذكرك بأن الفعالية اليوم في ${targetEvent.location} في تمام ${targetEvent.startTime}. يرجى التواجد في الموعد المحدد ومسح كود الحضور الميداني.`,
+      type: 'achievement',
+      read: false,
+      createdAt: 'الآن',
+      linkTab: 'events'
+    };
+
+    setNotifications(prev => [notif, ...prev]);
+    playSound('announcement');
+    showNotification('success', `تم إرسال إشعار تذكير يوم الفعالية لجميع المسجلين لحضور "${targetEvent.name}" بنجاح 🔔`);
+  };
+
+  // Update Attendance Points Config
+  const updateAttendancePointsConfig = (config: AttendancePointsConfig) => {
+    setAttendancePointsConfig(config);
+    addAuditLog('تعديل معايير نقاط الحضور', 'Attendance Points Config', `تم تعديل قواعد حساب النقاط والتأخير بواسطة ${currentUser.fullName}`);
+    showNotification('success', 'تم حفظ وتحديث معايير نقاط الحضور والتأخير بنجاح ⚙️');
   };
 
   // Delete Committee
@@ -2867,6 +2956,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createEvent,
         updateEvent,
         deleteEvent,
+        respondToEventRSVP,
+        sendEventDayReminder,
+        attendancePointsConfig,
+        updateAttendancePointsConfig,
         recordAttendance,
         recordAttendanceWithGPS,
         createAttendanceSession,

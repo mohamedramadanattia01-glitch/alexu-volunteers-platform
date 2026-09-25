@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { AttendanceRecord } from '../../types';
+import { AttendanceRecord, AttendancePointsConfig } from '../../types';
 import { 
   QrCode, Search, Filter, Download, Clock, UserCheck, 
   Calendar, CheckCircle2, UserX, AlertCircle, Plus, 
-  Shield, Check, User, MapPin, Award, Trash2, Sparkles, Star
+  Shield, Check, User, MapPin, Award, Trash2, Sparkles, Star,
+  Settings, Sliders, FileSpreadsheet, Save, X, Layers
 } from 'lucide-react';
-import { exportAttendanceToExcel } from '../../utils/excelExport';
+import { exportAttendanceToExcel, exportPostEventDailyReportToExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
 
 interface AttendanceViewProps {
@@ -23,7 +24,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
     deleteAttendanceRecord,
     canCreateAttendanceSession,
     isHighLeadership,
-    currentUser 
+    currentUser,
+    attendancePointsConfig,
+    updateAttendancePointsConfig
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,6 +34,14 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
   const [selectedEvent, setSelectedEvent] = useState('all');
   const [showManualModal, setShowManualModal] = useState(false);
   const [isDailyEvalModalOpen, setIsDailyEvalModalOpen] = useState(false);
+
+  // Points Config Modal state
+  const [isPointsConfigModalOpen, setIsPointsConfigModalOpen] = useState(false);
+  const [pointsForm, setPointsForm] = useState<AttendancePointsConfig>({ ...attendancePointsConfig });
+
+  // Post-Event Daily Report Modal state
+  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
+  const [reportEventId, setReportEventId] = useState<string>('');
 
   // Manual record modal form
   const [manualMemberId, setManualMemberId] = useState('');
@@ -40,7 +51,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
   const [manualHours, setManualHours] = useState(6.5);
   const [manualStatus, setManualStatus] = useState<'Present' | 'Late' | 'Excused'>('Present');
 
+  const isHead = currentUser?.role === 'head' || currentUser?.role === 'vice_head';
   const isMember = currentUser?.role === 'member';
+  const canManage = canCreateAttendanceSession || isHighLeadership || isHead;
 
   // Filtered records
   const allFilteredRecords = attendanceRecords.filter(r => {
@@ -66,6 +79,12 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
       ? 'جميع_اللجان' 
       : (committees.find(c => c.id === selectedCommittee)?.name || 'لجنة');
     exportAttendanceToExcel(filteredRecords, commName);
+  };
+
+  const handleSavePointsConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateAttendancePointsConfig(pointsForm);
+    setIsPointsConfigModalOpen(false);
   };
 
   const handleSaveManualRecord = (e: React.FormEvent) => {
@@ -100,13 +119,28 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
   const presentCount = myOrAllRecords.filter(r => r.status === 'Present').length;
   const checkedOutCount = myOrAllRecords.filter(r => !!r.checkOutTime).length;
   const totalLoggedHours = myOrAllRecords.reduce((acc, curr) => acc + (curr.durationMinutes || 300), 0) / 60;
-  const canManage = canCreateAttendanceSession || isHighLeadership;
+
+  // Selected event for post-event daily report
+  const activeReportEvent = events.find(e => e.id === reportEventId) || events[0];
+  const reportEventRecords = activeReportEvent ? attendanceRecords.filter(a => a.eventId === activeReportEvent.id) : [];
+  const attendedMemberIds = new Set(reportEventRecords.map(a => a.memberId));
+  const absentMembersList = members.filter(m => m.status === 'Active' && m.role === 'member' && !attendedMemberIds.has(m.id));
+
+  const handleExportDailyPostReport = () => {
+    if (!activeReportEvent) return;
+    exportPostEventDailyReportToExcel(
+      activeReportEvent,
+      reportEventRecords,
+      absentMembersList,
+      attendancePointsConfig
+    );
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 animate-in fade-in pb-10 text-right">
       
       {/* 1. Header & Quick Actions */}
-      <div className="glass-card p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-blue-500/30 text-right">
+      <div className="glass-card p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-blue-500/30">
         <div>
           <div className="flex items-center gap-2 mb-1 justify-end md:justify-start">
             <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-semibold">
@@ -126,13 +160,44 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
+          
+          {/* Attendance Points Rules Button */}
+          {canManage && (
+            <button
+              onClick={() => {
+                setPointsForm({ ...attendancePointsConfig });
+                setIsPointsConfigModalOpen(true);
+              }}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-700 shadow-sm"
+              title="تعديل معايير وقواعد نقاط الحضور والتأخير والغياب"
+            >
+              <Settings className="w-4 h-4 text-amber-400" />
+              <span>معايير النقاط ⚙️</span>
+            </button>
+          )}
+
+          {/* Post-Event Daily Report Button */}
+          {canManage && events.length > 0 && (
+            <button
+              onClick={() => {
+                setReportEventId(events[0].id);
+                setIsDailyReportModalOpen(true);
+              }}
+              className="px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-emerald-500/30 shadow-sm"
+              title="عرض التقرير اليومي الختامي للفعالية وتصدير Excel"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>تقرير اليوم الختامي 📊</span>
+            </button>
+          )}
+
           {canManage && (
             <button
               onClick={handleExportExcel}
-              className="btn-secondary text-xs py-2 px-3.5 flex items-center gap-1.5 cursor-pointer hover:text-white"
+              className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              <span>تصدير Excel (.xlsx)</span>
+              <span>تصدير Excel</span>
             </button>
           )}
 
@@ -167,7 +232,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
       </div>
 
       {/* 2. KPI Summary Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-right">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="glass-card p-4 border-blue-500/20 bg-blue-950/10">
           <span className="text-[11px] text-slate-400">{isMember ? 'جلساتي المسجلة' : 'إجمالي السجلات المسجلة'}</span>
           <p className="text-xl sm:text-2xl font-black text-white mt-1">{myOrAllRecords.length}</p>
@@ -194,7 +259,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
       </div>
 
       {/* 3. Filters Bar */}
-      <div className="glass-card p-4 flex flex-col md:flex-row items-center justify-between gap-3 text-right">
+      <div className="glass-card p-4 flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
           <input
@@ -232,7 +297,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
       </div>
 
       {/* 4. Attendance Records Table */}
-      <div className="glass-card p-5 text-right">
+      <div className="glass-card p-5">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead>
@@ -244,8 +309,8 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
                 <th className="py-2.5 font-bold">التاريخ</th>
                 <th className="py-2.5 font-bold text-emerald-400">تسجيل الحضور (Check-in)</th>
                 <th className="py-2.5 font-bold text-sky-400">تسجيل الانصراف (Check-out)</th>
+                <th className="py-2.5 font-bold">النقاط المكتسبة</th>
                 <th className="py-2.5 font-bold">موقع الـ GPS</th>
-                <th className="py-2.5 font-bold">تقييم اليوم</th>
                 <th className="py-2.5 font-bold">الحالة</th>
                 {canManage && <th className="py-2.5 font-bold text-center">إجراءات</th>}
               </tr>
@@ -261,6 +326,11 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
                 filteredRecords.map(record => {
                   const memberObj = members.find(m => m.id === record.memberId);
                   const volId = record.memberVolunteerId || memberObj?.volunteerId || record.memberId;
+
+                  let earnedPts = attendancePointsConfig.onTimePoints;
+                  if (record.status === 'Late') earnedPts = attendancePointsConfig.minorDelayPoints;
+                  else if (record.status === 'Excused') earnedPts = attendancePointsConfig.excusedAbsencePoints;
+                  else if (record.status === 'Absent') earnedPts = attendancePointsConfig.unexcusedAbsencePenalty;
 
                   return (
                     <tr key={record.id} className="hover:bg-slate-900/40 transition-colors">
@@ -294,27 +364,22 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
                         )}
                       </td>
 
+                      {/* Earned Points Column */}
+                      <td className="py-3">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold text-[10px] border border-amber-500/30">
+                          +{earnedPts} نقطة
+                        </span>
+                      </td>
+
                       {/* GPS Location Column */}
                       <td className="py-3">
                         {record.gpsLocation ? (
-                          <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono flex items-center gap-1 w-fit" title={`${record.gpsLocation.lat}, ${record.gpsLocation.lng}`}>
+                          <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono flex items-center gap-1 w-fit">
                             <MapPin className="w-3 h-3 text-emerald-400" />
                             <span>GPS مؤكد ✓</span>
                           </span>
                         ) : (
                           <span className="text-slate-500 text-[10px]">جامعة الإسكندرية</span>
-                        )}
-                      </td>
-
-                      {/* Daily Evaluation Score Column */}
-                      <td className="py-3">
-                        {record.dailyEvaluation ? (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px] flex items-center gap-1 w-fit">
-                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                            <span>{record.dailyEvaluation.totalDailyScore}/30 (+{record.dailyEvaluation.bonusXP} XP)</span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-500 text-[10px]">لم يقيم بعد</span>
                         )}
                       </td>
 
@@ -335,7 +400,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
                         <td className="py-3 text-center">
                           <button
                             onClick={() => deleteAttendanceRecord(record.id)}
-                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
                             title="حذف هذا السجل"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -352,7 +417,223 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
         </div>
       </div>
 
-      {/* 5. Manual Attendance Modal */}
+      {/* 5. Points Rules Configuration Modal */}
+      {isPointsConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-card max-w-lg w-full p-6 border border-amber-500/50 bg-slate-950 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">معايير ونقاط الحضور والتأخير والغياب</h3>
+                  <p className="text-[11px] text-slate-400">تعديل قواعد رصد درجات الانضباط الميداني للأعضاء</p>
+                </div>
+              </div>
+              <button onClick={() => setIsPointsConfigModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleSavePointsConfig} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نقاط الحضور في الموعد (نقطة):</label>
+                  <input
+                    type="number"
+                    value={pointsForm.onTimePoints}
+                    onChange={e => setPointsForm({ ...pointsForm, onTimePoints: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-emerald-400 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">حد التأخير الخفيف (دقائق):</label>
+                  <input
+                    type="number"
+                    value={pointsForm.minorDelayThresholdMinutes}
+                    onChange={e => setPointsForm({ ...pointsForm, minorDelayThresholdMinutes: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-sky-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نقاط التأخير الخفيف (نقطة):</label>
+                  <input
+                    type="number"
+                    value={pointsForm.minorDelayPoints}
+                    onChange={e => setPointsForm({ ...pointsForm, minorDelayPoints: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-amber-400 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نقاط التأخير الكبير بدون عذر:</label>
+                  <input
+                    type="number"
+                    value={pointsForm.majorDelayPoints}
+                    onChange={e => setPointsForm({ ...pointsForm, majorDelayPoints: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-orange-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نقاط الغياب بعذر مقبول:</label>
+                  <input
+                    type="number"
+                    value={pointsForm.excusedAbsencePoints}
+                    onChange={e => setPointsForm({ ...pointsForm, excusedAbsencePoints: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-blue-400 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">خصم الغياب بدون عذر (سالب):</label>
+                  <input
+                    type="number"
+                    value={pointsForm.unexcusedAbsencePenalty}
+                    onChange={e => setPointsForm({ ...pointsForm, unexcusedAbsencePenalty: Number(e.target.value) })}
+                    className="glass-input w-full font-mono text-rose-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPointsConfigModalOpen(false)}
+                  className="btn-secondary text-xs py-2 px-4"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>حفظ وتطبيق القواعد 💾</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Post-Event Daily Report & Excel Modal */}
+      {isDailyReportModalOpen && activeReportEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-card max-w-3xl w-full p-6 border border-emerald-500/40 bg-slate-950 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">التقرير الختامي وإحصائية يوم الفعالية</h3>
+                  <p className="text-xs text-slate-400">سجل الحاضرين والمنصرفين والتقييمات والغياب مع تصدير Excel</p>
+                </div>
+              </div>
+              <button onClick={() => setIsDailyReportModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">✕</button>
+            </div>
+
+            {/* Event Selector & Export Row */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-slate-900 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-300">اختر الفعالية:</label>
+                <select
+                  value={reportEventId}
+                  onChange={e => setReportEventId(e.target.value)}
+                  className="glass-input text-xs"
+                >
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>{e.name} ({e.date})</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleExportDailyPostReport}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-600/30"
+              >
+                <Download className="w-4 h-4" />
+                <span>تصدير التقرير الختامي Excel (.xlsx)</span>
+              </button>
+            </div>
+
+            {/* Event Summary Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block">إجمالي الحاضرين:</span>
+                <strong className="text-lg text-emerald-400 font-mono">{reportEventRecords.length}</strong>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block">إجمالي المتغيبين:</span>
+                <strong className="text-lg text-rose-400 font-mono">{absentMembersList.length}</strong>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block">المستهدف الكلي:</span>
+                <strong className="text-lg text-sky-400 font-mono">{activeReportEvent.expectedMembersCount}</strong>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block">تاريخ الفعالية:</span>
+                <strong className="text-sm text-white font-mono">{activeReportEvent.date}</strong>
+              </div>
+            </div>
+
+            {/* Attendees Table */}
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold text-emerald-400">سجل الحضور وتوقيتات الدخول والانصراف ({reportEventRecords.length})</h4>
+              <div className="overflow-x-auto max-h-48 border border-slate-800 rounded-xl">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-900 sticky top-0 text-slate-400">
+                    <tr className="border-b border-slate-800">
+                      <th className="p-2">المتطوع</th>
+                      <th className="p-2">اللجنة</th>
+                      <th className="p-2">الدخول</th>
+                      <th className="p-2">الانصراف</th>
+                      <th className="p-2">النقاط</th>
+                      <th className="p-2">التقييم</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {reportEventRecords.length === 0 ? (
+                      <tr><td colSpan={6} className="p-3 text-center text-slate-500">لا توجد تسجيلات حضور مسجلة لهذه الفعالية بعد.</td></tr>
+                    ) : (
+                      reportEventRecords.map(a => (
+                        <tr key={a.id} className="hover:bg-slate-900/40">
+                          <td className="p-2 font-bold text-white">{a.memberName}</td>
+                          <td className="p-2 text-slate-300">{a.committeeName}</td>
+                          <td className="p-2 font-mono text-emerald-400">{a.checkInTime || '—'}</td>
+                          <td className="p-2 font-mono text-sky-400">{a.checkOutTime || 'متواجد'}</td>
+                          <td className="p-2 font-mono text-amber-400 font-bold">+{attendancePointsConfig.onTimePoints}</td>
+                          <td className="p-2 text-slate-400">{a.dailyEvaluation?.totalDailyScore ? `${a.dailyEvaluation.totalDailyScore}/30` : '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsDailyReportModalOpen(false)}
+                className="btn-secondary text-xs py-2 px-5"
+              >
+                إغلاق
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 7. Manual Attendance Modal */}
       {showManualModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="glass-card max-w-md w-full p-6 border border-blue-500/40 bg-slate-950 text-right">
@@ -458,7 +739,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
         </div>
       )}
 
-      {/* Daily Evaluation Modal */}
+      {/* 8. Daily Evaluation Modal */}
       <DailyEvaluationModal
         isOpen={isDailyEvalModalOpen}
         onClose={() => setIsDailyEvalModalOpen(false)}
