@@ -473,6 +473,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_MEMBER_EVALS`, JSON.stringify(memberEvaluations));
   }, [memberEvaluations]);
 
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_COMMITTEES`, JSON.stringify(committees));
+  }, [committees]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_SEASONS`, JSON.stringify(seasons));
+  }, [seasons]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_NOTIFS`, JSON.stringify(notifications));
+  }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_CANDIDATES`, JSON.stringify(candidates));
+  }, [candidates]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_PERMISSIONS`, JSON.stringify(permissions));
+  }, [permissions]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_EVAL_TMPL`, JSON.stringify(evaluationTemplate));
+  }, [evaluationTemplate]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_EVAL_RUBRIC`, JSON.stringify(evaluationRubric));
+  }, [evaluationRubric]);
+
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(() => isSupabaseConfigured());
 
   const syncWithCloud = async () => {
