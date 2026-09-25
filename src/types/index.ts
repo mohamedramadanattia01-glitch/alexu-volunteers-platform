@@ -63,6 +63,10 @@ export interface Member {
   college: string;
   academicYear: string;
   whatsappNumber: string;
+  phone?: string;
+  bloodType?: string;
+  emergencyContact?: string;
+  address?: string;
   birthDate: string;
   age: number;
   nationalId: string;

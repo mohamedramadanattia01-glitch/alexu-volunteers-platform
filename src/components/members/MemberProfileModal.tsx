@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp, isHighLeadershipMember } from '../../context/AppContext';
 import { Member } from '../../types';
 import { 
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
