@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Users, CheckSquare, Clock, Plus, Target, 
-  ChevronLeft, Award, Sparkles, AlertCircle, TrendingUp
+  ChevronLeft, Award, Sparkles, AlertCircle, TrendingUp, Cake
 } from 'lucide-react';
 
 interface HeadDashboardProps {
@@ -67,6 +67,14 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
           >
             <Target className="w-3.5 h-3.5 text-sky-400" />
             <span>تقييم أعضاء اللجنة (360°)</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('birthdays')}
+            className="btn-secondary text-xs py-2 px-3.5 text-pink-300 hover:text-pink-200 border-pink-500/30 bg-pink-950/30 cursor-pointer flex items-center gap-1.5"
+          >
+            <Cake className="w-3.5 h-3.5 text-pink-400" />
+            <span>أعياد الميلاد والمناسبات 🎂</span>
           </button>
         </div>
       </div>

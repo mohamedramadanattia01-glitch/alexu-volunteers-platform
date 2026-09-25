@@ -58,6 +58,20 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
           const completedTasks = commTasks.filter(t => t.status === 'Approved').length;
           const healthScore = calculateCommitteeHealth(comm.id);
 
+          const committeeHeads = commMembers.filter(m => m.role === 'head' || m.position?.toLowerCase().includes('head') || m.position?.includes('هيد'));
+          const committeeVices = commMembers.filter(m => m.role === 'vice_head' || m.position?.toLowerCase().includes('vice') || m.position?.includes('نائب'));
+
+          const headsNamesList = committeeHeads.length > 0 
+            ? committeeHeads.map(h => h.fullName).join(' • ')
+            : (comm.headNames?.length ? comm.headNames.join(' • ') : (comm.headName || 'بانتظار تعيين القائد'));
+
+          const vicesNamesList = committeeVices.length > 0
+            ? committeeVices.map(v => v.fullName).join(' • ')
+            : (comm.viceNames?.length ? comm.viceNames.join(' • ') : (comm.viceName || ''));
+
+          const isMultipleHeads = committeeHeads.length > 1 || (comm.headNames && comm.headNames.length > 1);
+          const isMultipleVices = committeeVices.length > 1 || (comm.viceNames && comm.viceNames.length > 1);
+
           return (
             <div 
               key={comm.id}
@@ -77,15 +91,15 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
                 </div>
 
                 {/* Leader & Vice */}
-                <div className="text-xs text-slate-300 mb-3 bg-slate-950/60 p-2.5 rounded-xl border border-white/5">
-                  <div className="font-semibold text-white flex items-center gap-1.5">
-                    <span>👑 القائد (Head):</span>
-                    <strong className="text-sky-300">{comm.headName || 'بانتظار تعيين القائد'}</strong>
+                <div className="text-xs text-slate-300 mb-3 bg-slate-950/60 p-2.5 rounded-xl border border-white/5 space-y-1.5">
+                  <div className="font-semibold text-white flex items-start gap-1.5">
+                    <span className="shrink-0">{isMultipleHeads ? '👑 القادة (Co-Heads):' : '👑 القائد (Head):'}</span>
+                    <strong className="text-sky-300 font-bold leading-tight">{headsNamesList}</strong>
                   </div>
-                  {comm.viceName && (
-                    <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
-                      <span>🥈 النائب (Vice):</span>
-                      <span className="text-slate-200">{comm.viceName}</span>
+                  {vicesNamesList && (
+                    <div className="text-[11px] text-slate-400 flex items-start gap-1.5">
+                      <span className="shrink-0">{isMultipleVices ? '🥈 النواب (Vice Heads):' : '🥈 النائب (Vice):'}</span>
+                      <span className="text-slate-200 leading-tight">{vicesNamesList}</span>
                     </div>
                   )}
                 </div>

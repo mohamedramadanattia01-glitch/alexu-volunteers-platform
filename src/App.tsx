@@ -27,6 +27,7 @@ import { AddMemberModal } from './components/members/AddMemberModal';
 import { ImportMembersModal } from './components/members/ImportMembersModal';
 import { CommitteesView } from './components/committees/CommitteesView';
 import { CommitteeModal } from './components/committees/CommitteeModal';
+import { BirthdaysView } from './components/birthdays/BirthdaysView';
 import { EvaluationsView } from './components/evaluations/EvaluationsView';
 import { LeaderboardView } from './components/gamification/LeaderboardView';
 import { AIHubView } from './components/ai/AIHubView';
@@ -167,6 +168,10 @@ const MainAppContent: React.FC = () => {
                   onOpenTransferModal={(m) => setSelectedMemberForTransfer(m)}
                   onOpenImportModal={() => setIsImportMembersOpen(true)}
                 />
+              )}
+
+              {activeTab === 'birthdays' && (
+                <BirthdaysView />
               )}
 
               {activeTab === 'committees' && (

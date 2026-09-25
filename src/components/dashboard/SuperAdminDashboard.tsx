@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { 
   Users, CheckCircle2, Calendar, TrendingUp, AlertTriangle, 
   Shield, Zap, Award, ArrowUpRight, Clock, Plus, 
-  ChevronLeft, Sparkles, HeartPulse, ShieldAlert, UserCheck, Crown
+  ChevronLeft, Sparkles, HeartPulse, ShieldAlert, UserCheck, Crown, Cake
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -128,6 +128,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           >
             <Zap className="w-3.5 h-3.5 text-emerald-400" />
             <span>غرفة العمليات الحية</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('birthdays')}
+            className="btn-secondary text-xs py-2 px-3.5 text-pink-300 hover:text-pink-200 border-pink-500/30 bg-pink-950/30 cursor-pointer flex items-center gap-1.5"
+          >
+            <Cake className="w-3.5 h-3.5 text-pink-400" />
+            <span>أعياد الميلاد والمناسبات 🎂</span>
           </button>
         </div>
       </div>

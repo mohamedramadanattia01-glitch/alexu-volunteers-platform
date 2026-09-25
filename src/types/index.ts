@@ -114,8 +114,14 @@ export interface Committee {
   responsibilities: string[];
   headId?: string;
   headName?: string;
+  headIds?: string[];
+  headNames?: string[];
+  coHeadIds?: string[];
+  coHeadNames?: string[];
   viceId?: string;
   viceName?: string;
+  viceIds?: string[];
+  viceNames?: string[];
   memberCount: number;
   activeTasksCount: number;
   completedTasksCount: number;

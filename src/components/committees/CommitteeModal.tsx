@@ -14,7 +14,9 @@ export const CommitteeModal: React.FC<CommitteeModalProps> = ({ isOpen, onClose 
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [headId, setHeadId] = useState(members[0]?.id || '');
+  const [coHeadId, setCoHeadId] = useState('');
   const [viceId, setViceId] = useState(members[1]?.id || '');
+  const [secondViceId, setSecondViceId] = useState('');
   const [color, setColor] = useState('#2563eb');
   const [respInput, setRespInput] = useState('');
   const [responsibilities, setResponsibilities] = useState<string[]>(['متابعة وتنفيذ مهام الفعاليات']);
@@ -37,17 +39,28 @@ export const CommitteeModal: React.FC<CommitteeModalProps> = ({ isOpen, onClose 
     if (!name.trim()) return;
 
     const headMember = members.find(m => m.id === headId);
+    const coHeadMember = members.find(m => m.id === coHeadId);
     const viceMember = members.find(m => m.id === viceId);
+    const secondViceMember = members.find(m => m.id === secondViceId);
+
+    const headsList = [headMember, coHeadMember].filter(Boolean) as typeof members;
+    const vicesList = [viceMember, secondViceMember].filter(Boolean) as typeof members;
 
     createCommittee({
       name,
       code: code.trim().toUpperCase() || 'COMM',
       description,
       responsibilities,
-      headId,
+      headId: headMember?.id || headId,
       headName: headMember ? headMember.fullName : 'لم يحدد',
-      viceId,
+      headIds: headsList.map(h => h.id),
+      headNames: headsList.map(h => h.fullName),
+      coHeadIds: coHeadMember ? [coHeadMember.id] : [],
+      coHeadNames: coHeadMember ? [coHeadMember.fullName] : [],
+      viceId: viceMember?.id || viceId,
       viceName: viceMember ? viceMember.fullName : 'لم يحدد',
+      viceIds: vicesList.map(v => v.id),
+      viceNames: vicesList.map(v => v.fullName),
       color
     });
 
@@ -112,29 +125,57 @@ export const CommitteeModal: React.FC<CommitteeModalProps> = ({ isOpen, onClose 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">رئيس اللجنة (Head)</label>
+              <label className="block text-xs font-bold text-sky-300 mb-1">👑 رئيس اللجنة الرئيسي (Head)</label>
               <select
                 value={headId}
                 onChange={(e) => setHeadId(e.target.value)}
                 className="glass-input text-xs"
               >
                 {members.map(m => (
+                  <option key={m.id} value={m.id}>{m.fullName} ({m.currentCommitteeName || 'متطوع'})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-sky-400 mb-1">👑 رئيس مشارك اختياري (Co-Head)</label>
+              <select
+                value={coHeadId}
+                onChange={(e) => setCoHeadId(e.target.value)}
+                className="glass-input text-xs"
+              >
+                <option value="">-- بدون رئيس مشارك --</option>
+                {members.filter(m => m.id !== headId).map(m => (
                   <option key={m.id} value={m.id}>{m.fullName}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">نائب رئيس اللجنة (Vice)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">🥈 نائب رئيس اللجنة 1 (Vice Head)</label>
               <select
                 value={viceId}
                 onChange={(e) => setViceId(e.target.value)}
                 className="glass-input text-xs"
               >
                 <option value="">-- بدون نائب حالياً --</option>
-                {members.map(m => (
+                {members.filter(m => m.id !== headId && m.id !== coHeadId).map(m => (
+                  <option key={m.id} value={m.id}>{m.fullName}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">🥈 نائب رئيس اللجنة 2 (Second Vice)</label>
+              <select
+                value={secondViceId}
+                onChange={(e) => setSecondViceId(e.target.value)}
+                className="glass-input text-xs"
+              >
+                <option value="">-- بدون نائب ثانٍ --</option>
+                {members.filter(m => m.id !== headId && m.id !== coHeadId && m.id !== viceId).map(m => (
                   <option key={m.id} value={m.id}>{m.fullName}</option>
                 ))}
               </select>

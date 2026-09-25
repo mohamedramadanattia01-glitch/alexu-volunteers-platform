@@ -9,14 +9,24 @@ export interface LeadershipSignatures {
 }
 
 export function getLeadershipNames(members: Member[]): LeadershipSignatures {
-  const advisor = members.find(m => m.role === 'advisor' || m.position.includes('مستشار'));
-  const president = members.find(m => m.role === 'super_admin' || m.position.includes('رئيس الفريق') || m.position.includes('رئيس الاتحاد'));
-  const vicePres = members.find(m => m.role === 'vice_president' || m.position.includes('نائب'));
+  const advisors = members.filter(m => m.role === 'advisor' || m.position?.includes('مستشار'));
+  const presidents = members.filter(m => m.role === 'super_admin' || m.position?.includes('رئيس الفريق') || m.position?.includes('رئيس الاتحاد'));
+  const vicePresidents = members.filter(m => m.role === 'vice_president' || (m.position?.includes('نائب رئيس') && !m.position?.includes('نائب رئيس لجنة')));
+
+  const advisorName = advisors.length > 0 
+    ? advisors.map(a => a.fullName).join(' • ')
+    : 'محمد رمضان';
+  const presidentName = presidents.length > 0
+    ? presidents.map(p => p.fullName).join(' • ')
+    : 'رئيس فريق المتطوعين';
+  const vicePresidentName = vicePresidents.length > 0
+    ? vicePresidents.map(v => v.fullName).join(' • ')
+    : 'نائب رئيس الفريق';
 
   return {
-    advisorName: advisor?.fullName || 'محمد رمضان',
-    presidentName: president?.fullName || 'رئيس فريق المتطوعين',
-    vicePresidentName: vicePres?.fullName || 'نائب رئيس الفريق'
+    advisorName,
+    presidentName,
+    vicePresidentName
   };
 }
 
