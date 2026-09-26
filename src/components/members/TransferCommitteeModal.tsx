@@ -221,11 +221,22 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
             </div>
           </div>
 
-          {/* Reason & Notes */}
+          {/* Reason & Notes with Quick Presets */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
-              سبب وتفاصيل قرار النقل والتسكين *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-300">
+                سبب ومسوغ قرار النقل والتسكين *
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setReason(isMovingToLeadership ? 'ترقية وتكليف ضمن القيادة العليا والمجلس الاستشاري' : 'إعادة توزيع المهام والتسكين التنظيمي')}
+                  className="text-[10px] text-sky-400 hover:text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded border border-sky-500/30 cursor-pointer"
+                >
+                  ⚡ نص جاهز سريع
+                </button>
+              </div>
+            </div>
             <textarea
               rows={2}
               required

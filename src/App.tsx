@@ -294,6 +294,7 @@ const MainAppContent: React.FC = () => {
         onClose={() => setSelectedMemberIdForProfile(null)}
         onOpenDigitalPortfolio={(m) => { setSelectedMemberIdForProfile(null); setSelectedMemberForCV(m); }}
         onOpenEditProfile={(m) => setSelectedMemberForEdit(m)}
+        onOpenTransferModal={(m) => { setSelectedMemberIdForProfile(null); setSelectedMemberForTransfer(m); }}
       />
 
       <TransferCommitteeModal

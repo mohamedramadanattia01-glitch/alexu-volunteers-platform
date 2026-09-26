@@ -7,30 +7,39 @@ import {
   ChevronRight, Building2, Flame, HeartHandshake,
   FileCheck, ShieldAlert, Laptop, Camera, Film, Palette, FileText
 } from 'lucide-react';
-import { ALL_ROLES_INFO, getRoleShortLabel } from '../../utils/roleUtils';
+import { ALL_ROLES_INFO, getRoleShortLabel, isHighLeadershipRole } from '../../utils/roleUtils';
 import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 
 export const OrgChartView: React.FC = () => {
   const { members, committees, branding, currentUser } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. Advisor Spotlight
-  const advisor = members.find(m => m.role === 'advisor') || {
+  // 1. Advisory Board Members (All Advisors)
+  const advisors = members.filter(m => 
+    m.role === 'advisor' || 
+    (m.currentCommitteeId === 'comm-leadership' && Boolean(m.position?.includes('مستشار')))
+  );
+
+  const fallbackAdvisor = {
     id: 'user-advisor-mohamed-ramadan',
     fullName: 'محمد رمضان',
     position: 'المستشار والمشرف الأكاديمي العام لفريق المتطوعين',
     volunteerId: 'AU-001',
-    role: 'advisor',
+    role: 'advisor' as const,
     whatsappNumber: '+201000000000',
     universityEmail: 'mohamed.ramadan50060@gmail.com',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    currentCommitteeName: 'القيادة العليا والمجلس الاستشاري'
+    currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+    college: 'جامعة الإسكندرية',
+    bio: 'التوجيه الاستراتيجي وحوكمة العمل التطوعي، إقرار اللوائح والسياسات العامة، والتحكيم النهائي في التظلمات والمقترحات الكبرى.'
   };
 
-  // Other High Leadership Members
+  const displayAdvisors = advisors.length > 0 ? advisors : [fallbackAdvisor];
+
+  // 2. Other High Leadership Members (President, Vice President, General Coordinator, Operations, etc.)
   const highLeadershipMembers = members.filter(m => 
-    ['super_admin', 'vice_president', 'general_coordinator', 'operations_manager', 'quality_officer', 'hr_admin'].includes(m.role) && 
-    m.id !== advisor.id
+    (isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership') && 
+    !displayAdvisors.some(a => a.id === m.id)
   );
 
   // Operational Committees (Excluding leadership meta-committee)
@@ -39,6 +48,10 @@ export const OrgChartView: React.FC = () => {
   // Search filter
   const q = searchQuery.toLowerCase().trim();
   const matchesSearch = (text?: string) => text ? text.toLowerCase().includes(q) : false;
+
+  const filteredAdvisors = displayAdvisors.filter(m => 
+    !q || matchesSearch(m.fullName) || matchesSearch(m.position) || matchesSearch(m.volunteerId) || matchesSearch(m.college)
+  );
 
   const filteredLeadership = highLeadershipMembers.filter(m => 
     !q || matchesSearch(m.fullName) || matchesSearch(m.position) || matchesSearch(m.volunteerId) || matchesSearch(m.college)
@@ -97,59 +110,66 @@ export const OrgChartView: React.FC = () => {
           </span>
         </div>
 
-        {/* General Advisor Spotlight Card */}
-        {(!q || matchesSearch(advisor.fullName) || matchesSearch(advisor.position) || matchesSearch(advisor.volunteerId)) && (
-          <div className="glass-card p-5 sm:p-6 bg-gradient-to-r from-amber-950/30 via-slate-900 to-blue-950/40 border-2 border-amber-500/50 rounded-2xl shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-            
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <img 
-                    src={advisor.avatarUrl} 
-                    alt={advisor.fullName} 
-                    className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl object-cover border-2 border-amber-400 shadow-xl shadow-amber-500/20"
-                  />
-                  <div className="absolute -bottom-1 -right-1 p-1 rounded-lg bg-amber-500 text-slate-950 shadow-md">
-                    <Crown className="w-4 h-4" />
+        {/* Advisors Spotlight Cards */}
+        {filteredAdvisors.length > 0 && (
+          <div className="space-y-4">
+            {filteredAdvisors.map(adv => (
+              <div 
+                key={adv.id}
+                className="glass-card p-5 sm:p-6 bg-gradient-to-r from-amber-950/30 via-slate-900 to-blue-950/40 border-2 border-amber-500/50 rounded-2xl shadow-2xl relative overflow-hidden group"
+              >
+                <div className="absolute top-0 left-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <img 
+                        src={adv.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} 
+                        alt={adv.fullName} 
+                        className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl object-cover border-2 border-amber-400 shadow-xl shadow-amber-500/20"
+                      />
+                      <div className="absolute -bottom-1 -right-1 p-1 rounded-lg bg-amber-500 text-slate-950 shadow-md">
+                        <Crown className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/40 flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 fill-amber-400" />
+                          <span>المستشار والمشرف الأكاديمي العام</span>
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-sky-300 font-mono text-xs font-bold">
+                          {adv.volunteerId || 'AU-001'}
+                        </span>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black text-white">{adv.fullName}</h4>
+                      <p className="text-xs text-amber-200/90 font-semibold mt-0.5">
+                        {adv.position || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'}
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                        {adv.bio || 'التوجيه الاستراتيجي وحوكمة العمل التطوعي، إقرار اللوائح والسياسات العامة، والتحكيم النهائي في التظلمات والمقترحات الكبرى.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contact Button */}
+                  <div className="flex items-center gap-2 self-stretch md:self-auto justify-end pt-3 md:pt-0 border-t md:border-t-0 border-white/10 shrink-0">
+                    {hasValidWhatsApp(adv.whatsappNumber || (adv as any).phone) && (
+                      <a
+                        href={getWhatsAppUrl(adv.whatsappNumber || (adv as any).phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>تواصل واتساب مباشر</span>
+                      </a>
+                    )}
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/40 flex items-center gap-1">
-                      <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>المستشار والمشرف الأكاديمي العام</span>
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-sky-300 font-mono text-xs font-bold">
-                      {advisor.volunteerId || 'AU-001'}
-                    </span>
-                  </div>
-                  <h4 className="text-xl sm:text-2xl font-black text-white">{advisor.fullName}</h4>
-                  <p className="text-xs text-amber-200/90 font-semibold mt-0.5">
-                    {advisor.position || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'}
-                  </p>
-                  <p className="text-[11px] text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                    التوجيه الاستراتيجي وحوكمة العمل التطوعي، إقرار اللوائح والسياسات العامة، والتحكيم النهائي في التظلمات والمقترحات الكبرى.
-                  </p>
-                </div>
               </div>
-
-              {/* Contact Button */}
-              <div className="flex items-center gap-2 self-stretch md:self-auto justify-end pt-3 md:pt-0 border-t md:border-t-0 border-white/10 shrink-0">
-                {hasValidWhatsApp(advisor.whatsappNumber || (advisor as any).phone) && (
-                  <a
-                    href={getWhatsAppUrl(advisor.whatsappNumber || (advisor as any).phone)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>تواصل واتساب مباشر</span>
-                  </a>
-                )}
-              </div>
-            </div>
+            ))}
           </div>
         )}
 
@@ -165,7 +185,7 @@ export const OrgChartView: React.FC = () => {
               >
                 <div className="flex items-start gap-3">
                   <img 
-                    src={leader.avatarUrl} 
+                    src={leader.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'} 
                     alt={leader.fullName} 
                     className="w-13 h-13 rounded-xl object-cover border border-purple-400/40 group-hover:border-purple-400 transition-all shrink-0"
                   />
@@ -173,7 +193,7 @@ export const OrgChartView: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold inline-block mb-1 border ${
                       roleInfo?.badgeClass || 'bg-purple-950/60 text-purple-300 border-purple-500/30'
                     }`}>
-                      {roleInfo?.icon} {getRoleShortLabel(leader.role, leader.currentCommitteeName)}
+                      {roleInfo?.icon || '👑'} {getRoleShortLabel(leader.role, leader.currentCommitteeName)}
                     </span>
                     <h4 className="text-sm font-bold text-white truncate">{leader.fullName}</h4>
                     <p className="text-[11px] text-slate-400 truncate">{leader.position}</p>
@@ -221,9 +241,38 @@ export const OrgChartView: React.FC = () => {
             .filter(comm => !q || matchesSearch(comm.name) || matchesSearch(comm.code) || members.some(m => m.currentCommitteeId === comm.id && matchesSearch(m.fullName)))
             .map(comm => {
               // Find heads and vice heads strictly for this committee
-              const commHeads = members.filter(m => m.currentCommitteeId === comm.id && m.role === 'head');
-              const commViceHeads = members.filter(m => m.currentCommitteeId === comm.id && m.role === 'vice_head');
+              const commHeads = members.filter(m => 
+                m.currentCommitteeId === comm.id && 
+                (m.role === 'head' || m.position?.includes('رئيس لجنة') || (m.position && m.position.startsWith('رئيس ')))
+              );
+              const commViceHeads = members.filter(m => 
+                m.currentCommitteeId === comm.id && 
+                (m.role === 'vice_head' || m.position?.includes('نائب رئيس'))
+              );
               const totalCommMembers = members.filter(m => m.currentCommitteeId === comm.id).length;
+
+              // Fallback head display from committee record if not populated in members yet
+              const displayHeads = commHeads.length > 0 
+                ? commHeads 
+                : (comm.headName && comm.headName !== 'لم يحدد' ? [{
+                    id: comm.headId || 'fallback-head',
+                    fullName: comm.headName,
+                    volunteerId: `${comm.code}-001`,
+                    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+                    whatsappNumber: '',
+                    phone: ''
+                  }] : []);
+
+              const displayViceHeads = commViceHeads.length > 0
+                ? commViceHeads
+                : (comm.viceName && comm.viceName !== 'لم يحدد' ? [{
+                    id: comm.viceId || 'fallback-vice',
+                    fullName: comm.viceName,
+                    volunteerId: `${comm.code}-002`,
+                    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+                    whatsappNumber: '',
+                    phone: ''
+                  }] : []);
 
               return (
                 <div 
@@ -253,11 +302,11 @@ export const OrgChartView: React.FC = () => {
                       <div className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">
                         👑 رئيس اللجنة (Head):
                       </div>
-                      {commHeads.length > 0 ? (
-                        commHeads.map(head => (
+                      {displayHeads.length > 0 ? (
+                        displayHeads.map(head => (
                           <div key={head.id} className="p-2.5 rounded-xl bg-slate-900/80 border border-blue-500/30 flex items-center justify-between">
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <img src={head.avatarUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-blue-400/40 shrink-0" />
+                              <img src={head.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-8 h-8 rounded-lg object-cover border border-blue-400/40 shrink-0" />
                               <div className="min-w-0">
                                 <div className="text-xs font-bold text-white truncate">{head.fullName}</div>
                                 <div className="text-[10px] text-sky-400 font-mono font-bold">{head.volunteerId || 'HEAD'}</div>
@@ -288,11 +337,11 @@ export const OrgChartView: React.FC = () => {
                       <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
                         🎖️ نواب ومساعدو الرؤساء (Vice Heads):
                       </div>
-                      {commViceHeads.length > 0 ? (
-                        commViceHeads.map(vHead => (
+                      {displayViceHeads.length > 0 ? (
+                        displayViceHeads.map(vHead => (
                           <div key={vHead.id} className="p-2.5 rounded-xl bg-slate-900/80 border border-purple-500/30 flex items-center justify-between">
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <img src={vHead.avatarUrl} alt="" className="w-7 h-7 rounded-lg object-cover border border-purple-400/40 shrink-0" />
+                              <img src={vHead.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'} alt="" className="w-7 h-7 rounded-lg object-cover border border-purple-400/40 shrink-0" />
                               <div className="min-w-0">
                                 <div className="text-xs font-bold text-white truncate">{vHead.fullName}</div>
                                 <div className="text-[10px] text-purple-300 font-mono font-bold">{vHead.volunteerId || 'VICE'}</div>

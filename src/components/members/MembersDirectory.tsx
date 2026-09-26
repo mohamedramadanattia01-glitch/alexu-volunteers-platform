@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { exportMembersToExcel } from '../../utils/excelExport';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
+import { isHighLeadershipRole, isHeadRole } from '../../utils/roleUtils';
 
 interface MembersDirectoryProps {
   onSelectMember: (memberId: string) => void;
@@ -52,7 +53,9 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
   const [filterOutReasonInput, setFilterOutReasonInput] = useState('');
 
   const getMemberDynamicStats = (m: Member) => {
-    const isLeader = m.role === 'head' || m.role === 'vice_head' || m.role === 'advisor' || m.role === 'vice_president' || m.role === 'super_admin' || m.role === 'general_coordinator';
+    const isLead = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership';
+    const isHead = m.role === 'head' || m.role === 'vice_head' || (m.position && (m.position.includes('رئيس') || m.position.includes('هيد')));
+    const isLeader = isLead || isHead;
 
     // Real attendance
     const myAtt = attendanceRecords.filter(a => a.memberId === m.id);
@@ -77,9 +80,15 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
 
     return {
       isLeader,
-      attendanceDisplay: attendanceRate !== null ? `${attendanceRate}%` : '—',
-      evalDisplay: evalScore !== null ? `${evalScore}%` : 'لم يُقيّم بعد',
-      pointsDisplay: points > 0 ? `${points} XP` : '0 XP'
+      isLead,
+      isHead,
+      attendanceDisplay: attendanceRate !== null ? `${attendanceRate}%` : (isLeader ? 'إشراف ميداني' : '0%'),
+      evalDisplay: isLead 
+        ? 'إشراف عام' 
+        : isHead 
+        ? (isHighLeadership && evalScore !== null ? `${evalScore}%` : 'قيادة اللجنة') 
+        : (evalScore !== null ? `${evalScore}%` : (attendanceRate !== null ? `${attendanceRate}%` : 'لم يُقيّم بعد')),
+      pointsDisplay: isLead ? '👑 قيادة عليا' : isHead ? '👑 قيادة اللجنة' : (points > 0 ? `${points} XP` : '0 XP')
     };
   };
 
@@ -418,6 +427,15 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                               >
                                 عرض
                               </button>
+                              {canManage && (
+                                <button
+                                  onClick={() => onOpenTransferModal(member)}
+                                  className="px-2 py-1 bg-indigo-950/50 hover:bg-indigo-900/70 border border-indigo-800/60 text-indigo-300 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                  title="تسكين ونقل وتعديل المنصب"
+                                >
+                                  تسكين
+                                </button>
+                              )}
                               {canManage && member.id !== currentUser.id && (
                                 <button
                                   onClick={() => setMemberToFilterOut(member)}

@@ -218,6 +218,9 @@ interface AppContextType {
     badges?: string[];
     position?: string;
     role?: Role;
+    currentCommitteeId?: string;
+    currentCommitteeName?: string;
+    volunteerId?: string;
     performance?: Partial<MemberPerformance>;
   }) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
@@ -3005,6 +3008,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       badges?: string[];
       position?: string;
       role?: Role;
+      currentCommitteeId?: string;
+      currentCommitteeName?: string;
+      volunteerId?: string;
       performance?: Partial<MemberPerformance>;
     }
   ) => {
@@ -3032,6 +3038,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           badges: profileData.badges !== undefined ? profileData.badges : m.badges,
           position: profileData.position !== undefined ? profileData.position : m.position,
           role: profileData.role !== undefined ? profileData.role : m.role,
+          currentCommitteeId: profileData.currentCommitteeId !== undefined ? profileData.currentCommitteeId : m.currentCommitteeId,
+          currentCommitteeName: profileData.currentCommitteeName !== undefined ? profileData.currentCommitteeName : m.currentCommitteeName,
+          volunteerId: profileData.volunteerId !== undefined ? profileData.volunteerId : m.volunteerId,
           performance: profileData.performance !== undefined 
             ? { ...m.performance, ...profileData.performance } 
             : m.performance,

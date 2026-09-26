@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useApp, isHighLeadershipMember } from '../../context/AppContext';
 import { Member } from '../../types';
+import { isHeadMember } from '../../utils/roleUtils';
 import { getMemberExactBirthData } from '../../utils/nationalId';
 import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 import { 
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
   Calendar, Phone, Mail, GraduationCap, Clock, 
   Sparkles, History, Star, ArrowRightLeft, HeartHandshake,
-  Heart, Edit3, Ban, ShieldAlert, RotateCcw 
+  Heart, Edit3, Ban, ShieldAlert, RotateCcw, Crown, Shield,
+  Layers, CheckSquare, Activity, UserCheck
 } from 'lucide-react';
 
 interface MemberProfileModalProps {
@@ -16,6 +18,7 @@ interface MemberProfileModalProps {
   onClose: () => void;
   onOpenDigitalPortfolio: (member: Member) => void;
   onOpenEditProfile?: (member: Member) => void;
+  onOpenTransferModal?: (member: Member) => void;
 }
 
 export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
@@ -23,9 +26,17 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   isOpen,
   onClose,
   onOpenDigitalPortfolio,
-  onOpenEditProfile
+  onOpenEditProfile,
+  onOpenTransferModal
 }) => {
-  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember, filterOutMember, grantBadgeToMember, revokeBadgeFromMember } = useApp();
+  const { 
+    members, revealNationalId, currentUser, badges, 
+    isHighLeadership, banMember, unbanMember, filterOutMember, 
+    grantBadgeToMember, revokeBadgeFromMember,
+    attendanceRecords, memberEvaluations, headEvaluations,
+    evaluationRubric, committees, tasks, calculateCommitteeHealth
+  } = useApp();
+
   const [isNationalIdRevealed, setIsNationalIdRevealed] = useState(false);
   const [isBanModalOpen, setIsBanModalOpen] = useState(false);
   const [banReasonInput, setBanReasonInput] = useState('');
@@ -35,6 +46,39 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
   const member = members.find(m => m.id === memberId);
   if (!member) return null;
+
+  const isHead = isHeadMember(member);
+  const isHighLead = isHighLeadershipMember(member);
+
+  // Committee details if head
+  const memberComm = committees.find(c => c.id === member.currentCommitteeId);
+  const commMembers = memberComm ? members.filter(m => m.currentCommitteeId === memberComm.id && m.status === 'Active') : [];
+  const commTasks = memberComm ? tasks.filter(t => t.committeeId === memberComm.id) : [];
+  const commCompletedTasks = commTasks.filter(t => t.status === 'Approved').length;
+  const commHealth = memberComm ? calculateCommitteeHealth(memberComm.id) : 0;
+
+  // Real attendance calculation for regular member
+  const memberAttRecords = attendanceRecords.filter(a => a.memberId === member.id);
+  const presentRecordsCount = memberAttRecords.filter(a => a.status === 'Present').length;
+  const realAttendanceRate = memberAttRecords.length > 0 
+    ? Math.round((presentRecordsCount / memberAttRecords.length) * 100) 
+    : (member.performance?.attendanceRate || 0);
+
+  // Member evaluations & criteria scores
+  const memberEvals = memberEvaluations.filter(e => e.memberId === member.id);
+  const latestMemberEval = memberEvals.length > 0 ? memberEvals[0] : null;
+
+  // Head evaluations (visible only to High Leadership)
+  const myHeadEvals = headEvaluations.filter(e => e.headId === member.id);
+  const latestHeadEval = myHeadEvals.length > 0 ? myHeadEvals[0] : null;
+  const headAvgPercentage = myHeadEvals.length > 0
+    ? Math.round(myHeadEvals.reduce((a, b) => a + b.percentage, 0) / myHeadEvals.length)
+    : (member.performance?.evaluationsCount && member.performance.evaluationsCount > 0 ? member.performance.overallScore : 0);
+
+  // Member calculated overall score
+  const calculatedMemberOverallScore = memberEvals.length > 0
+    ? Math.round(memberEvals.reduce((a, b) => a + b.percentage, 0) / memberEvals.length)
+    : (member.performance?.evaluationsCount && member.performance.evaluationsCount > 0 ? member.performance.overallScore : (realAttendanceRate > 0 ? realAttendanceRate : 0));
 
   const handleToggleNationalId = () => {
     if (!isNationalIdRevealed) {
@@ -106,7 +150,13 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
               src={member.avatarUrl} 
               alt="" 
               className={`w-20 h-20 rounded-2xl object-cover border-2 shadow-xl ${
-                member.status === 'Banned' ? 'border-rose-500/60 grayscale' : 'border-blue-500/50'
+                member.status === 'Banned' 
+                  ? 'border-rose-500/60 grayscale' 
+                  : isHighLead 
+                    ? 'border-amber-400/80 shadow-amber-500/20' 
+                    : isHead 
+                      ? 'border-sky-400/80 shadow-sky-500/20' 
+                      : 'border-blue-500/50'
               }`}
             />
             <div>
@@ -120,11 +170,19 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
                   member.status === 'Banned' 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
-                    : isHighLeadershipMember(member)
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : isHighLead
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : isHead
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                 }`}>
-                  {member.status === 'Banned' ? 'محظور' : isHighLeadershipMember(member) ? '👑 قيادة عليا وإشراف عام' : `المستوى ${member.level} (${member.points} XP)`}
+                  {member.status === 'Banned' 
+                    ? 'محظور' 
+                    : isHighLead 
+                    ? '👑 قيادة عليا وإشراف عام' 
+                    : isHead 
+                    ? `👑 ${member.position || (member.role === 'head' ? 'رئيس لجنة' : 'نائب رئيس')}` 
+                    : `المستوى ${member.level} (${member.points} XP)`}
                 </span>
               </div>
               <h3 className="text-xl font-extrabold text-white">{member.fullName}</h3>
@@ -135,6 +193,18 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Direct Reassign / Transfer Button for High Leadership */}
+            {isHighLeadership && onOpenTransferModal && member.status !== 'Banned' && (
+              <button
+                onClick={() => { onClose(); onOpenTransferModal(member); }}
+                className="px-3 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="تعديل التسكين، اللجنة، والرتبة الإدارية"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-400" />
+                <span>تسكين / نقل المنصب</span>
+              </button>
+            )}
+
             {canEdit && onOpenEditProfile && member.status !== 'Banned' && (
               <button
                 onClick={() => { onClose(); onOpenEditProfile(member); }}
@@ -191,7 +261,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
         )}
 
-        {/* 2-Columns Grid: Personal Info & Performance */}
+        {/* 2-Columns Grid: Personal Info & Leadership/Performance */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           
           {/* Personal & Sensitive Information */}
@@ -314,18 +384,25 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Performance 360 Matrix (Hidden for High Leadership) */}
+          {/* Section 2: Leadership Profile / Member 360 Matrix */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Award className="w-4 h-4 text-amber-400" />
-              <span>{isHighLeadershipMember(member) ? 'بيانات الصفة الإدارية والإشراف العام' : 'مصفوفة الأداء الشامل 360°'}</span>
+              <span>
+                {isHighLead 
+                  ? 'بيانات الصفة الإدارية والإشراف العام' 
+                  : isHead 
+                  ? 'بطاقة قيادة وإشراف اللجنة' 
+                  : 'مصفوفة الأداء ومعايير التقييم 360°'}
+              </span>
             </h4>
 
-            {isHighLeadershipMember(member) ? (
-              <div className="bg-gradient-to-br from-purple-950/40 via-slate-900/60 to-slate-950 p-4 rounded-xl border border-purple-500/30 space-y-3 text-xs">
-                <div className="flex items-center gap-2 text-purple-300 font-bold border-b border-purple-500/20 pb-2">
-                  <ShieldCheck className="w-4 h-4 text-purple-400" />
-                  <span>👑 صفة القيادة العليا والإشراف العام</span>
+            {/* A) HIGH LEADERSHIP VIEW */}
+            {isHighLead ? (
+              <div className="bg-gradient-to-br from-amber-950/30 via-slate-900/70 to-slate-950 p-4 rounded-xl border border-amber-500/40 space-y-3 text-xs">
+                <div className="flex items-center gap-2 text-amber-300 font-bold border-b border-amber-500/20 pb-2">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <span>👑 القيادة العليا والمجلس الاستشاري</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed">
                   هذا العضو يمثل القيادة العليا والإشرافية المباشرة على فريق المتطوعين واتحاد طلاب جامعة الإسكندرية.
@@ -338,57 +415,173 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                   <span className="font-bold text-white">إشراف شامل على كافة اللجان والعمليات</span>
                 </div>
               </div>
-            ) : (
-              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">نسبة الحضور والانضباط</span>
-                    <span className="font-bold text-emerald-400 font-mono">{member.performance.attendanceRate}%</span>
+            ) : isHead ? (
+              /* B) COMMITTEE HEAD VIEW (Clean Profile Data + High Leadership Evaluation) */
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-sky-500/30 space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-2 text-sky-300 font-bold">
+                    <Shield className="w-4 h-4 text-sky-400" />
+                    <span>إشراف وإدارة: {member.currentCommitteeName}</span>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${member.performance.attendanceRate}%` }} />
+                  <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-bold text-[10px] border border-sky-500/30">
+                    {member.role === 'head' ? 'رئيس اللجنة' : 'نائب رئيس'}
+                  </span>
+                </div>
+
+                {/* Committee KPIs under this Head */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-bold">فريق اللجنة</div>
+                    <div className="font-black text-white font-mono mt-0.5">{commMembers.length} عضو</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-bold">المهام المنجزة</div>
+                    <div className="font-black text-blue-400 font-mono mt-0.5">{commCompletedTasks} / {commTasks.length}</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-bold">صحة اللجنة</div>
+                    <div className="font-black text-emerald-400 font-mono mt-0.5">{commHealth}%</div>
                   </div>
                 </div>
 
+                {/* Committee Responsibilities Summary */}
+                {memberComm?.responsibilities && memberComm.responsibilities.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-bold text-slate-400">المسؤوليات القيادية المشرف عليها:</div>
+                    <ul className="text-[11px] text-slate-300 list-disc list-inside space-y-0.5">
+                      {memberComm.responsibilities.slice(0, 2).map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Head Evaluation - Visible EXCLUSIVELY to High Leadership */}
+                {isHighLeadership ? (
+                  <div className="mt-2 pt-2 border-t border-amber-500/20 bg-amber-950/20 p-2.5 rounded-lg border border-amber-500/30">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-bold text-amber-300 text-[11px] flex items-center gap-1">
+                        <Crown className="w-3.5 h-3.5 text-amber-400" />
+                        <span>تقييم الأداء القيادي (من الإدارة العليا):</span>
+                      </span>
+                      <span className="font-mono text-xs font-black text-amber-400">
+                        {myHeadEvals.length > 0 ? `${headAvgPercentage}%` : 'لم يُسجل تقييم بعد'}
+                      </span>
+                    </div>
+
+                    {latestHeadEval ? (
+                      <div className="text-[11px] text-slate-300 space-y-1">
+                        <div className="flex justify-between text-slate-400 text-[10px]">
+                          <span>آخر تقييم: {latestHeadEval.evaluationDate}</span>
+                          <span>المقيم: {latestHeadEval.evaluatorName}</span>
+                        </div>
+                        {latestHeadEval.feedback && (
+                          <div className="bg-slate-950/60 p-1.5 rounded border border-amber-500/20 text-slate-300 text-[10px]">
+                            💬 {latestHeadEval.feedback}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 italic">
+                        يمكن لإدارة الفريق إضافة تقييم قيادي جديد لهذا المسؤول من قسم "التقييمات".
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-lg bg-slate-950/40 border border-slate-800 text-[10px] text-slate-400 text-center">
+                    ⭐ قيادة وإشراف معتمد من اتحاد طلاب جامعة الإسكندرية
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* C) REGULAR MEMBER VIEW (Criteria Breakdown + Attendance + Overall Score) */
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-3.5">
+                
+                {/* Overall Score Header Banner */}
+                <div className="p-3 rounded-xl bg-gradient-to-r from-blue-950/60 to-purple-950/40 border border-blue-500/30 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-400">الإجمالي العام والتقييم الشامل:</div>
+                    <div className="text-xs text-slate-200 mt-0.5">
+                      {calculatedMemberOverallScore >= 90 ? 'امتياز 🟢' : calculatedMemberOverallScore >= 75 ? 'جيد جداً 🟡' : calculatedMemberOverallScore > 0 ? 'جيد 🔵' : 'قيد التقييم الميداني ⚪'}
+                    </div>
+                  </div>
+                  <div className="text-xl font-black font-mono text-emerald-400 bg-slate-950/80 px-3 py-1 rounded-xl border border-emerald-500/30">
+                    {calculatedMemberOverallScore}%
+                  </div>
+                </div>
+
+                {/* 1. Real Attendance Rate */}
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">نسبة إنجاز المهام</span>
+                    <span className="text-slate-300 font-bold">نسبة الحضور والانضباط الميداني:</span>
+                    <span className="font-bold text-emerald-400 font-mono">{realAttendanceRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-500 to-emerald-400 h-full rounded-full transition-all" style={{ width: `${realAttendanceRate}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>جلسات الحضور: {presentRecordsCount} من {memberAttRecords.length}</span>
+                    <span>الوزن: 20%</span>
+                  </div>
+                </div>
+
+                {/* 2. Quality & Tasks */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-300 font-bold">جودة ودقة تنفيذ المهام:</span>
+                    <span className="font-bold text-amber-400 font-mono">
+                      {latestMemberEval?.scores ? (latestMemberEval.scores['taskQuality'] || latestMemberEval.scores['crit-2'] || Math.round((member.performance.taskQuality / 5) * 100)) : (member.performance.taskQuality ? Math.round((member.performance.taskQuality / 5) * 100) : 0)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-amber-400 h-full rounded-full transition-all" 
+                      style={{ width: `${latestMemberEval?.scores ? (latestMemberEval.scores['taskQuality'] || latestMemberEval.scores['crit-2'] || (member.performance.taskQuality / 5) * 100) : (member.performance.taskQuality / 5) * 100}%` }} 
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>مستوى الإتقان والمواصفات الفنية</span>
+                    <span>الوزن: 25%</span>
+                  </div>
+                </div>
+
+                {/* 3. Task Completion */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-300 font-bold">نسبة إنجاز المهام المسندة:</span>
                     <span className="font-bold text-blue-400 font-mono">{member.performance.taskCompletionRate}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-blue-500 h-full rounded-full" style={{ width: `${member.performance.taskCompletionRate}%` }} />
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${member.performance.taskCompletionRate}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>تسليم المهام في المواعيد المحددة</span>
+                    <span>الوزن: 25%</span>
                   </div>
                 </div>
 
+                {/* 4. Commitment & Teamwork */}
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">جودة المهام (Task Quality)</span>
-                    <span className="font-bold text-amber-400 font-mono">{member.performance.taskQuality} / 5</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-amber-400 h-full rounded-full" style={{ width: `${(member.performance.taskQuality / 5) * 100}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">الالتزام والمسؤولية</span>
+                    <span className="text-slate-300 font-bold">الالتزام والعمل الجماعي:</span>
                     <span className="font-bold text-sky-400 font-mono">{member.performance.commitment}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-sky-400 h-full rounded-full" style={{ width: `${member.performance.commitment}%` }} />
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="bg-sky-400 h-full rounded-full transition-all" style={{ width: `${member.performance.commitment}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>التعاون ودعم الزملاء والمبادرة</span>
+                    <span>الوزن: 30%</span>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">القيادة والمبادرة (Leadership Potential)</span>
-                    <span className="font-bold text-purple-400 font-mono">{member.performance.leadership}%</span>
+                {/* Evaluator Notes if present */}
+                {latestMemberEval?.feedback && (
+                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 text-[10px] text-slate-300 mt-1">
+                    <span className="font-bold text-sky-300">ملاحظات التقييم الميداني ({latestMemberEval.evaluatorName}):</span>
+                    <p className="mt-0.5">{latestMemberEval.feedback}</p>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-purple-500 h-full rounded-full" style={{ width: `${member.performance.leadership}%` }} />
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>

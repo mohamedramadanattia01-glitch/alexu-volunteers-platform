@@ -63,8 +63,14 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
           const presentRecords = commRecords.filter(a => a.status === 'Present').length;
           const realAttendanceRate = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
-          const committeeHeads = commMembers.filter(m => m.role === 'head' || m.position?.toLowerCase().includes('head') || m.position?.includes('هيد'));
-          const committeeVices = commMembers.filter(m => m.role === 'vice_head' || m.position?.toLowerCase().includes('vice') || m.position?.includes('نائب'));
+          const committeeHeads = members.filter(m => 
+            m.currentCommitteeId === comm.id && 
+            (m.role === 'head' || m.position?.includes('رئيس لجنة') || (m.position && m.position.startsWith('رئيس ')))
+          );
+          const committeeVices = members.filter(m => 
+            m.currentCommitteeId === comm.id && 
+            (m.role === 'vice_head' || m.position?.includes('نائب رئيس'))
+          );
 
           const headsNamesList = committeeHeads.length > 0 
             ? committeeHeads.map(h => h.fullName).join(' • ')

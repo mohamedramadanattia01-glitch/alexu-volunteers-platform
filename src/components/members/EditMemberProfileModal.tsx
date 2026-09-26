@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Member, CommitteeHistoryItem, CertifiedSkillItem } from '../../types';
+import { Member, CommitteeHistoryItem, CertifiedSkillItem, Role } from '../../types';
 import { 
   X, User, Upload, Sparkles, Heart, GraduationCap, 
   Plus, Check, Phone, FileText, Camera, Lock,
   ShieldCheck, MapPin, AlertCircle, HeartHandshake,
   History, Award, Trash2, Calendar, Link as LinkIcon,
-  Crown, Flame, Star, Trophy, Shield
+  Crown, Flame, Star, Trophy, Shield, ArrowRightLeft, Briefcase
 } from 'lucide-react';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
+import { isHeadRole, isHighLeadershipRole } from '../../utils/roleUtils';
 
 interface EditMemberProfileModalProps {
   member: Member;
@@ -22,9 +23,14 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { updateMemberSelfProfile, isHighLeadership, badges: masterBadges } = useApp();
+  const { updateMemberSelfProfile, isHighLeadership, badges: masterBadges, committees } = useApp();
 
-  // High Leadership Exclusive Admin Fields
+  // High Leadership Exclusive Staffing & Admin Fields
+  const [adminCommitteeId, setAdminCommitteeId] = useState<string>(member.currentCommitteeId || 'comm-org');
+  const [adminRole, setAdminRole] = useState<Role>(member.role || 'member');
+  const [adminPosition, setAdminPosition] = useState<string>(member.position || '');
+  const [adminVolunteerId, setAdminVolunteerId] = useState<string>(member.volunteerId || '');
+
   const [adminPoints, setAdminPoints] = useState<number>(member.points || 0);
   const [adminLevel, setAdminLevel] = useState<number>(member.level || 1);
   const [adminBadges, setAdminBadges] = useState<string[]>(member.badges || []);
@@ -167,13 +173,62 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
     setCertifiedSkills(certifiedSkills.filter(s => s.id !== id));
   };
 
+  // Handlers for Admin Staffing Changes
+  const handleAdminCommitteeChange = (commId: string) => {
+    setAdminCommitteeId(commId);
+    const comm = committees.find(c => c.id === commId);
+    const commName = comm?.name || '';
+    if (commId === 'comm-leadership') {
+      if (!isHighLeadershipRole(adminRole)) {
+        setAdminRole('advisor');
+        setAdminPosition('مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية');
+      }
+    } else {
+      if (isHighLeadershipRole(adminRole)) {
+        setAdminRole('head');
+        setAdminPosition(`رئيس ${commName}`);
+      }
+    }
+  };
+
+  const handleAdminRoleChange = (role: Role) => {
+    setAdminRole(role);
+    const comm = committees.find(c => c.id === adminCommitteeId);
+    const commName = comm?.name || '';
+    if (adminCommitteeId === 'comm-leadership') {
+      switch (role) {
+        case 'advisor': setAdminPosition('مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'); break;
+        case 'super_admin': setAdminPosition('رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'); break;
+        case 'vice_president': setAdminPosition('نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'); break;
+        case 'general_coordinator': setAdminPosition('المنسق العام لفريق المتطوعين'); break;
+        case 'operations_manager': setAdminPosition('مدير العمليات والميدان لفريق المتطوعين'); break;
+        case 'quality_officer': setAdminPosition('مسؤول الجودة والتقييم والتطوير المؤسسي'); break;
+      }
+    } else {
+      switch (role) {
+        case 'head': setAdminPosition(`رئيس ${commName}`); break;
+        case 'vice_head': setAdminPosition(`نائب رئيس ${commName}`); break;
+        case 'hr_admin': setAdminPosition(`مسؤول الموارد البشرية بـ ${commName}`); break;
+        case 'member': setAdminPosition(`عضو متطوع بـ ${commName}`); break;
+      }
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNatId = nationalId.trim() || member.nationalId;
     const parsed = parseEgyptianNationalId(cleanNatId);
 
+    const selectedComm = committees.find(c => c.id === adminCommitteeId);
+    const commName = selectedComm ? selectedComm.name : member.currentCommitteeName;
+
     updateMemberSelfProfile(member.id, {
       fullName: fullName.trim() || member.fullName,
+      volunteerId: isHighLeadership ? (adminVolunteerId.trim() || member.volunteerId) : member.volunteerId,
+      currentCommitteeId: isHighLeadership ? adminCommitteeId : member.currentCommitteeId,
+      currentCommitteeName: isHighLeadership ? commName : member.currentCommitteeName,
+      role: isHighLeadership ? adminRole : member.role,
+      position: isHighLeadership ? (adminPosition.trim() || member.position) : member.position,
       nationalId: cleanNatId,
       birthDate: parsed.isValid ? parsed.birthDate : member.birthDate,
       age: parsed.isValid ? parsed.age : member.age,
@@ -906,12 +961,110 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               <div className="flex items-center gap-2 pb-2 border-b border-purple-500/30">
                 <Crown className="w-5 h-5 text-purple-400" />
                 <div>
-                  <h4 className="text-xs font-bold text-white">صلاحيات التعديل والاعتماد المباشر للإدارة العليا</h4>
-                  <p className="text-[10px] text-purple-300/80">تعديل النقاط والرتبة الميدانية وإدارة الأوسمة الممنوحة ونسب التقييم</p>
+                  <h4 className="text-xs font-bold text-white">صلاحيات التسكين والتعديل المباشر للإدارة العليا</h4>
+                  <p className="text-[10px] text-purple-300/80">توزيع المناصب، نقل اللجان، تعديل الرتب، الأوسمة، والاعتماد الرسمي</p>
                 </div>
               </div>
 
-              {/* Points & Level & Scores Grid */}
+              {/* Committee & Role Reassignment Controls */}
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-purple-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <ArrowRightLeft className="w-4 h-4 text-purple-400" />
+                    <span>التسكين الإداري واللجنة والدور التنظيمي المعتمد</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">تحديث فوري لشجرة الهيكل وشيت الفريق</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Committee Selector */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">اللجنة / القطاع التنظيمي *</label>
+                    <select
+                      value={adminCommitteeId}
+                      onChange={(e) => handleAdminCommitteeChange(e.target.value)}
+                      className="glass-input text-xs font-bold cursor-pointer"
+                    >
+                      {committees.map(c => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                          {c.id === 'comm-leadership' ? '👑 القيادة العليا والمجلس الاستشاري' : `🏢 ${c.name} (${c.code})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Role Selector */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">الدور والصلاحية التنظيمية (Role) *</label>
+                    <select
+                      value={adminRole}
+                      onChange={(e) => handleAdminRoleChange(e.target.value as Role)}
+                      className="glass-input text-xs font-bold cursor-pointer"
+                    >
+                      <optgroup label="👑 القيادة العليا والمجلس الاستشاري" className="bg-slate-950 text-amber-300 font-bold">
+                        <option value="advisor" className="bg-slate-900 text-white">مستشار الفريق (Advisor) 👑</option>
+                        <option value="super_admin" className="bg-slate-900 text-white">رئيس الفريق (President / Super Admin) 👑</option>
+                        <option value="vice_president" className="bg-slate-900 text-white">نائب رئيس الفريق (Vice President) 👑</option>
+                        <option value="general_coordinator" className="bg-slate-900 text-white">المنسق العام للفريق (General Coordinator) ⚡</option>
+                        <option value="operations_manager" className="bg-slate-900 text-white">مدير العمليات الميدانية (Operations Manager) 📋</option>
+                        <option value="quality_officer" className="bg-slate-900 text-white">مسؤول الجودة والمتابعة (Quality Officer) 🛡️</option>
+                      </optgroup>
+                      <optgroup label="🏢 قيادة اللجان التشغيلية" className="bg-slate-950 text-sky-300 font-bold">
+                        <option value="head" className="bg-slate-900 text-white">رئيس لجنة (Head) ⭐</option>
+                        <option value="vice_head" className="bg-slate-900 text-white">نائب رئيس لجنة (Vice Head) ⚔️</option>
+                        <option value="hr_admin" className="bg-slate-900 text-white">مسؤول موارد بشرية باللجنة (HR Officer) 👥</option>
+                      </optgroup>
+                      <optgroup label="👤 العضوية الميدانية" className="bg-slate-950 text-emerald-300 font-bold">
+                        <option value="member" className="bg-slate-900 text-white">عضو متطوع (Volunteer Member) 🌟</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  {/* Position Title Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">المسمى والمنصب الرسمي المكتوب *</label>
+                    <input
+                      type="text"
+                      required
+                      value={adminPosition}
+                      onChange={(e) => setAdminPosition(e.target.value)}
+                      placeholder="مثال: مستشار فريق متطوعين، رئيس لجنة التنظيم..."
+                      className="glass-input text-xs"
+                    />
+                  </div>
+
+                  {/* Volunteer ID Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">كود المتطوع الرسمي (Volunteer ID)</label>
+                    <input
+                      type="text"
+                      value={adminVolunteerId}
+                      onChange={(e) => setAdminVolunteerId(e.target.value)}
+                      placeholder="VOL-LEAD-01"
+                      className="glass-input text-xs font-mono font-bold text-sky-300"
+                    />
+                  </div>
+                </div>
+
+                {/* Info Note for Leadership vs Regular Member */}
+                {isHighLeadershipRole(adminRole) || isHeadRole(adminRole) ? (
+                  <div className="p-2.5 rounded-lg bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-200 flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>
+                      👑 هذا العضو مسجل بمنصب <strong>{isHighLeadershipRole(adminRole) ? 'قيادة عليا / مجلس استشاري' : 'رئاسة وإشراف لجنة'}</strong>. تقييماته القيادية معزولة وخاصة بالإدارة العليا فقط في قسم تقييمات الهيدات، ولا يخضع لنقاط مهام الأعضاء العادية.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-blue-950/30 border border-blue-500/30 text-[11px] text-blue-200 flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span>
+                      👤 هذا العضو مسجل كـ <strong>عضو متطوع</strong>، ويخضع لنظام الرتب والنقاط (XP) والأوسمة وتقييمات معايير الأداء الميداني.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Points & Level & Scores Grid (Only applicable/relevant for regular members or full control) */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-amber-300 mb-1 flex items-center gap-1">

@@ -228,7 +228,11 @@ export const LeaderboardView: React.FC = () => {
               <img src={activeRankList[1].avatarUrl} alt="" className="w-16 h-16 rounded-2xl object-cover mx-auto mb-2 border-2 border-slate-300" />
               <h3 className="text-sm font-bold text-white">{activeRankList[1].fullName}</h3>
               <p className="text-[11px] text-slate-400">{activeRankList[1].currentCommitteeName} • {activeRankList[1].position}</p>
-              <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">{activeRankList[1].points} XP</div>
+              <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">
+                {activeBoard === 'heads' 
+                  ? `${(activeRankList[1] as any).dynamicScore || 90}% تقييم القيادة`
+                  : `${activeRankList[1].points} XP`}
+              </div>
             </div>
           )}
 
@@ -242,7 +246,11 @@ export const LeaderboardView: React.FC = () => {
               <img src={activeRankList[0].avatarUrl} alt="" className="w-20 h-20 rounded-2xl object-cover mx-auto mb-2 border-2 border-amber-400 shadow-xl mt-2" />
               <h3 className="text-base font-extrabold text-white">{activeRankList[0].fullName}</h3>
               <p className="text-xs text-amber-300">{activeRankList[0].currentCommitteeName} • {activeRankList[0].position}</p>
-              <div className="mt-2 font-mono font-black text-amber-400 text-xl">{activeRankList[0].points} XP</div>
+              <div className="mt-2 font-mono font-black text-amber-400 text-xl">
+                {activeBoard === 'heads' 
+                  ? `${(activeRankList[0] as any).dynamicScore || 95}% تقييم القيادة`
+                  : `${activeRankList[0].points} XP`}
+              </div>
             </div>
           )}
 
@@ -255,7 +263,11 @@ export const LeaderboardView: React.FC = () => {
               <img src={activeRankList[2].avatarUrl} alt="" className="w-16 h-16 rounded-2xl object-cover mx-auto mb-2 border-2 border-amber-700" />
               <h3 className="text-sm font-bold text-white">{activeRankList[2].fullName}</h3>
               <p className="text-[11px] text-slate-400">{activeRankList[2].currentCommitteeName} • {activeRankList[2].position}</p>
-              <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">{activeRankList[2].points} XP</div>
+              <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">
+                {activeBoard === 'heads' 
+                  ? `${(activeRankList[2] as any).dynamicScore || 85}% تقييم القيادة`
+                  : `${activeRankList[2].points} XP`}
+              </div>
             </div>
           )}
 
@@ -278,11 +290,11 @@ export const LeaderboardView: React.FC = () => {
                 <th className="py-2.5 font-bold">المركز</th>
                 <th className="py-2.5 font-bold">{activeBoard === 'heads' ? 'المسؤول القيادي' : 'المتطوع'}</th>
                 <th className="py-2.5 font-bold">اللجنة</th>
-                <th className="py-2.5 font-bold">المستوى</th>
+                <th className="py-2.5 font-bold">{activeBoard === 'heads' ? 'المنصب' : 'المستوى'}</th>
                 {activeBoard === 'heads' ? (
                   <>
                     <th className="py-2.5 font-bold text-purple-400">مؤشر القيادة</th>
-                    <th className="py-2.5 font-bold">إنجاز المهام</th>
+                    <th className="py-2.5 font-bold">إنجاز مهام اللجنة</th>
                   </>
                 ) : (
                   <>
@@ -290,7 +302,7 @@ export const LeaderboardView: React.FC = () => {
                     <th className="py-2.5 font-bold">الأداء الشامل</th>
                   </>
                 )}
-                <th className="py-2.5 font-bold">النقاط (XP)</th>
+                <th className="py-2.5 font-bold">{activeBoard === 'heads' ? 'التقييم القيادي العام' : 'النقاط (XP)'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -320,7 +332,9 @@ export const LeaderboardView: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-3 text-slate-300">{m.currentCommitteeName}</td>
-                    <td className="py-3 font-mono text-amber-400">Lv.{m.level}</td>
+                    <td className="py-3 font-semibold text-amber-300">
+                      {activeBoard === 'heads' ? (m.position || 'رئيس لجنة') : `Lv.${m.level}`}
+                    </td>
                     {activeBoard === 'heads' ? (
                       <>
                         <td className="py-3 font-mono text-purple-400 font-bold">{m.performance?.leadership || 88}%</td>
@@ -332,7 +346,9 @@ export const LeaderboardView: React.FC = () => {
                         <td className="py-3 font-mono text-emerald-400">{m.performance.overallScore}%</td>
                       </>
                     )}
-                    <td className="py-3 font-mono font-extrabold text-amber-400">{m.points} XP</td>
+                    <td className="py-3 font-mono font-extrabold text-amber-400">
+                      {activeBoard === 'heads' ? `${(m as any).dynamicScore || 90}%` : `${m.points} XP`}
+                    </td>
                   </tr>
                 ))
               )}

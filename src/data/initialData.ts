@@ -240,11 +240,11 @@ export const initialMembers: Member[] = [
     password: 'osama',
     performance: {
       overallScore: 0,
-      attendanceRate: 100,
-      taskCompletionRate: 100,
+      attendanceRate: 0,
+      taskCompletionRate: 0,
       taskQuality: 0,
-      commitment: 100,
-      teamwork: 100,
+      commitment: 0,
+      teamwork: 0,
       leadership: 0,
       evaluationsCount: 0
     },
@@ -286,11 +286,11 @@ export const initialMembers: Member[] = [
     password: 'malak',
     performance: {
       overallScore: 0,
-      attendanceRate: 100,
-      taskCompletionRate: 100,
+      attendanceRate: 0,
+      taskCompletionRate: 0,
       taskQuality: 0,
-      commitment: 100,
-      teamwork: 100,
+      commitment: 0,
+      teamwork: 0,
       leadership: 0,
       evaluationsCount: 0
     },

@@ -191,3 +191,28 @@ export function isHighLeadershipRole(role?: Role): boolean {
     role === 'quality_officer'
   );
 }
+
+/**
+ * Checks if role is a Committee Head or Vice Head
+ */
+export function isHeadRole(role?: Role): boolean {
+  if (!role) return false;
+  return role === 'head' || role === 'vice_head';
+}
+
+/**
+ * Checks if a member is a Committee Head or Vice Head
+ */
+export function isHeadMember(member?: { role?: Role; position?: string } | null): boolean {
+  if (!member) return false;
+  return isHeadRole(member.role) || (member.position ? member.position.includes('رئيس لجنة') || member.position.includes('نائب رئيس لجنة') : false);
+}
+
+/**
+ * Checks if a member is in Supreme Leadership or is a Committee Head
+ */
+export function isLeadershipOrHead(member?: { role?: Role; currentCommitteeId?: string } | null): boolean {
+  if (!member) return false;
+  return isHighLeadershipRole(member.role) || isHeadRole(member.role) || member.currentCommitteeId === 'comm-leadership';
+}
+
