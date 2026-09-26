@@ -5,7 +5,8 @@ import {
   X, User, Upload, Sparkles, Heart, GraduationCap, 
   Plus, Check, Phone, FileText, Camera, Lock,
   ShieldCheck, MapPin, AlertCircle, HeartHandshake,
-  History, Award, Trash2, Calendar, Link as LinkIcon
+  History, Award, Trash2, Calendar, Link as LinkIcon,
+  Crown, Flame, Star, Trophy, Shield
 } from 'lucide-react';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 import { parseEgyptianNationalId, normalizeNumerals } from '../../utils/nationalId';
@@ -21,7 +22,21 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { updateMemberSelfProfile } = useApp();
+  const { updateMemberSelfProfile, isHighLeadership, badges: masterBadges } = useApp();
+
+  // High Leadership Exclusive Admin Fields
+  const [adminPoints, setAdminPoints] = useState<number>(member.points || 0);
+  const [adminLevel, setAdminLevel] = useState<number>(member.level || 1);
+  const [adminBadges, setAdminBadges] = useState<string[]>(member.badges || []);
+  const [adminOverallScore, setAdminOverallScore] = useState<number>(member.performance?.overallScore || 0);
+  const [adminAttendanceRate, setAdminAttendanceRate] = useState<number>(member.performance?.attendanceRate || 100);
+  const [adminTaskQuality, setAdminTaskQuality] = useState<number>(member.performance?.taskQuality || 0);
+
+  const toggleBadge = (badgeId: string) => {
+    setAdminBadges(prev => 
+      prev.includes(badgeId) ? prev.filter(id => id !== badgeId) : [...prev, badgeId]
+    );
+  };
 
   // Personal Official Data
   const [fullName, setFullName] = useState(member.fullName || '');
@@ -178,7 +193,20 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
       hobbies,
       learningAspirations,
       certifiedSkills,
-      committeeHistory
+      committeeHistory,
+      points: isHighLeadership ? Number(adminPoints) : member.points,
+      level: isHighLeadership ? Number(adminLevel) : member.level,
+      badges: isHighLeadership ? adminBadges : member.badges,
+      performance: isHighLeadership ? {
+        overallScore: Number(adminOverallScore),
+        attendanceRate: Number(adminAttendanceRate),
+        taskQuality: Number(adminTaskQuality),
+        taskCompletionRate: member.performance?.taskCompletionRate || 0,
+        commitment: member.performance?.commitment || 100,
+        teamwork: member.performance?.teamwork || 0,
+        leadership: member.performance?.leadership || 0,
+        evaluationsCount: member.performance?.evaluationsCount || 0
+      } : undefined
     });
     onClose();
   };
@@ -871,6 +899,108 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* HIGH LEADERSHIP EXCLUSIVE ADMIN SECTION */}
+          {isHighLeadership && (
+            <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-500/40 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-purple-500/30">
+                <Crown className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h4 className="text-xs font-bold text-white">صلاحيات التعديل والاعتماد المباشر للإدارة العليا</h4>
+                  <p className="text-[10px] text-purple-300/80">تعديل النقاط والرتبة الميدانية وإدارة الأوسمة الممنوحة ونسب التقييم</p>
+                </div>
+              </div>
+
+              {/* Points & Level & Scores Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 mb-1 flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    <span>رصيد النقاط (XP)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={adminPoints}
+                    onChange={(e) => setAdminPoints(Number(e.target.value))}
+                    className="glass-input text-xs font-mono font-bold text-amber-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-sky-300 mb-1 flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-sky-400" />
+                    <span>المستوى (Level)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={adminLevel}
+                    onChange={(e) => setAdminLevel(Number(e.target.value))}
+                    className="glass-input text-xs font-mono font-bold text-sky-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>نسبة الأداء العام (%)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={adminOverallScore}
+                    onChange={(e) => setAdminOverallScore(Number(e.target.value))}
+                    className="glass-input text-xs font-mono font-bold text-emerald-300"
+                  />
+                </div>
+              </div>
+
+              {/* Badges Management Grid */}
+              <div>
+                <label className="block text-xs font-bold text-white mb-2 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>الأوسمة والأنواط الرسمية (انقر لمنح أو سحب الوسام):</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                  {masterBadges.map(badge => {
+                    const isAssigned = adminBadges.includes(badge.id);
+                    return (
+                      <button
+                        type="button"
+                        key={badge.id}
+                        onClick={() => toggleBadge(badge.id)}
+                        className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                          isAssigned
+                            ? 'bg-purple-900/40 border-purple-400 text-white shadow-md'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{badge.icon || '🏅'}</span>
+                          <div>
+                            <div className="text-xs font-bold text-white">{badge.titleAr || badge.title}</div>
+                            <div className="text-[9px] text-slate-400 truncate max-w-[140px]">{badge.category} • +{badge.xpReward} XP</div>
+                          </div>
+                        </div>
+
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                          isAssigned
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {isAssigned ? 'ممنوح ✓' : 'غير ممنوح'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { EventEntity, EventCommitteeQuota } from '../../types';
 import { 
-  Calendar, Clock, MapPin, Users, Plus, X, Sparkles, 
+  Calendar, Clock, MapPin, Users, Plus, Minus, X, Sparkles, 
   Sun, Sunset, Compass, CheckCircle2, Award, Zap, Edit3, Save,
-  Crown, Layers, CheckSquare, Square
+  Crown, Layers, CheckSquare, Square, Ban, Hash
 } from 'lucide-react';
 
 interface EventModalProps {
@@ -14,7 +14,7 @@ interface EventModalProps {
 }
 
 export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventToEdit }) => {
-  const { committees, createEvent, updateEvent, showNotification } = useApp();
+  const { committees, members, createEvent, updateEvent, showNotification } = useApp();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [name, setName] = useState('');
@@ -25,14 +25,13 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
   const [description, setDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState<'all' | 'heads_leadership' | 'members_only'>('all');
   
-  // Committee selection and specific quotas map: { [commId]: number }
-  const [selectedCommIds, setSelectedCommIds] = useState<string[]>([]);
+  // Committee modes: 'all' | 'custom' | 'excluded'
+  const [commModesMap, setCommModesMap] = useState<{ [commId: string]: 'all' | 'custom' | 'excluded' }>({});
   const [commQuotasMap, setCommQuotasMap] = useState<{ [commId: string]: number }>({});
 
   useEffect(() => {
-    // Filter operational committees (or all)
     const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
-    const defaultCommIds = operationalComms.length > 0 ? operationalComms.map(c => c.id) : committees.map(c => c.id);
+    const targetComms = operationalComms.length > 0 ? operationalComms : committees;
 
     if (eventToEdit) {
       setName(eventToEdit.name || '');
@@ -43,20 +42,26 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setDescription(eventToEdit.description || '');
       setTargetAudience(eventToEdit.targetAudience || 'all');
 
-      if (eventToEdit.committeeQuotas && Object.keys(eventToEdit.committeeQuotas).length > 0) {
-        const activeIds = Object.keys(eventToEdit.committeeQuotas);
-        setSelectedCommIds(activeIds);
-        const qMap: { [commId: string]: number } = {};
-        activeIds.forEach(id => {
-          qMap[id] = eventToEdit.committeeQuotas[id]?.required || 5;
-        });
-        setCommQuotasMap(qMap);
-      } else {
-        setSelectedCommIds(eventToEdit.selectedCommitteeIds || defaultCommIds);
-        const qMap: { [commId: string]: number } = {};
-        defaultCommIds.forEach(id => { qMap[id] = 5; });
-        setCommQuotasMap(qMap);
-      }
+      const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
+      const quotas: { [commId: string]: number } = {};
+
+      targetComms.forEach(c => {
+        const q = eventToEdit.committeeQuotas?.[c.id];
+        const commMemCount = members.filter(m => m.currentCommitteeId === c.id && m.status === 'Active').length || 1;
+        if (q) {
+          modes[c.id] = q.mode || (q.required === commMemCount ? 'all' : 'custom');
+          quotas[c.id] = q.required || 5;
+        } else if (eventToEdit.selectedCommitteeIds?.includes(c.id)) {
+          modes[c.id] = 'custom';
+          quotas[c.id] = 5;
+        } else {
+          modes[c.id] = 'excluded';
+          quotas[c.id] = 5;
+        }
+      });
+
+      setCommModesMap(modes);
+      setCommQuotasMap(quotas);
     } else {
       setName('');
       setDate(todayStr);
@@ -65,41 +70,93 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setLocation('مركز مؤتمرات جامعة الإسكندرية');
       setDescription('');
       setTargetAudience('all');
-      setSelectedCommIds(defaultCommIds);
-      const qMap: { [commId: string]: number } = {};
-      defaultCommIds.forEach(id => { qMap[id] = 5; });
-      setCommQuotasMap(qMap);
+
+      const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
+      const quotas: { [commId: string]: number } = {};
+      targetComms.forEach(c => {
+        modes[c.id] = 'all';
+        const commMemCount = members.filter(m => m.currentCommitteeId === c.id && m.status === 'Active').length || 1;
+        quotas[c.id] = commMemCount;
+      });
+      setCommModesMap(modes);
+      setCommQuotasMap(quotas);
     }
-  }, [eventToEdit, isOpen, committees]);
+  }, [eventToEdit, isOpen, committees, members]);
 
   if (!isOpen) return null;
 
-  // Toggle committee inclusion
-  const handleToggleCommittee = (commId: string) => {
-    setSelectedCommIds(prev => {
-      if (prev.includes(commId)) {
-        return prev.filter(id => id !== commId);
-      } else {
-        if (!commQuotasMap[commId]) {
-          setCommQuotasMap(q => ({ ...q, [commId]: 5 }));
-        }
-        return [...prev, commId];
+  // Set mode for committee
+  const handleSetCommMode = (commId: string, mode: 'all' | 'custom' | 'excluded') => {
+    const commMemCount = members.filter(m => m.currentCommitteeId === commId && m.status === 'Active').length || 1;
+    setCommModesMap(prev => ({ ...prev, [commId]: mode }));
+    if (mode === 'all') {
+      setCommQuotasMap(prev => ({ ...prev, [commId]: commMemCount }));
+    } else if (mode === 'custom') {
+      if (!commQuotasMap[commId] || commQuotasMap[commId] === 0) {
+        setCommQuotasMap(prev => ({ ...prev, [commId]: Math.min(5, commMemCount) }));
       }
-    });
+    }
   };
 
-  // Change quota for a specific committee
-  const handleQuotaChange = (commId: string, count: number) => {
-    const val = Math.max(1, count);
-    setCommQuotasMap(prev => ({
-      ...prev,
-      [commId]: val
-    }));
+  // Change quota count
+  const handleQuotaCountChange = (commId: string, delta: number) => {
+    const current = commQuotasMap[commId] || 1;
+    const nextVal = Math.max(1, current + delta);
+    setCommQuotasMap(prev => ({ ...prev, [commId]: nextVal }));
+    setCommModesMap(prev => ({ ...prev, [commId]: 'custom' }));
+  };
+
+  const handleQuotaDirectInput = (commId: string, value: number) => {
+    const val = Math.max(1, value);
+    setCommQuotasMap(prev => ({ ...prev, [commId]: val }));
+    setCommModesMap(prev => ({ ...prev, [commId]: 'custom' }));
+  };
+
+  // Bulk presets
+  const handleApplyBulkAll = () => {
+    const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
+    const quotas: { [commId: string]: number } = {};
+    const targetComms = committees.filter(c => c.id !== 'comm-leadership');
+    targetComms.forEach(c => {
+      const commMemCount = members.filter(m => m.currentCommitteeId === c.id && m.status === 'Active').length || 1;
+      modes[c.id] = 'all';
+      quotas[c.id] = commMemCount;
+    });
+    setCommModesMap(modes);
+    setCommQuotasMap(quotas);
+  };
+
+  const handleApplyBulkFixed = (count: number) => {
+    const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
+    const quotas: { [commId: string]: number } = {};
+    const targetComms = committees.filter(c => c.id !== 'comm-leadership');
+    targetComms.forEach(c => {
+      modes[c.id] = 'custom';
+      quotas[c.id] = count;
+    });
+    setCommModesMap(modes);
+    setCommQuotasMap(quotas);
+  };
+
+  const handleApplyBulkExcludeAll = () => {
+    const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
+    const targetComms = committees.filter(c => c.id !== 'comm-leadership');
+    targetComms.forEach(c => {
+      modes[c.id] = 'excluded';
+    });
+    setCommModesMap(modes);
   };
 
   // Live total required members calculation
-  const totalRequiredMembers = selectedCommIds.reduce((acc, commId) => {
-    return acc + (commQuotasMap[commId] || 5);
+  const targetComms = committees.filter(c => c.id !== 'comm-leadership');
+  const totalRequiredMembers = targetComms.reduce((acc, comm) => {
+    const mode = commModesMap[comm.id] || 'excluded';
+    if (mode === 'excluded') return acc;
+    if (mode === 'all') {
+      const commMemCount = members.filter(m => m.currentCommitteeId === comm.id && m.status === 'Active').length || 1;
+      return acc + commMemCount;
+    }
+    return acc + (commQuotasMap[comm.id] || 1);
   }, 0);
 
   // Date Presets
@@ -133,16 +190,24 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
 
     // Build structured quotas
     const structuredQuotas: { [commId: string]: EventCommitteeQuota } = {};
-    selectedCommIds.forEach(commId => {
-      const commObj = committees.find(c => c.id === commId);
-      const req = commQuotasMap[commId] || 5;
-      structuredQuotas[commId] = {
-        committeeId: commId,
-        committeeName: commObj?.name || 'لجنة تخصصية',
-        required: req,
-        assigned: req,
-        present: 0
-      };
+    const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
+    const selectedIds: string[] = [];
+
+    operationalComms.forEach(comm => {
+      const mode = commModesMap[comm.id] || 'excluded';
+      if (mode !== 'excluded') {
+        selectedIds.push(comm.id);
+        const commMemCount = members.filter(m => m.currentCommitteeId === comm.id && m.status === 'Active').length || 1;
+        const req = mode === 'all' ? commMemCount : (commQuotasMap[comm.id] || 1);
+        structuredQuotas[comm.id] = {
+          committeeId: comm.id,
+          committeeName: comm.name,
+          required: req,
+          assigned: req,
+          present: 0,
+          mode
+        };
+      }
     });
 
     if (eventToEdit) {
@@ -154,7 +219,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
         location: location.trim(),
         description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
         targetAudience,
-        selectedCommitteeIds: selectedCommIds,
+        selectedCommitteeIds: selectedIds,
         committeeQuotas: structuredQuotas,
         expectedMembersCount: totalRequiredMembers || 20,
       });
@@ -172,7 +237,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       location: location.trim(),
       description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
       targetAudience,
-      selectedCommitteeIds: selectedCommIds,
+      selectedCommitteeIds: selectedIds,
       committeeQuotas: structuredQuotas,
       expectedMembersCount: totalRequiredMembers || 20,
       status: 'Planned'
@@ -184,7 +249,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="glass-card max-w-2xl w-full p-5 sm:p-6 border border-sky-500/40 shadow-2xl bg-slate-950 text-right rounded-2xl max-h-[90vh] overflow-y-auto">
+      <div className="glass-card max-w-3xl w-full p-5 sm:p-6 border border-sky-500/40 shadow-2xl bg-slate-950 text-right rounded-2xl max-h-[90vh] overflow-y-auto">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 sticky top-0 bg-slate-950/95 backdrop-blur-md z-10">
@@ -197,7 +262,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
                 {eventToEdit ? 'تعديل وتخصيص بيانات الفعالية' : 'إضافة وتخصيص فعالية ميدانية جديدة'}
               </h3>
               <p className="text-[11px] text-slate-400">
-                تحديد الفئة المستهدفة، اختيار اللجان المطلوبة، وتعيين كوتة الأعداد الميدانية
+                تحديد الفئة المستهدفة، اختيار اللجان المطلوبة، وتعيين كوتة الأعداد الميدانية بدقة
               </p>
             </div>
           </div>
@@ -221,7 +286,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
             />
           </div>
 
-          {/* 1. TARGET AUDIENCE SELECTOR (NEW) */}
+          {/* 1. TARGET AUDIENCE SELECTOR */}
           <div className="p-3.5 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-2">
             <label className="block text-xs font-bold text-white flex items-center gap-1.5">
               <Crown className="w-4 h-4 text-amber-400" />
@@ -266,60 +331,175 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
             </div>
           </div>
 
-          {/* 2. COMMITTEES SELECTION & QUOTA PER COMMITTEE (NEW) */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-sky-400" />
-                <span>اختيار اللجان المطلوبة وتحديد العدد المطلوب من كل لجنة:</span>
-              </label>
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                إجمالي المطلوب: {totalRequiredMembers} متطوع
-              </span>
+          {/* 2. COMMITTEES SELECTION & QUOTA PER COMMITTEE */}
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-sky-400" />
+                  <span>تخصيص اللجان واحتياج المتطوعين لكل لجنة:</span>
+                </label>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  يمكن جعل اللجنة خارج الاحتياج، أو طلب كامل أعضائها، أو تحديد عدد مخصص بأزرار الزيادة والنقصان.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm">
+                  ⚡ إجمالي المطلوب: {totalRequiredMembers} متطوع
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {committees.map(comm => {
-                const isSelected = selectedCommIds.includes(comm.id);
-                const quota = commQuotasMap[comm.id] || 5;
+            {/* Quick Bulk Presets */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-[11px]">
+              <span className="text-slate-400 text-[10px] shrink-0 font-bold">خيارات سريعة:</span>
+              <button
+                type="button"
+                onClick={handleApplyBulkAll}
+                className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-sky-950/60 border border-slate-800 text-slate-300 hover:text-sky-300 shrink-0 cursor-pointer transition-all"
+              >
+                👥 كل اللجان (كاملة)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyBulkFixed(5)}
+                className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-sky-950/60 border border-slate-800 text-slate-300 hover:text-sky-300 shrink-0 cursor-pointer transition-all"
+              >
+                🎯 5 متطوعين من كل لجنة
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyBulkFixed(3)}
+                className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-sky-950/60 border border-slate-800 text-slate-300 hover:text-sky-300 shrink-0 cursor-pointer transition-all"
+              >
+                🎯 3 متطوعين من كل لجنة
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyBulkExcludeAll}
+                className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-rose-950/40 border border-slate-800 text-slate-400 hover:text-rose-300 shrink-0 cursor-pointer transition-all"
+              >
+                🚫 تفريغ / خارج الاحتياج للجميع
+              </button>
+            </div>
+
+            {/* Individual Committee Controls */}
+            <div className="space-y-2.5">
+              {committees.filter(c => c.id !== 'comm-leadership').map(comm => {
+                const commMemCount = members.filter(m => m.currentCommitteeId === comm.id && m.status === 'Active').length || 1;
+                const mode = commModesMap[comm.id] || 'excluded';
+                const quota = commQuotasMap[comm.id] || Math.min(5, commMemCount);
 
                 return (
                   <div
                     key={comm.id}
-                    className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
-                      isSelected
-                        ? 'bg-slate-950 border-sky-500/40 text-white'
-                        : 'bg-slate-950/40 border-slate-800 text-slate-500'
+                    className={`p-3 rounded-xl border transition-all ${
+                      mode === 'excluded'
+                        ? 'bg-slate-950/40 border-slate-800/80 opacity-75'
+                        : mode === 'all'
+                        ? 'bg-slate-950 border-sky-500/40 shadow-sm'
+                        : 'bg-slate-950 border-amber-500/40 shadow-sm'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleCommittee(comm.id)}
-                      className="flex items-center gap-2 text-right flex-1 cursor-pointer"
-                    >
-                      {isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-sky-400 shrink-0" />
-                      ) : (
-                        <Square className="w-4 h-4 text-slate-600 shrink-0" />
-                      )}
-                      <span className={`font-bold ${isSelected ? 'text-white' : 'text-slate-400'}`}>
-                        {comm.name}
-                      </span>
-                    </button>
-
-                    {isSelected && (
-                      <div className="flex items-center gap-1 shrink-0 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700">
-                        <span className="text-[10px] text-slate-400">العدد:</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={quota}
-                          onChange={(e) => handleQuotaChange(comm.id, Number(e.target.value))}
-                          className="w-12 bg-transparent text-center font-mono font-bold text-amber-300 text-xs focus:outline-none"
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      
+                      {/* Committee Name & Info */}
+                      <div className="flex items-center gap-2.5">
+                        <div 
+                          className="w-3 h-3 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: comm.color }}
                         />
+                        <div>
+                          <span className="font-bold text-xs text-white">{comm.name}</span>
+                          <span className="text-[10px] text-slate-400 mr-2 font-mono">
+                            (إجمالي أعضاء اللجنة: {commMemCount})
+                          </span>
+                        </div>
                       </div>
-                    )}
+
+                      {/* 3 Mode Selection Buttons & Stepper Controls */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        
+                        {/* Mode 1: Excluded */}
+                        <button
+                          type="button"
+                          onClick={() => handleSetCommMode(comm.id, 'excluded')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            mode === 'excluded'
+                              ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-sm'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          خارج الاحتياج 🚫
+                        </button>
+
+                        {/* Mode 2: Full Committee */}
+                        <button
+                          type="button"
+                          onClick={() => handleSetCommMode(comm.id, 'all')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            mode === 'all'
+                              ? 'bg-sky-500/20 border-sky-500/50 text-sky-300 shadow-sm'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          كامل اللجنة ({commMemCount}) 👥
+                        </button>
+
+                        {/* Mode 3: Custom Quota with Stepper */}
+                        <div className={`flex items-center rounded-lg border transition-all ${
+                          mode === 'custom'
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+                            : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}>
+                          <button
+                            type="button"
+                            onClick={() => handleSetCommMode(comm.id, 'custom')}
+                            className={`px-2 py-1 text-xs font-bold border-l border-slate-700/50 cursor-pointer ${
+                              mode === 'custom' ? 'text-amber-300 font-extrabold' : 'text-slate-400'
+                            }`}
+                          >
+                            عدد محدد 🎯
+                          </button>
+
+                          {/* Stepper buttons & direct input */}
+                          <div className="flex items-center px-1 py-0.5 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleQuotaCountChange(comm.id, -1)}
+                              className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                              title="إنقاص العدد"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={mode === 'all' ? commMemCount : mode === 'excluded' ? 0 : quota}
+                              disabled={mode === 'excluded' || mode === 'all'}
+                              onChange={(e) => handleQuotaDirectInput(comm.id, Number(e.target.value))}
+                              className={`w-10 bg-transparent text-center font-mono font-black text-xs focus:outline-none ${
+                                mode === 'excluded' ? 'text-slate-600' : mode === 'all' ? 'text-sky-300' : 'text-amber-300'
+                              }`}
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => handleQuotaCountChange(comm.id, 1)}
+                              className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                              title="زيادة العدد"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+
+                    </div>
                   </div>
                 );
               })}

@@ -16,7 +16,7 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
   onOpenNewCommittee,
   onSelectCommittee
 }) => {
-  const { committees, currentUser, isHighLeadership, members, tasks, calculateCommitteeHealth } = useApp();
+  const { committees, currentUser, isHighLeadership, members, tasks, attendanceRecords, calculateCommitteeHealth } = useApp();
   const canCreate = isHighLeadership;
 
   return (
@@ -57,6 +57,11 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
           const commTasks = tasks.filter(t => t.committeeId === comm.id);
           const completedTasks = commTasks.filter(t => t.status === 'Approved').length;
           const healthScore = calculateCommitteeHealth(comm.id);
+
+          const commMemberIds = new Set(commMembers.map(m => m.id));
+          const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
+          const presentRecords = commRecords.filter(a => a.status === 'Present').length;
+          const realAttendanceRate = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
           const committeeHeads = commMembers.filter(m => m.role === 'head' || m.position?.toLowerCase().includes('head') || m.position?.includes('هيد'));
           const committeeVices = commMembers.filter(m => m.role === 'vice_head' || m.position?.toLowerCase().includes('vice') || m.position?.includes('نائب'));
@@ -120,7 +125,7 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
                   </div>
                   <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
                     <div className="text-[10px] text-slate-400 font-bold">نسبة الحضور</div>
-                    <div className="font-black text-emerald-400 font-mono mt-0.5">{comm.attendanceRate}%</div>
+                    <div className="font-black text-emerald-400 font-mono mt-0.5">{realAttendanceRate > 0 ? `${realAttendanceRate}%` : '0%'}</div>
                   </div>
                 </div>
 
@@ -128,7 +133,7 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
                 <div className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/80 text-[10px] text-slate-400 space-y-1 mb-4">
                   <div className="flex justify-between items-center">
                     <span>معادلة مؤشر الصحة:</span>
-                    <span className="text-emerald-400 font-bold">انضباط {comm.attendanceRate}% • مهام {completedTasks > 0 ? 'مكتملة' : 'قيد المتابعة'}</span>
+                    <span className="text-emerald-400 font-bold">انضباط {realAttendanceRate}% • مهام {completedTasks > 0 ? 'مكتملة' : 'قيد المتابعة'}</span>
                   </div>
                   <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                     <div 

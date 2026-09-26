@@ -11,7 +11,7 @@ import {
 import { exportMembersToExcel } from '../../utils/excelExport';
 
 export const LeaderboardView: React.FC = () => {
-  const { members, badges, currentUser, isHighLeadership, addBadge, updateBadge, deleteBadge } = useApp();
+  const { members, badges, headEvaluations, currentUser, isHighLeadership, addBadge, updateBadge, deleteBadge } = useApp();
 
   const [activeBoard, setActiveBoard] = useState<'members' | 'heads'>('members');
   const [period, setPeriod] = useState<'monthly' | 'season'>('season');
@@ -84,14 +84,17 @@ export const LeaderboardView: React.FC = () => {
     .filter(m => m.status === 'Active' && m.role === 'member')
     .sort((a, b) => b.points - a.points);
 
-  // Filter ONLY Committee Heads and Vice Heads (for High Leadership visibility only)
+  // Filter ONLY Committee Heads and Vice Heads (sorted by real headEvaluations)
   const rankedHeads = [...members]
     .filter(m => m.status === 'Active' && (m.role === 'head' || m.role === 'vice_head'))
-    .sort((a, b) => {
-      const scoreA = ((a.performance?.leadership || 85) * 0.5) + ((a.performance?.overallScore || 85) * 0.3) + (a.points * 0.2);
-      const scoreB = ((b.performance?.leadership || 85) * 0.5) + ((b.performance?.overallScore || 85) * 0.3) + (b.points * 0.2);
-      return scoreB - scoreA;
-    });
+    .map(head => {
+      const evals = headEvaluations.filter(e => e.headId === head.id);
+      const evalScore = evals.length > 0 
+        ? Math.round(evals.reduce((a, b) => a + b.percentage, 0) / evals.length)
+        : (head.performance?.overallScore || 0);
+      return { ...head, dynamicScore: evalScore };
+    })
+    .sort((a, b) => (b.dynamicScore - a.dynamicScore) || (b.points - a.points));
 
   const handleOpenNewBadge = () => {
     setEditingBadge(null);

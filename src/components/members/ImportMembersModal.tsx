@@ -85,7 +85,7 @@ export const ImportMembersModal: React.FC<ImportMembersModalProps> = ({ isOpen, 
       joinDate: new Date().toISOString().split('T')[0],
       avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
       status: 'Active' as const,
-      points: 100,
+      points: 0,
     }));
 
     importMembersBulk(newMembers);

@@ -10,7 +10,7 @@ import {
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
   HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
   BannedUserRecord, CommitteeHistoryItem, EventRSVP, AttendancePointsConfig,
-  CertifiedSkillItem
+  CertifiedSkillItem, MemberPerformance
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -213,6 +213,12 @@ interface AppContextType {
     instagramUrl?: string;
     linkedinUrl?: string;
     committeeHistory?: CommitteeHistoryItem[];
+    points?: number;
+    level?: number;
+    badges?: string[];
+    position?: string;
+    role?: Role;
+    performance?: Partial<MemberPerformance>;
   }) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
   rateComplaintResolution: (complaintId: string, rating: number) => void;
@@ -602,68 +608,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const liveEvent = events.find(e => e.liveDashboardActive);
 
-  // Dynamic Mathematical Health Score Computation (100% Real, Dynamic & Multi-factor)
+  // Dynamic Mathematical Health Score Computation (100% Real & Multi-factor, No Mock Fallbacks)
   const calculateCommitteeHealth = (commId: string): number => {
     const comm = committees.find(c => c.id === commId);
     if (!comm) return 0;
 
     const commMembers = members.filter(m => m.currentCommitteeId === commId && m.status === 'Active');
-    const commTasks = tasks.filter(t => t.committeeId === commId);
+    const commMemberIds = new Set(commMembers.map(m => m.id));
+    const commTasks = tasks.filter(t => t.committeeId === commId || t.assignedToMemberIds.some(id => commMemberIds.has(id)));
     const commComplaints = complaints.filter(c => c.senderCommitteeId === commId);
 
     const totalCommMembers = commMembers.length;
     const totalCommTasks = commTasks.length;
     const completedCommTasks = commTasks.filter(t => t.status === 'Approved').length;
 
-    // 1. Real Attendance Rate: from actual attendanceRecords or active member performance
-    const commMemberIds = new Set(commMembers.map(m => m.id));
+    // 1. Real Attendance Rate: from actual attendanceRecords
     const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
     const presentRecords = commRecords.filter(a => a.status === 'Present').length;
-    const attendance = commRecords.length > 0
-      ? Math.round((presentRecords / commRecords.length) * 100)
-      : (totalCommMembers > 0 
-          ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.attendanceRate || 95), 0) / totalCommMembers)
-          : 95);
+    const hasAttendance = commRecords.length > 0;
+    const attendance = hasAttendance ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
-    // 2. Task Completion & Execution Rate
-    const tasksRate = totalCommTasks > 0
-      ? Math.round((completedCommTasks / totalCommTasks) * 100)
-      : 92;
+    // 2. Task Completion Rate
+    const hasTasks = totalCommTasks > 0;
+    const tasksRate = hasTasks ? Math.round((completedCommTasks / totalCommTasks) * 100) : 0;
 
-    // 3. Evaluations & Overall Quality Score
+    // 3. Evaluations & Quality Score from actual memberEvaluations
     const commEvals = memberEvaluations.filter(e => commMemberIds.has(e.memberId));
-    const performance = commEvals.length > 0
+    const hasEvals = commEvals.length > 0;
+    const performance = hasEvals
       ? Math.round(commEvals.reduce((acc, e) => acc + e.percentage, 0) / commEvals.length)
-      : (totalCommMembers > 0 
-          ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 90), 0) / totalCommMembers)
-          : 94);
+      : (totalCommMembers > 0
+          ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 0), 0) / totalCommMembers)
+          : 0);
 
-    // 4. Complaints & Operational Satisfaction
+    // 4. Complaints & Resolution
     const resolvedComplaints = commComplaints.filter(c => c.status === 'Resolved').length;
     const totalComplaints = commComplaints.length;
     const satisfaction = totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 100;
 
-    // Weighted dynamic composite score
-    const healthScore = Math.min(100, Math.max(30, Math.round(
-      0.30 * attendance + 0.30 * tasksRate + 0.25 * performance + 0.15 * satisfaction
-    )));
+    // If no active operations/members at all, return 0
+    if (!hasAttendance && !hasTasks && !hasEvals && performance === 0 && totalCommMembers === 0) {
+      return 0;
+    }
 
-    return healthScore;
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    if (hasAttendance) {
+      weightedSum += attendance * 0.35;
+      totalWeight += 0.35;
+    }
+    if (hasTasks) {
+      weightedSum += tasksRate * 0.35;
+      totalWeight += 0.35;
+    }
+    if (hasEvals || performance > 0) {
+      weightedSum += performance * 0.30;
+      totalWeight += 0.30;
+    }
+
+    if (totalWeight === 0) {
+      return totalCommMembers > 0 ? 0 : 0;
+    }
+
+    return Math.min(100, Math.max(0, Math.round(weightedSum / totalWeight)));
   };
 
-  // Team Health Score: Average of committees with SOS emergency penalty
+  // Team Health Score: Real dynamic average of committees with SOS emergency penalty
   const teamHealthScore = (() => {
     const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
-    if (operationalComms.length === 0) return 96;
+    if (operationalComms.length === 0) return 0;
 
     const commScores = operationalComms.map(c => calculateCommitteeHealth(c.id));
-    const avgCommHealth = Math.round(commScores.reduce((a, b) => a + b, 0) / operationalComms.length);
+    const activeScores = commScores.filter(s => s > 0);
 
-    // Penalize open/unacknowledged SOS emergency alerts
+    const baseScore = activeScores.length > 0
+      ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length)
+      : Math.round(commScores.reduce((a, b) => a + b, 0) / operationalComms.length);
+
     const openSOSCount = sosAlerts.filter(s => s.status === 'Open').length;
     const sosPenalty = openSOSCount * 4;
 
-    return Math.min(100, Math.max(35, avgCommHealth - sosPenalty));
+    return Math.min(100, Math.max(0, baseScore - sosPenalty));
   })();
 
   const activeAttendanceSession = attendanceSessions.find(s => s.isActive) || null;
@@ -922,14 +948,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'Active',
       avatarUrl: memberData.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
       performance: {
-        overallScore: 85,
+        overallScore: 0,
         attendanceRate: 100,
-        taskCompletionRate: 85,
-        taskQuality: 4.5,
-        commitment: 90,
-        teamwork: 90,
-        leadership: 80,
-        evaluationsCount: 1
+        taskCompletionRate: 0,
+        taskQuality: 0,
+        commitment: 100,
+        teamwork: 0,
+        leadership: 0,
+        evaluationsCount: 0
       },
       skills: memberData.skills || { 'العمل الجماعي': 4, 'التواصل': 4 },
       hobbies: memberData.hobbies || ['القراءة', 'التطوع'],
@@ -937,9 +963,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activeWorkload: 0,
       workloadStatus: 'Underutilized',
       engagementRisk: 'Low',
-      points: 100,
+      points: 0,
       level: 1,
-      badges: ['badge-reliable'],
+      badges: [],
       committeeHistory: [
         {
           id: `hist-${Date.now()}`,
@@ -997,24 +1023,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'Active',
         avatarUrl: m.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
         performance: {
-          overallScore: 85,
+          overallScore: 0,
           attendanceRate: 100,
-          taskCompletionRate: 85,
-          taskQuality: 4.5,
-          commitment: 90,
-          teamwork: 90,
-          leadership: 80,
-          evaluationsCount: 1
+          taskCompletionRate: 0,
+          taskQuality: 0,
+          commitment: 100,
+          teamwork: 0,
+          leadership: 0,
+          evaluationsCount: 0
         },
         skills: { 'التنظيم': 4, 'العمل الجماعي': 4 },
         hobbies: ['العمل الجماعي'],
         learningAspirations: ['إدارة الفعاليات'],
         activeWorkload: 0,
-        workloadStatus: 'Optimal',
+        workloadStatus: 'Underutilized',
         engagementRisk: 'Low',
-        points: 100,
+        points: 0,
         level: 1,
-        badges: ['badge-reliable'],
+        badges: [],
         committeeHistory: [],
         availability: 'Available',
         bio: 'عضو بفريق متطوعي اتحاد طلاب جامعة الإسكندرية'
@@ -2676,20 +2702,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: formData.password || '123456',
       registrationDate: new Date().toISOString(),
       performance: {
-        overallScore: 80,
+        overallScore: 0,
         attendanceRate: 100,
-        taskCompletionRate: 80,
-        taskQuality: 4.0,
-        commitment: 85,
-        teamwork: 85,
-        leadership: 75,
+        taskCompletionRate: 0,
+        taskQuality: 0,
+        commitment: 100,
+        teamwork: 0,
+        leadership: 0,
         evaluationsCount: 0
       },
       skills: formData.skills || { 'العمل الجماعي': 4, 'التواصل': 4 },
       activeWorkload: 0,
       workloadStatus: 'Underutilized',
       engagementRisk: 'Low',
-      points: 50,
+      points: 0,
       level: 1,
       badges: [],
       committeeHistory: [],
@@ -2828,6 +2854,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       instagramUrl?: string;
       linkedinUrl?: string;
       committeeHistory?: CommitteeHistoryItem[];
+      points?: number;
+      level?: number;
+      badges?: string[];
+      position?: string;
+      role?: Role;
+      performance?: Partial<MemberPerformance>;
     }
   ) => {
     let updatedMember: Member | null = null;
@@ -2849,6 +2881,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           nationalId: rawNatId,
           phone: profileData.phone || m.phone || profileData.whatsappNumber || m.whatsappNumber,
           whatsappNumber: profileData.whatsappNumber || profileData.phone || m.whatsappNumber,
+          points: profileData.points !== undefined ? profileData.points : m.points,
+          level: profileData.level !== undefined ? profileData.level : m.level,
+          badges: profileData.badges !== undefined ? profileData.badges : m.badges,
+          position: profileData.position !== undefined ? profileData.position : m.position,
+          role: profileData.role !== undefined ? profileData.role : m.role,
+          performance: profileData.performance !== undefined 
+            ? { ...m.performance, ...profileData.performance } 
+            : m.performance,
           committeeHistory: profileData.committeeHistory !== undefined ? profileData.committeeHistory : m.committeeHistory,
           certifiedSkills: profileData.certifiedSkills !== undefined ? profileData.certifiedSkills : (m.certifiedSkills || [])
         };

@@ -264,6 +264,7 @@ export interface EventCommitteeQuota {
   required: number;
   assigned?: number;
   present?: number;
+  mode?: 'all' | 'custom' | 'excluded';
 }
 
 export interface AttendancePointsConfig {

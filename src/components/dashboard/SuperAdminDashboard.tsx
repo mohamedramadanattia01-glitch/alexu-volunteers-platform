@@ -20,7 +20,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const { 
     members, committees, tasks, events, sosAlerts, 
     teamHealthScore, setActiveTab, getHighRiskMembers, pendingMembers,
-    calculateCommitteeHealth
+    calculateCommitteeHealth, headEvaluations, memberEvaluations, attendanceRecords
   } = useApp();
 
   const activeMembers = members.filter(m => m.status === 'Active');
@@ -33,25 +33,41 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   
   // Top Regular Members ONLY (Strictly excluding Heads and High Leadership)
   const topRegularMembers = [...regularMembers]
-    .sort((a, b) => (b.performance?.overallScore || 0) - (a.performance?.overallScore || 0) || (b.points || 0) - (a.points || 0))
+    .map(member => {
+      const evals = memberEvaluations.filter(e => e.memberId === member.id);
+      const evalScore = evals.length > 0 
+        ? Math.round(evals.reduce((a, b) => a + b.percentage, 0) / evals.length)
+        : (member.performance?.overallScore || 0);
+      return { ...member, dynamicOverallScore: evalScore };
+    })
+    .sort((a, b) => (b.dynamicOverallScore - a.dynamicOverallScore) || ((b.points || 0) - (a.points || 0)))
     .slice(0, 4);
 
-  // Top Heads & Leadership Matrix ONLY (Separated for High Leadership)
+  // Top Heads & Leadership Matrix ONLY (Dynamic from headEvaluations)
   const topHeads = [...committeeHeads]
-    .sort((a, b) => {
-      const scoreA = ((a.performance?.leadership || 85) * 0.5) + ((a.performance?.overallScore || 85) * 0.3) + (a.points * 0.2);
-      const scoreB = ((b.performance?.leadership || 85) * 0.5) + ((b.performance?.overallScore || 85) * 0.3) + (b.points * 0.2);
-      return scoreB - scoreA;
+    .map(head => {
+      const headEvals = headEvaluations.filter(e => e.headId === head.id);
+      const evalScore = headEvals.length > 0 
+        ? Math.round(headEvals.reduce((a, b) => a + b.percentage, 0) / headEvals.length)
+        : (head.performance?.overallScore || 0);
+      return {
+        ...head,
+        computedScore: evalScore
+      };
     })
+    .sort((a, b) => (b.computedScore - a.computedScore) || ((b.points || 0) - (a.points || 0)))
     .slice(0, 4);
 
   const openSOS = sosAlerts.filter(s => s.status === 'Open' || s.status === 'Acknowledged');
   const liveEvents = events.filter(e => e.status === 'Live' || e.liveDashboardActive);
 
-  // Accurate Overall Score (Dynamic)
-  const averagePerformanceScore = regularMembers.length > 0
-    ? Math.round(regularMembers.reduce((a, b) => a + (b.performance?.overallScore || 0), 0) / regularMembers.length)
-    : 0;
+  // Accurate Overall Score (Dynamic from real evaluations or 0)
+  const evaluatedRegularMembers = topRegularMembers.filter(m => m.dynamicOverallScore > 0);
+  const averagePerformanceScore = evaluatedRegularMembers.length > 0
+    ? Math.round(evaluatedRegularMembers.reduce((a, b) => a + b.dynamicOverallScore, 0) / evaluatedRegularMembers.length)
+    : (memberEvaluations.length > 0 
+        ? Math.round(memberEvaluations.reduce((a, b) => a + b.percentage, 0) / memberEvaluations.length)
+        : 0);
 
   const taskCompletionRate = tasks.length > 0 
     ? Math.round((completedTasks.length / tasks.length) * 100) 
@@ -301,10 +317,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           <div className="space-y-3">
             {committees.map(comm => {
               const commMembers = regularMembers.filter(m => m.currentCommitteeId === comm.id);
-              const commTasks = tasks.filter(t => t.committeeId === comm.id);
+              const commMemberIds = new Set(commMembers.map(m => m.id));
+              const commTasks = tasks.filter(t => t.committeeId === comm.id || t.assignedToMemberIds.some(id => commMemberIds.has(id)));
               const commCompleted = commTasks.filter(t => t.status === 'Approved').length;
-              const commTaskPct = commTasks.length > 0 ? Math.round((commCompleted / commTasks.length) * 100) : 100;
+              const commTaskPct = commTasks.length > 0 ? Math.round((commCompleted / commTasks.length) * 100) : 0;
               const currentHealth = calculateCommitteeHealth(comm.id);
+
+              const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
+              const presentRecords = commRecords.filter(a => a.status === 'Present').length;
+              const realAttendance = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
+
+              const commEvals = memberEvaluations.filter(e => commMemberIds.has(e.memberId));
+              const realQualityScore = commEvals.length > 0 
+                ? Math.round(commEvals.reduce((a, b) => a + b.percentage, 0) / commEvals.length)
+                : (commMembers.length > 0 ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 0), 0) / commMembers.length) : 0);
 
               return (
                 <div 
@@ -345,8 +371,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                   <div className="flex justify-between items-center text-[10px] text-slate-400 mt-2">
                     <span>المهام المكتملة: {commCompleted} من {commTasks.length} ({commTaskPct}%)</span>
-                    <span>نسبة الحضور: {comm.attendanceRate}%</span>
-                    <span>مؤشر الجودة: {comm.performanceScore}%</span>
+                    <span>نسبة الحضور: {realAttendance > 0 ? `${realAttendance}%` : 'لا توجد جلسات'}</span>
+                    <span>مؤشر التقييم: {realQualityScore > 0 ? `${realQualityScore}%` : 'لم يُقيّم بعد'}</span>
                   </div>
                 </div>
               );
@@ -406,7 +432,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                     <div className="text-right">
                       <div className="text-xs font-extrabold text-amber-400 font-mono">
-                        {member.performance?.overallScore || 0}%
+                        {member.dynamicOverallScore > 0 ? `${member.dynamicOverallScore}%` : '0%'}
                       </div>
                       <div className="text-[9px] text-slate-400">
                         {member.points} XP
@@ -426,7 +452,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                   <Crown className="w-4 h-4 text-purple-400" />
                   <span>ترتيب رؤساء ونواب اللجان</span>
                 </h3>
-                <p className="text-[10px] text-purple-300/80">مؤشرات الأداء والقيادة التشغيلية</p>
+                <p className="text-[10px] text-purple-300/80">مؤشرات الأداء والقيادة التشغيلية الحقيقية</p>
               </div>
               <button 
                 onClick={() => setActiveTab('evaluations')}
@@ -462,10 +488,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                     <div className="text-right">
                       <div className="text-xs font-extrabold text-purple-400 font-mono">
-                        {headMember.performance?.overallScore || 0}%
+                        {headMember.computedScore > 0 ? `${headMember.computedScore}%` : 'لم يُقيّم بعد'}
                       </div>
                       <div className="text-[9px] text-slate-400">
-                        قيادة: {headMember.performance?.leadership || 90}%
+                        {headMember.points} XP
                       </div>
                     </div>
                   </div>
