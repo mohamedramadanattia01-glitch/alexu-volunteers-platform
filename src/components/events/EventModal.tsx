@@ -4,19 +4,27 @@ import { EventEntity, EventCommitteeQuota } from '../../types';
 import { 
   Calendar, Clock, MapPin, Users, Plus, Minus, X, Sparkles, 
   Sun, Sunset, Compass, CheckCircle2, Award, Zap, Edit3, Save,
-  Crown, Layers, CheckSquare, Square, Ban, Hash
+  Crown, Layers, CheckSquare, Square, Ban, Hash, Copy, Repeat, CalendarDays, Trash2
 } from 'lucide-react';
 
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
   eventToEdit?: EventEntity | null;
+  eventToDuplicate?: EventEntity | null;
+  initialDate?: string | null;
 }
 
-export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventToEdit }) => {
+export const EventModal: React.FC<EventModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  eventToEdit,
+  eventToDuplicate,
+  initialDate
+}) => {
   const { committees, members, createEvent, updateEvent, showNotification } = useApp();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = initialDate || new Date().toISOString().split('T')[0];
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayStr);
   const [startTime, setStartTime] = useState('09:00 ص');
@@ -29,29 +37,38 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
   const [commModesMap, setCommModesMap] = useState<{ [commId: string]: 'all' | 'custom' | 'excluded' }>({});
   const [commQuotasMap, setCommQuotasMap] = useState<{ [commId: string]: number }>({});
 
+  // Multi-date Recurrence State
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [additionalDates, setAdditionalDates] = useState<string[]>([]);
+  const [newExtraDateInput, setNewExtraDateInput] = useState('');
+
   useEffect(() => {
     const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
     const targetComms = operationalComms.length > 0 ? operationalComms : committees;
 
-    if (eventToEdit) {
-      setName(eventToEdit.name || '');
-      setDate(eventToEdit.date || todayStr);
-      setStartTime(eventToEdit.startTime || '09:00 ص');
-      setEndTime(eventToEdit.endTime || '03:00 م');
-      setLocation(eventToEdit.location || 'مركز مؤتمرات جامعة الإسكندرية');
-      setDescription(eventToEdit.description || '');
-      setTargetAudience(eventToEdit.targetAudience || 'all');
+    const sourceEvent = eventToEdit || eventToDuplicate;
+
+    if (sourceEvent) {
+      setName(eventToDuplicate ? `${sourceEvent.name} (نسخة)` : (sourceEvent.name || ''));
+      setDate(initialDate || sourceEvent.date || todayStr);
+      setStartTime(sourceEvent.startTime || '09:00 ص');
+      setEndTime(sourceEvent.endTime || '03:00 م');
+      setLocation(sourceEvent.location || 'مركز مؤتمرات جامعة الإسكندرية');
+      setDescription(sourceEvent.description || '');
+      setTargetAudience(sourceEvent.targetAudience || 'all');
+      setIsRecurring(false);
+      setAdditionalDates([]);
 
       const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
       const quotas: { [commId: string]: number } = {};
 
       targetComms.forEach(c => {
-        const q = eventToEdit.committeeQuotas?.[c.id];
+        const q = sourceEvent.committeeQuotas?.[c.id];
         const commMemCount = members.filter(m => m.currentCommitteeId === c.id && m.status === 'Active').length || 1;
         if (q) {
           modes[c.id] = q.mode || (q.required === commMemCount ? 'all' : 'custom');
           quotas[c.id] = q.required || 5;
-        } else if (eventToEdit.selectedCommitteeIds?.includes(c.id)) {
+        } else if (sourceEvent.selectedCommitteeIds?.includes(c.id)) {
           modes[c.id] = 'custom';
           quotas[c.id] = 5;
         } else {
@@ -64,12 +81,14 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setCommQuotasMap(quotas);
     } else {
       setName('');
-      setDate(todayStr);
+      setDate(initialDate || todayStr);
       setStartTime('09:00 ص');
       setEndTime('03:00 م');
       setLocation('مركز مؤتمرات جامعة الإسكندرية');
       setDescription('');
       setTargetAudience('all');
+      setIsRecurring(false);
+      setAdditionalDates([]);
 
       const modes: { [commId: string]: 'all' | 'custom' | 'excluded' } = {};
       const quotas: { [commId: string]: number } = {};
@@ -81,7 +100,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       setCommModesMap(modes);
       setCommQuotasMap(quotas);
     }
-  }, [eventToEdit, isOpen, committees, members]);
+  }, [eventToEdit, eventToDuplicate, initialDate, isOpen, committees, members]);
 
   if (!isOpen) return null;
 
@@ -110,6 +129,19 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
     const val = Math.max(1, value);
     setCommQuotasMap(prev => ({ ...prev, [commId]: val }));
     setCommModesMap(prev => ({ ...prev, [commId]: 'custom' }));
+  };
+
+  // Add extra date for multi-date recurrence
+  const handleAddExtraDate = () => {
+    if (!newExtraDateInput.trim()) return;
+    if (!additionalDates.includes(newExtraDateInput.trim()) && newExtraDateInput.trim() !== date) {
+      setAdditionalDates([...additionalDates, newExtraDateInput.trim()]);
+      setNewExtraDateInput('');
+    }
+  };
+
+  const handleRemoveExtraDate = (dateToRemove: string) => {
+    setAdditionalDates(additionalDates.filter(d => d !== dateToRemove));
   };
 
   // Bulk presets
@@ -229,6 +261,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       return;
     }
 
+    // 1. Create Primary Event
     createEvent({
       name: name.trim(),
       date,
@@ -243,7 +276,28 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
       status: 'Planned'
     });
 
-    showNotification('success', `تم جدولة وإضافة الفعالية "${name}" وتخصيص اللجان بنجاح 🎉`);
+    // 2. Create Recurring Extra Dates if any
+    if (isRecurring && additionalDates.length > 0) {
+      additionalDates.forEach(extraDate => {
+        createEvent({
+          name: `${name.trim()} (يوم ${extraDate})`,
+          date: extraDate,
+          startTime,
+          endTime,
+          location: location.trim(),
+          description: description.trim() || `فعالية ميدانية معتمدة لمتطوعي اتحاد طلاب جامعة الإسكندرية في ${location}`,
+          targetAudience,
+          selectedCommitteeIds: selectedIds,
+          committeeQuotas: structuredQuotas,
+          expectedMembersCount: totalRequiredMembers || 20,
+          status: 'Planned'
+        });
+      });
+      showNotification('success', `تم إنشاء وجدولة الفعالية وتكرارها بنجاح في ${additionalDates.length + 1} أيام مختلفة 📅✨`);
+    } else {
+      showNotification('success', `تم جدولة وإضافة الفعالية "${name}" وتخصيص اللجان بنجاح 🎉`);
+    }
+
     onClose();
   };
 
@@ -565,6 +619,88 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, eventTo
               </button>
             </div>
           </div>
+
+          {/* MULTI-DATE RECURRENCE / تكرار الفعالية في أيام وتواريخ متعددة */}
+          {!eventToEdit && (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/40 via-slate-900 to-purple-950/30 border border-indigo-500/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                    <Repeat className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>تكرار الفعالية في أيام أخرى (Multi-Day Event)</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 font-bold">ميزة جديدة ✨</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-400">إنشاء نسخ مجدولة من هذه الفعالية بنفس البيانات واللجان في تواريخ إضافية</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRecurring(!isRecurring)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isRecurring 
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                      : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                  }`}
+                >
+                  <Repeat className="w-3.5 h-3.5" />
+                  <span>{isRecurring ? 'مفعل ✓' : 'تفعيل التكرار'}</span>
+                </button>
+              </div>
+
+              {isRecurring && (
+                <div className="pt-2 border-t border-slate-800/80 space-y-2.5 animate-in fade-in">
+                  <label className="block text-[11px] font-bold text-indigo-300">أضف تواريخ إضافية للفعالية:</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={newExtraDateInput}
+                      onChange={(e) => setNewExtraDateInput(e.target.value)}
+                      className="glass-input text-xs font-mono flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddExtraDate}
+                      disabled={!newExtraDateInput}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1 disabled:opacity-40"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>إضافة يوم</span>
+                    </button>
+                  </div>
+
+                  {/* List of Additional Dates */}
+                  {additionalDates.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {additionalDates.map(extraD => (
+                        <div key={extraD} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-900/40 border border-indigo-500/40 text-xs font-mono text-indigo-200">
+                          <CalendarDays className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{extraD}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtraDate(extraD)}
+                            className="p-0.5 hover:text-rose-400 cursor-pointer transition-colors mr-1"
+                            title="حذف هذا اليوم"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {additionalDates.length > 0 && (
+                    <p className="text-[10px] text-emerald-400 font-medium">
+                      ✓ سيتم إنشاء عدد ({additionalDates.length + 1}) فعاليات مكررة بنفس كوتة اللجان والإعدادات تلقائياً.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* TIME RANGE PICKER & SHIFT PRESETS */}
           <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">

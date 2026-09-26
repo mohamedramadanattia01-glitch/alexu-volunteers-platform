@@ -612,6 +612,12 @@ export interface SystemNotification {
   read: boolean;
   createdAt: string;
   linkTab?: string;
+  targetName?: string; // الجهة أو الفئة المستهدفة (e.g. "لك خصيصاً", "لجنة التنظيم", "جميع الأعضاء")
+  requiredAction?: string; // المطلوب تنفيذه (e.g. "المطلوب: تأكيد الحضور أو الاعتذار RSVP", "المطلوب: تسليم مخرجات المهمة")
+  badgeText?: string; // بادج مميز (e.g. "+35 XP", "أولوية قصوى", "مهمة ميدانية")
+  targetCommitteeId?: string;
+  targetMemberIds?: string[];
+  senderName?: string;
 }
 
 export type ComplaintCategory = 

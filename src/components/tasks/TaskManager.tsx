@@ -528,10 +528,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">الموعد النهائي</label>
                   <input
-                    type="date"
-                    value={editDeadline}
-                    onChange={(e) => setEditDeadline(e.target.value)}
-                    className="glass-input text-xs w-full"
+                    type="datetime-local"
+                    value={editDeadline ? editDeadline.replace(' ', 'T') : ''}
+                    onChange={(e) => setEditDeadline(e.target.value ? e.target.value.replace('T', ' ') : '')}
+                    className="glass-input text-xs w-full font-mono"
                   />
                 </div>
               </div>

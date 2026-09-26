@@ -6,20 +6,22 @@ import {
   CheckSquare, Zap, ChevronLeft, ChevronRight, AlertTriangle,
   Grid, CalendarDays, Eye, Sparkles, X, Layers, Edit3, Trash2, 
   ShieldAlert, CheckCircle2, XCircle, Bell, Download, FileSpreadsheet, 
-  Crown, Send, UserCheck, UserX, BarChart3
+  Crown, Send, UserCheck, UserX, BarChart3, Copy
 } from 'lucide-react';
 import { exportEventRosterToExcel } from '../../utils/excelExport';
 
 interface EventsListProps {
-  onOpenNewEvent: () => void;
+  onOpenNewEvent: (initialDate?: string) => void;
   onOpenLiveCommand: (event: EventEntity) => void;
   onEditEvent?: (event: EventEntity) => void;
+  onDuplicateEvent?: (event: EventEntity) => void;
 }
 
 export const EventsList: React.FC<EventsListProps> = ({ 
   onOpenNewEvent, 
   onOpenLiveCommand,
-  onEditEvent 
+  onEditEvent,
+  onDuplicateEvent
 }) => {
   const { 
     events, committees, currentUser, isHighLeadership, 
@@ -144,7 +146,7 @@ export const EventsList: React.FC<EventsListProps> = ({
 
           {canCreate && (
             <button
-              onClick={onOpenNewEvent}
+              onClick={() => onOpenNewEvent()}
               className="btn-primary text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5 shadow-lg shadow-blue-600/30"
             >
               <Plus className="w-4 h-4" />
@@ -211,6 +213,10 @@ export const EventsList: React.FC<EventsListProps> = ({
 
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
+              const formattedDay = String(dayNum).padStart(2, '0');
+              const formattedMonth = String(month + 1).padStart(2, '0');
+              const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
+
               const dayEvents = getEventsForDay(dayNum);
               const isToday = 
                 new Date().getDate() === dayNum && 
@@ -223,25 +229,34 @@ export const EventsList: React.FC<EventsListProps> = ({
                 <div
                   key={`day-${dayNum}`}
                   onClick={() => {
-                    if (hasEvents) setSelectedEvent(dayEvents[0]);
+                    if (hasEvents) {
+                      setSelectedEvent(dayEvents[0]);
+                    } else if (canCreate) {
+                      onOpenNewEvent(dateStr);
+                    }
                   }}
-                  className={`min-h-[80px] sm:min-h-[105px] rounded-xl p-2 border transition-all flex flex-col justify-between ${
+                  className={`min-h-[85px] sm:min-h-[110px] rounded-xl p-2 border transition-all flex flex-col justify-between relative group cursor-pointer ${
                     hasEvents 
-                      ? 'bg-gradient-to-b from-blue-950/40 via-slate-900 to-slate-950 border-sky-500/40 hover:border-sky-400 shadow-md cursor-pointer group' 
-                      : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                      ? 'bg-gradient-to-b from-blue-950/40 via-slate-900 to-slate-950 border-sky-500/40 hover:border-sky-400 shadow-md' 
+                      : 'bg-slate-950/60 border-slate-800/80 hover:border-sky-500/50 hover:bg-slate-900/60'
                   } ${isToday ? 'ring-2 ring-sky-400 bg-sky-950/30' : ''}`}
+                  title={hasEvents ? `عرض فعالية: ${dayEvents[0].name}` : canCreate ? `انقر لإنشاء فعالية بتاريخ ${dateStr}` : `يوم ${dayNum}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-mono font-black ${
                       isToday ? 'px-1.5 py-0.2 rounded-full bg-sky-500 text-slate-950' : 
-                      hasEvents ? 'text-sky-300' : 'text-slate-400'
+                      hasEvents ? 'text-sky-300' : 'text-slate-400 group-hover:text-sky-300'
                     }`}>
                       {dayNum}
                     </span>
 
-                    {hasEvents && (
+                    {hasEvents ? (
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    )}
+                    ) : canCreate ? (
+                      <span className="opacity-0 group-hover:opacity-100 p-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-bold transition-opacity">
+                        + فعالية
+                      </span>
+                    ) : null}
                   </div>
 
                   {hasEvents ? (
@@ -258,7 +273,13 @@ export const EventsList: React.FC<EventsListProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <div className="flex-1" />
+                    <div className="flex-1 flex items-center justify-center">
+                      {canCreate && (
+                        <span className="text-[10px] text-slate-600 group-hover:text-sky-400 transition-colors font-medium">
+                          + حجز اليوم
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   {hasEvents && (
@@ -426,9 +447,17 @@ export const EventsList: React.FC<EventsListProps> = ({
                     <span>تفاصيل</span>
                   </button>
 
-                  {/* High Leadership Edit & Delete Action Buttons */}
+                  {/* High Leadership Edit, Duplicate & Delete Action Buttons */}
                   {isHighLeadership && (
                     <>
+                      <button
+                        onClick={() => onDuplicateEvent?.(ev)}
+                        className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs transition-all cursor-pointer"
+                        title="نسخ وتكرار الفعالية ببيانات جديدة"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+
                       <button
                         onClick={() => onEditEvent?.(ev)}
                         className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs transition-all cursor-pointer"
@@ -764,11 +793,55 @@ export const EventsList: React.FC<EventsListProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                {canCreate && onDuplicateEvent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ev = selectedEvent;
+                      setSelectedEvent(null);
+                      onDuplicateEvent(ev);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                    title="نسخ وتكرار الفعالية"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>نسخ وتكرار</span>
+                  </button>
+                )}
+                {canCreate && onEditEvent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ev = selectedEvent;
+                      setSelectedEvent(null);
+                      onEditEvent(ev);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>تعديل</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ev = selectedEvent;
+                    setSelectedEvent(null);
+                    onOpenLiveCommand(ev);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>غرفة العمليات</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedEvent(null)}
-                className="btn-secondary text-xs py-2 px-5"
+                className="btn-secondary text-xs py-1.5 px-4"
               >
                 إغلاق
               </button>

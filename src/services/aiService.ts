@@ -1,12 +1,16 @@
 // High-Intelligence AI Service for Alexandria University Volunteers Platform
 // Dynamic, Situation-Aware, Egyptian/Alexandrian Persona ("شربيني")
+// Multi-LLM Cascade: Pollinations AI (Mistral/Qwen/Llama) + Groq/Gemini Custom Keys + Ultra-Smart Egyptian NLP Engine
 
 export interface AIContextData {
   currentUser: {
+    id?: string;
     fullName: string;
     role: string;
     position?: string;
     committeeName?: string;
+    volunteerId?: string;
+    college?: string;
   };
   teamHealthScore: number;
   totalMembers: number;
@@ -14,12 +18,15 @@ export interface AIContextData {
   activeTasksCount: number;
   activeEventsList: string[];
   unresolvedSOSCount: number;
+  customApiKey?: string;
+  apiProvider?: 'pollinations' | 'gemini' | 'groq' | 'openrouter';
 }
 
 export interface AIResponseResult {
   text: string;
-  source: 'online_llm' | 'semantic_engine';
+  source: 'online_llm' | 'custom_api' | 'semantic_engine';
   confidence: number;
+  modelUsed?: string;
 }
 
 /**
@@ -38,6 +45,37 @@ function normalizeArabicText(text: string): string {
 }
 
 /**
+ * Build rich Egyptian colloquial system prompt with live application context
+ */
+function buildSystemPrompt(context: AIContextData): string {
+  const firstName = context.currentUser.fullName.split(' ')[0] || 'يا بطل';
+  
+  return `أنت «شربيني» - المساعد الذكي ورفيق الميدان والمستشار التنظيمي لفريق متطوعي اتحاد طلاب جامعة الإسكندرية.
+أنت شخصية مصرية إسكندرانية أصيلة، ذكية جداً، حكيمة، ودودة، وخفيفة الدم ومحترفة في نفس الوقت.
+
+طريقتك وأسلوبك الإلزامي في الرد:
+1. اتكلم باللهجة المصرية العامية البسيطة والودودة والجميلة (زي: "يا باشا"، "حبيبي يا ${firstName}"، "عينيّا ليك"، "تمام يا غالي"، "ولا تشيل هم خالص"، "يا بطلنا"، "تسلم يا غالي").
+2. افهم بدقة تامة أي رسالة نصية أو تفريغ صوتي (ريكورد) يتبعتلك، وجاوب عليه بشكل عملي ومباشر ومنظم في نقاط سهلة ومفهومة.
+3. تجنب الردود المحفوظة أو المكررة؛ اتعامل مع كل موقف بحل فوري يناسب الميدان والجامعة.
+4. لو السؤال عن تنظيم أو إدارة حشود أو مشكلة في قاعة أو مدرج، اديه خطة من 3 خطوات عملية سريعة.
+5. لو السؤال عن التسكين أو اللجان أو النقاط XP أو المهام، اشرح له مسار العمل في المنظومة بكل ثقة.
+
+البيانات الحية لمنظومة المتطوعين الآن:
+- المتحدث معك: ${context.currentUser.fullName} (${context.currentUser.position || 'عضو بالفريق'})
+- الكود التطوعي: ${context.currentUser.volunteerId || 'AU-001'}
+- الكلية / المعهد: ${context.currentUser.college || 'جامعة الإسكندرية'}
+- اللجنة التابع لها: ${context.currentUser.committeeName || 'لجان المتطوعين'}
+- مؤشر صحة ونشاط الفريق: ${context.teamHealthScore}%
+- إجمالي عدد المتطوعين: ${context.totalMembers} متطوع
+- اللجان الرسمية: ${context.committeesList.join('، ')}
+- المهام المفتوحة: ${context.activeTasksCount} مهمة
+- الفعاليات المجدولة: ${context.activeEventsList.length > 0 ? context.activeEventsList.join('، ') : 'لا توجد فعاليات مجدولة حالياً'}
+- بلاغات الطوارئ: ${context.unresolvedSOSCount} بلاغ
+
+خاطب المستخدم دائماً باسمه الأول بحرارة وأخوة، واجعل الرد لا يتجاوز 3 إلى 6 أسطر مليئة بالذكاء والفائدة والطاقة الإيجابية! 🚀`;
+}
+
+/**
  * Generate intelligent, situation-aware AI response
  */
 export async function generateAIResponse(
@@ -47,29 +85,47 @@ export async function generateAIResponse(
 ): Promise<AIResponseResult> {
   const query = userQuery.trim();
   const normalized = normalizeArabicText(query);
-  const isVoiceMessage = query.includes('تسجيل صوتي') || query.includes('🎙️');
+  const isVoiceMessage = query.includes('تسجيل صو') || query.includes('🎙️') || query.includes('ريكورد');
+  const systemPrompt = buildSystemPrompt(context);
 
-  // Build Comprehensive Live System Prompt
-  const systemPrompt = `أنت «شربيني» - المساعد الذكي، المستشار الميداني، والمدرب القيادي لفريق متطوعي اتحاد طلاب جامعة الإسكندرية (AU Volunteers Platform).
-أنت شخصية قيادية ذكية جداً، حكيمة، مصرية اسكندرانية دافئة وخفيفة الظل ومحترفة، لا تردد كلاماً محفوظاً أبداً، وتتعامل مع كل رسالة أو ريكورد صوتي بفهم عميق للموقف والسياق.
+  // 1. Try Custom API Key (Groq / Gemini / OpenRouter) if provided in settings or localStorage
+  const savedCustomKey = context.customApiKey || localStorage.getItem('AU_SHERBINI_AI_KEY');
+  const savedProvider = context.apiProvider || localStorage.getItem('AU_SHERBINI_AI_PROVIDER') || 'groq';
 
-بيانات المنظومة الميدانية الحية الآن:
-- المتحدث معك: ${context.currentUser.fullName} (${context.currentUser.position || 'عضو بالفريق'})، دوره الإداري: ${context.currentUser.role}، لجنته: ${context.currentUser.committeeName || 'لجان المتطوعين'}.
-- مؤشر صحة وجاهزية الفريق: ${context.teamHealthScore}%.
-- إجمالي عدد المتطوعين المقيدين: ${context.totalMembers} متطوع.
-- اللجان التخصصية الرسمية: ${context.committeesList.join('، ')}.
-- المهام النشطة قيد التنفيذ: ${context.activeTasksCount} مهمة.
-- الفعاليات الجارية والمجدولة: ${context.activeEventsList.length > 0 ? context.activeEventsList.join('، ') : 'لا توجد فعاليات مجدولة حالياً'}.
-- بلاغات الطوارئ النشطة: ${context.unresolvedSOSCount}.
+  if (savedCustomKey) {
+    try {
+      if (savedProvider === 'groq') {
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${savedCustomKey}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...conversationHistory.slice(-6).map(m => ({ role: m.role === 'ai' ? 'assistant' : m.role, content: m.content })),
+              { role: 'user', content: query }
+            ],
+            temperature: 0.7,
+            max_tokens: 600
+          })
+        });
+        if (groqRes.ok) {
+          const data = await groqRes.json();
+          const content = data.choices?.[0]?.message?.content;
+          if (content) {
+            return { text: content.trim(), source: 'custom_api', confidence: 0.99, modelUsed: 'Groq LLaMA 3.3 70B' };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Custom API call error, falling back:', e);
+    }
+  }
 
-إرشاداتك الصارمة:
-1. افهم القصد المباشر من كلام أو ريكورد ${context.currentUser.fullName.split(' ')[0]} وأجب فوراً بحلول محددة أو توجيهات عملية.
-2. إذا كان الحديث عن تنظيم أو إدارة حشود أو مشكلة ميدانية، قدم 3 خطوات تنفيذية واضحة ومباشرة.
-3. إذا كان استفساراً عن التسكين أو المهام أو التقييمات، اشرح له مسار العمل في المنظومة بوضوح.
-4. إذا كان تسجيلاً صوتياً عاماً، افتتح إجابتك بتأكيد سماع الريكورد والترحيب به، ثم ادخل في صلب الموضوع بحماس وتفاعل ذكي.
-5. اجعل نبرتك تجمع بين الأخوة، التشجيع، والخبرة الإدارية (بين 2 إلى 6 أسطر).`;
-
-  // 1. Try Online LLM Endpoints (Pollinations AI with Mistral / Qwen / LLaMA)
+  // 2. Try Online Open-Source LLMs (Pollinations AI Fast Cascade with Mistral & Qwen)
   try {
     const messagesPayload = [
       { role: 'system', content: systemPrompt },
@@ -81,7 +137,7 @@ export async function generateAIResponse(
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    const timeoutId = setTimeout(() => controller.abort(), 5500);
 
     const res = await fetch('https://text.pollinations.ai/', {
       method: 'POST',
@@ -99,105 +155,99 @@ export async function generateAIResponse(
 
     if (res.ok) {
       const text = await res.text();
-      if (text && text.trim().length > 15 && !text.includes('Error') && !text.includes('rate limit')) {
+      if (text && text.trim().length > 15 && !text.includes('Error') && !text.includes('rate limit') && !text.includes('<!DOCTYPE')) {
         return {
           text: text.trim(),
           source: 'online_llm',
-          confidence: 0.95
+          confidence: 0.96,
+          modelUsed: 'Open-Source Mistral / Qwen'
         };
       }
     }
   } catch (err) {
-    // Online API offline -> fallback smoothly to Deep Semantic Engine
+    // LLM connection timeout/offline -> fallback to smart Egyptian semantic reasoning engine
   }
 
-  // 2. Deep Situational Semantic Reasoning Engine (Offline / Standalone Fallback)
+  // 3. Ultra-Smart Egyptian Situational Reasoning Engine (Local NLP Fallback)
   const firstName = context.currentUser.fullName.split(' ')[0] || 'يا بطل';
   const role = context.currentUser.role;
   const isHighLead = role === 'super_admin' || role === 'vice_president' || role === 'advisor';
+  const myComm = context.currentUser.committeeName || 'لجنة التنظيم';
 
-  // Handling Voice Messages Specifically when no speech was detected
+  // Voice Note Queries
   if (isVoiceMessage || normalized.includes('ريكورد') || normalized.includes('تسجيل')) {
     const voiceResponses = [
-      `سمعت الريكورد بتاعك بكل وضوح يا ${firstName}! 🎙️✨\nطاقة صوتك فيها حماس الميدان.. عشان نترجم ده لإنجاز فوري على المنظومة:\n1. لو الموضوع متعلق بتكليف جديد، ادخل على "إدارة المهام" وأسنِد المهمة لأبطال اللجنة.\n2. لو محتاج تدخل طارئ، زرار SOS في النافبار متاح للتنبيه الفوري.\nأنا معاك يا غالي، تحب نجهز خطة لأي لجنة أو فعالية دلوقتي؟`,
-      `وصلني تسجيلك الصوتي يا قائد ${firstName}! 🌊🎧\nصوتك منور شات الاتحاد.. وبناءً على مؤشرات اللجان الحالية (${context.teamHealthScore}% جاهزية):\n• إحنا جاهزين لأي تنسيق ميداني أو توزيع حشود ومسرح.\n• اللجان الـ 6 ماشية بانتظام ومعاك في كل خطوة.\nقولي حابب نركز على أنهي نقطة بالتحديد؟ 🚀`,
-      `يا هلا بالصوت الاسكندراني الأصيل يا ${firstName}! 🎙️☕\nالريكورد واصل في وقته تمام.. نصيحتي ليك كـ ${context.currentUser.position || 'قائد ميداني'}:\n- راجع شيت الحضور ومسح الـ QR للفاعلية الحالية.\n- قسّم الأدوار بين رؤساء اللجان لتخفيف الضغط.\nاديني التفاصيل ومستعد أفرزلك المهام بلمح البصر!`
+      `سمعت الريكورد بتاعك في ودني بكل وضوح يا ${firstName}! 🎙️✨\nصوتك منور الميدان.. وعشان ننجز الموضوع فوراً:\n1. لو حابب تكلف حد بمهمة، ادخل على "إدارة المهام" وهتلاقي زرار إنشاء مهمة وتوزيع النقاط.\n2. لو في أي طارئ في القاعة أو المدرج، زرار الـ SOS في الشريط للتنبيه الفوري.\nأنا في ضهرك يا غالي، تحب نجهز خطة أو نراجع تسكين أي حد دلوقتي؟ 💙`,
+      `وصلني تسجيلك الصوتي يا بطل ${firstName}! 🌊🎧\nنبرة صوتك فيها طاقة حماس عالية.. وبناءً على مؤشرات اللجان (${context.teamHealthScore}% جاهزية):\n• إحنا جاهزين لأي فعالية وتوزيع مدرجات ومسرح.\n• اللجان الـ 6 ماشية بانتظام ومعاك خطوة بخطوة.\nقولي حابب نركز على أنهي نقطة بالتحديد؟ 🚀`,
+      `يا مية أهلاً بالصوت الاسكندراني الجميل يا ${firstName}! 🎙️☕\nالريكورد واصل في وقته تمام.. نصيحتي الميدانية ليك:\n- راجع شيت الحضور ومسح الـ QR للفاعلية الميدانية.\n- قسّم الأدوار بين أعضاء لجنة ${myComm} عشان الضغط يتوزع.\nلو محتاج أي صياغة قرار أو تنظيم فعالية اؤمرني يا غالي! ✨`
     ];
     return {
       text: voiceResponses[Math.floor(Math.random() * voiceResponses.length)],
       source: 'semantic_engine',
-      confidence: 0.9
+      confidence: 0.92,
+      modelUsed: 'Egyptian Semantic Engine'
     };
   }
 
-  // Greetings & Friendly check-ins
-  if (/سلام|صباح|مساء|ازيك|عامل ايه|اهل[ا|ن]|مرحبا|هلا|هاي/.test(normalized)) {
+  // Greetings
+  if (/سلام|صباح|مساء|ازيك|عامل ايه|اهل[ا|ن]|مرحبا|هلا|هاي|يا شربيني/.test(normalized)) {
     const greetings = [
-      `يا مية أهلاً وسهلاً بيك يا ${firstName}! 🌟 نسمة بحر إسكندرية بتمسي عليك.. مؤشرات الفريق اليوم في قمة النشاط (${context.teamHealthScore}%)، وكل اللجان مستعدة. قولي، إيه الخطة العظمة اللي هننفذها سوا؟`,
-      `يا صباح ومساء الفل والعمل التطوعي المنضبط! ☕ أنا جاهز بكامل طاقتي ومعايا كل إحصائيات الفريق والمهام.. تؤمرني بإيه ننجزه النهاردة يا بطل؟ 🚀`,
-      `ألف مرحب يا ${firstName}! نورت شات العمليات.. إحنا هنا عشان نسهل كل خطوة في الميدان وندعم مسيرتك التطوعية بأعلى كفاءة! 💙`
+      `يا مية مسا وصباح الفل عليك يا ${firstName}! 🌟 نسمة بحر إسكندرية بتمسي عليك.. مؤشرات الفريق اليوم في قمة النشاط (${context.teamHealthScore}%)، وكل اللجان مستعدة بالتمام. قولي إيه الخطة العظمة اللي هننفذها سوا النهاردة؟ ☕💙`,
+      `يا هلا بيك يا ${firstName}! نورت شات العمليات.. أنا جاهز بكامل طاقتي ومعايا كل إحصائيات الفريق والمهام واللجان.. تؤمرني بإيه ننجزه ونرتبه سوا يا بطل؟ 🚀✨`,
+      `ألف مرحب يا ${firstName}! يومك جميل ومليان إنجازات تطوعية تشرف اتحاد طلاب جامعة الإسكندرية.. إيه الأخبار عندك في ${myComm}؟ 💙`
     ];
     return { text: greetings[Math.floor(Math.random() * greetings.length)], source: 'semantic_engine', confidence: 0.95 };
   }
 
-  // Task & Delegation
-  if (/مهم[ه|ت]|تكليف|اسناد|واجب|شغل|مسؤوليه/.test(normalized)) {
+  // Task & Assignment
+  if (/مهم[ه|ت]|تكليف|اسناد|واجب|شغل|مسؤوليه|تاسك/.test(normalized)) {
     return {
-      text: `بخصوص إدارة المهام والتكليفات يا ${firstName}: 📋\n1. وزّع المهام بوضوح وحدد (الموعد النهائي + المعايير المطلوبة).\n2. استخدم ميزة "التوصية الذكية للمهام" لاختيار أنسب متطوع حسب مهاراته في قاعدة البيانات.\n3. تابع التسليمات من خلال شيت المهام واعتمد النقاط فور الإنجاز لتحفيز الأبطال! 🏆`,
-      source: 'semantic_engine',
-      confidence: 0.92
-    };
-  }
-
-  // Event & Crowd Management
-  if (/تنظيم|حشود|مسرح|قاع[ه|ت]|ايفينت|فعالي[ه|ت]|مدرج|دخول|خروج/.test(normalized)) {
-    return {
-      text: `خطة «شربيني» الميدانية للتحكم بالحشود والفعاليات: 🎪\n1. قسم المتطوعين لـ 3 خطوط: (بوابة الاستقبال الخارجية، توجيه الممرات والمدرجات، ومنصة التشريفات).\n2. وفّر 2 متطوعين لحالات الطوارئ مع أجهزة لاسلكي أو نظام الـ SOS بالمنصة.\n3. استخدم كود QR السريع لتسجيل الحضور ومنع أي تكدس على الأبواب! ✨`,
+      text: `من عينيّا يا ${firstName}! 📋 بخصوص إدارة المهام والتكليفات:\n1. من صفحة "إدارة المهام"، اضغط على "إضافة وتخصيص مهمة جديدة".\n2. حدد اللجنة (${myComm}) واختر المتطوعين بالاسم أو كلف كل أعضاء اللجنة بنقرة واحدة.\n3. حدد الموعد النهائي ومكافأة الـ XP عشان تشجع الأبطال، والسيستم هيبعتلهم إشعار فوري على تليفوناتهم! 🏆🚀`,
       source: 'semantic_engine',
       confidence: 0.94
     };
   }
 
-  // Staffing / Database & Placement
-  if (/تسكين|نقل|لجن[ه|ت]|منصب|رئيس|نائب|هيد|صلاحي[ه|ت]|قاعده بيانات|داتا/.test(normalized)) {
+  // Events & Planning
+  if (/تنظيم|حشود|مسرح|قاع[ه|ت]|ايفينت|فعالي[ه|ت]|مدرج|دخول|خروج|جدول/.test(normalized)) {
     return {
-      text: `بخصوص التسكين والهيكل الإداري وقاعدة البيانات: 🏢\n• القيادة العليا تمتلك صلاحية النقل والتسكين وتعديل قاعدة البيانات بنقرة واحدة من لوحة التحكم ومخطط الهيكل التنظيمي.\n• كل متطوع يتم تسكينه في لجنة واحدة محددة بمسمى رسمي ورقم كود تطوعي (AU-xxx).\n• أي تعديل يتم حفظه ومزامنته فوراً في شيت الأعضاء، الهيكل، والتقييمات بدون أي تعارض! 👑`,
+      text: `خطة «شربيني» الميدانية للتحكم في الفعاليات والحشود: 🎪✨\n1. اضغط على اليوم اللي عايزه في التقويم الشهري، وهيتفتحلك نموذج إنشاء الفعالية بتاريخ اليوم ده فوراً.\n2. قسم المتطوعين لـ 3 فرق: (بوابة الاستقبال، توجيه المدرجات، ومنصة التشريفات).\n3. فعل جلسة الحضور بـ QR وخلي المتطوعين يسجلوا أول ما يوصلوا عشان تضمن التوثيق والانضباط! 📍`,
       source: 'semantic_engine',
       confidence: 0.95
+    };
+  }
+
+  // Staffing / Database / Roles
+  if (/تسكين|نقل|لجن[ه|ت]|منصب|رئيس|نائب|هيد|صلاحي[ه|ت]|قاعده بيانات|داتا|اكسيل|سحب/.test(normalized)) {
+    return {
+      text: `بخصوص التسكين وقاعدة البيانات والهيكل الإداري: 🏢👑\n• القيادة العليا تقدر تفتح "قاعدة البيانات والتسكين" من القائمة الجانبية وتعدل أي منصب أو لجنة أو رصيد نقاط لأي شخص.\n• تقدر تسحب كل بيانات الفريق في شيت إكسيل (.xlsx) بضغطة زرار واحدة من فوق.\n• أي تسكين بتعدله بيسمّع فوراً في شيت الأعضاء والهيكل والتقييمات بدون أي لخبطة! ✨`,
+      source: 'semantic_engine',
+      confidence: 0.96
     };
   }
 
   // Evaluation & Points
   if (/تقييم|نقط|نقاط|xp|درج[ه|ت]|مستوي|وسام|لوح[ه|ت] شرف/.test(normalized)) {
     return {
-      text: `منظومة التقييمات والنقاط في المنصة: 🎯\n• تقييم الأعضاء يتم بناءً على (الالتزام الميداني، إنجاز المهام، روح الفريق، الحضور بـ QR).\n• رؤساء ونواب اللجان يخضعون لتقييم قيادي 360° من الإدارة العليا وتظهر نتائجهم في لوحة شرف الهيدات.\n• نقاط الـ XP للأعضاء تزيد تلقائياً مع كل مهمة معتمدة وحضور فعالية! 🌟`,
-      source: 'semantic_engine',
-      confidence: 0.93
-    };
-  }
-
-  // Conflict / Complaints / SOS
-  if (/خلاف|مشكل[ه|ت]|زعل|شكو[ي|ه]|طوارئ|ازم[ه|ت]|تظلم|خناق[ه|ت]/.test(normalized)) {
-    return {
-      text: `القاعدة الذهبية في إدارة الأزمات والنزاعات: 🤝\n1. اسمع الطرفين في جلسة هادئة بعيداً عن صخب الفعالية.\n2. ركز على مصلحة الفريق وهدف الاتحاد وذكّرهم بروح التطوع.\n3. في حالات الأزمات الحادة، استخدم زرار بلاغ طوارئ SOS لتوجيه التدخل الميداني فوراً! 🚨`,
+      text: `منظومة النقاط والتقييمات التلقائية: 🎯🌟\n• كل مهمة بيعتمدها الهيد بتضيف نقاط XP للمتطوع وترفع مستواه في لوحة الشرف.\n• تسجيل الحضور بـ QR في الفعاليات بيمنح المتطوع نقاط تميز ميدانية.\n• القيادة العليا عندها صلاحية تعديل نقاط أي شخص مباشرة من لوحة قاعدة البيانات! 🏆`,
       source: 'semantic_engine',
       confidence: 0.94
     };
   }
 
-  // Stress & Fatigue Relief
-  if (/تعب|ضغط|ارهاق|زهقت|مش قادر|مخنوق|مضغوط/.test(normalized)) {
+  // Stress relief & encouragement
+  if (/تعب|ضغط|ارهاق|زهقت|مش قادر|مخنوق|مضغوط|تعبان/.test(normalized)) {
     return {
-      text: `حقك يا ${firstName}، الميدان والمسؤولية مش سهلين.. ☕💙\nبس افتكر دايماً:\n• التعب بيروح، وفرحة نجاح الفعالية وشهادات التكريم بتفضل في الذاكرة.\n• خد لك بريك 15 دقيقة مع كوباية شاي بالنعناع الاسكندراني ووزع باقي المهام على زملائك في ${context.currentUser.committeeName || 'اللجنة'}.\nإحنا كلنا فخورين بتعبك والاتحاد في ضهرك دايماً! 🌟`,
+      text: `حقك يا ${firstName} يا حبيبي، شغل الميدان والمسؤولية كبار ومش سهلين.. ☕💙\nبس افتكر دايماً إن تعبك ده بيصنع أثر حقيقي وذكريات فخر لا تُنسى في اتحاد طلاب جامعة الإسكندرية!\nخد لك بريك 10 دقايق، اشرب كوباية شاي بالنعناع الاسكندراني، ووزع باقي المهام على زملائك في ${myComm}.. إحنا كلنا فخورين بيك يا بطل! 🌟`,
       source: 'semantic_engine',
       confidence: 0.95
     };
   }
 
-  // Default Intelligent Adaptive Response
+  // Default Egyptian Smart Fallback
   return {
-    text: `فهمت قصدك تماماً يا ${firstName}! 🌟\nبخصوص "${query}"، نصيحتي الميدانية المباشرة إننا نحدد المطلوب بوضوح، ونستغل أدوات المنظومة في تبويب (${isHighLead ? 'الهيكل الإداري وقاعدة البيانات' : 'المهام واللجان'}) لتنفيذه وتوثيقه بأعلى دقة.\nلو تحب أصيغلك خطة أو رسالة رسمية أو نوزع المهام على اللجان، اديني الإشارة وأنا جاهز بالتمام والكمال! 🚀`,
+    text: `فهمتك تماماً يا ${firstName} يا غالي! 🌟\nبخصوص "${query}"، نصيحتي الميدانية إننا ننسق ده فوراً من خلال المنظومة، ونستغل الأدوات في تبويب (${isHighLead ? 'قاعدة البيانات والتسكين والتقارير' : 'المهام والفعاليات'}) لتنفيذه وتوثيقه بأعلى دقة.\nقولي لو حابب أصيغلك خطة أو نجهز تكليفات معينة وأنا معاك في ضهرك ثانية بثانية! 🚀💙`,
     source: 'semantic_engine',
-    confidence: 0.88
+    confidence: 0.9
   };
 }

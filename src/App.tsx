@@ -68,6 +68,8 @@ const MainAppContent: React.FC = () => {
   const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
 
   const [selectedEventForEdit, setSelectedEventForEdit] = useState<EventEntity | null>(null);
+  const [selectedEventForDuplicate, setSelectedEventForDuplicate] = useState<EventEntity | null>(null);
+  const [selectedEventInitialDate, setSelectedEventInitialDate] = useState<string | undefined>(undefined);
   const [selectedMemberIdForProfile, setSelectedMemberIdForProfile] = useState<string | null>(null);
   const [selectedMemberForEdit, setSelectedMemberForEdit] = useState<Member | null>(null);
   const [selectedMemberForTransfer, setSelectedMemberForTransfer] = useState<Member | null>(null);
@@ -200,9 +202,23 @@ const MainAppContent: React.FC = () => {
 
               {activeTab === 'events' && (
                 <EventsList
-                  onOpenNewEvent={() => setIsNewEventOpen(true)}
+                  onOpenNewEvent={(initialDate) => {
+                    setSelectedEventInitialDate(initialDate);
+                    setSelectedEventForDuplicate(null);
+                    setSelectedEventForEdit(null);
+                    setIsNewEventOpen(true);
+                  }}
                   onOpenLiveCommand={() => setActiveTab('live-command')}
-                  onEditEvent={(ev) => setSelectedEventForEdit(ev)}
+                  onEditEvent={(ev) => {
+                    setSelectedEventForEdit(ev);
+                    setSelectedEventForDuplicate(null);
+                  }}
+                  onDuplicateEvent={(ev) => {
+                    setSelectedEventForDuplicate(ev);
+                    setSelectedEventForEdit(null);
+                    setSelectedEventInitialDate(undefined);
+                    setIsNewEventOpen(true);
+                  }}
                 />
               )}
 
@@ -269,11 +285,15 @@ const MainAppContent: React.FC = () => {
       <AIAssistantModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
       <TaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
       <EventModal 
-        isOpen={isNewEventOpen || !!selectedEventForEdit} 
+        isOpen={isNewEventOpen || !!selectedEventForEdit || !!selectedEventForDuplicate} 
         eventToEdit={selectedEventForEdit}
+        eventToDuplicate={selectedEventForDuplicate}
+        initialDate={selectedEventInitialDate}
         onClose={() => {
           setIsNewEventOpen(false);
           setSelectedEventForEdit(null);
+          setSelectedEventForDuplicate(null);
+          setSelectedEventInitialDate(undefined);
         }} 
       />
       <CommitteeModal isOpen={isNewCommOpen} onClose={() => setIsNewCommOpen(false)} />

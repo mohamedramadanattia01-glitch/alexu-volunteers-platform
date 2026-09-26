@@ -448,7 +448,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
 
                           <h5 className="text-xs font-bold text-white mb-1 leading-snug">{n.title}</h5>
-                          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-2 mb-2">{n.message}</p>
+                          <p className="text-[11px] text-slate-300 leading-relaxed mb-2">{n.message}</p>
+
+                          {/* Target Name and Sender info if provided */}
+                          {(n.targetName || n.senderName) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] text-slate-400 bg-black/30 p-1.5 rounded-lg border border-white/5">
+                              {n.targetName && (
+                                <span className="text-sky-300 font-semibold">
+                                  🎯 المستهدف: <strong className="text-white">{n.targetName}</strong>
+                                </span>
+                              )}
+                              {n.senderName && (
+                                <>
+                                  <span className="text-slate-600">•</span>
+                                  <span>بواسطة: {n.senderName}</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Required Action highlight */}
+                          {n.requiredAction && (
+                            <div className="mb-2 p-2 rounded-lg bg-blue-950/60 border border-blue-500/30 text-[10px] text-blue-200 font-medium flex items-center gap-1.5">
+                              <span className="text-amber-400 font-bold">⚡</span>
+                              <span>{n.requiredAction}</span>
+                            </div>
+                          )}
 
                           {n.linkTab && (
                             <div className="flex items-center justify-between pt-1.5 border-t border-white/5 text-[10px]">
@@ -458,7 +483,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   if (n.linkTab) setActiveTab(n.linkTab);
                                   setShowNotifMenu(false);
                                 }}
-                                className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer transition-all hover:translate-x-[-2px]"
+                                className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer transition-all hover:translate-x-[-2px] bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-md border border-blue-500/20"
                               >
                                 <span>عرض التفاصيل والتنفيذ ↗</span>
                               </button>

@@ -1779,16 +1779,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTasks(prev => [newTask, ...prev]);
 
     newTask.assignedToMemberIds.forEach(mId => {
+      const targetM = members.find(m => m.id === mId);
       const notif: SystemNotification = {
         id: `notif-${Date.now()}-${mId}`,
-        title: '📋 تم إسناد مهمة جديدة إليك',
-        message: `${newTask.title} (الموعد النهائي: ${newTask.deadline})`,
+        title: '📋 تكليف بمهمة ميدانية جديدة',
+        message: `تم تكليفك بمهمة: "${newTask.title}" (${newTask.committeeName}) - الموعد النهائي: ${newTask.deadline}`,
         type: 'task',
+        targetName: targetM ? targetM.fullName : 'عضو مكلف',
+        requiredAction: 'المطلوب: مراجعة تفاصيل المهمة وتأكيد الالتزام أو الاعتذار وبدء التنفيذ',
+        badgeText: `${newTask.priority === 'Critical' ? '🔥 حرجة' : newTask.priority === 'High' ? '⚡ هامة' : '📌 عادية'} • +${newTask.xpReward} XP`,
+        targetCommitteeId: newTask.committeeId,
+        targetMemberIds: newTask.assignedToMemberIds,
+        senderName: currentUser.fullName,
         read: false,
         createdAt: 'الآن',
         linkTab: 'tasks'
       };
       setNotifications(prev => [notif, ...prev]);
+    });
+
+    sendSystemPushNotification({
+      title: '📋 تكليف بمهمة جديدة',
+      body: `تم إسناد مهمة "${newTask.title}" إليك بواسطة ${currentUser.fullName}`,
+      type: 'task'
     });
 
     playSound('task');
@@ -1975,6 +1988,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setEvents(prev => [newEvent, ...prev]);
+    
+    // Broadcast notification for new event to all members
+    const eventNotif: SystemNotification = {
+      id: `notif-event-${Date.now()}`,
+      title: `📅 تم جدولة فعالية جديدة: "${newEvent.name}"`,
+      message: `التاريخ: ${newEvent.date} في ${newEvent.location} (${newEvent.startTime} - ${newEvent.endTime})`,
+      type: 'achievement',
+      targetName: 'جميع أعضاء ولجان المتطوعين',
+      requiredAction: 'المطلوب: فتح الفعالية وتأكيد الحضور (RSVP) أو تقديم اعتذار مسبق',
+      badgeText: `حصة ${newEvent.expectedMembersCount} متطوع`,
+      senderName: currentUser.fullName,
+      read: false,
+      createdAt: 'الآن',
+      linkTab: 'events'
+    };
+    setNotifications(prev => [eventNotif, ...prev]);
+
+    sendSystemPushNotification({
+      title: `📅 فعالية جديدة: ${newEvent.name}`,
+      body: `بتاريخ ${newEvent.date} في ${newEvent.location} - يرجى تسجيل تأكيد الحضور`,
+      type: 'event'
+    });
+
     addAuditLog('إنشاء فعالية جديدة', newEvent.name, `الموقع: ${newEvent.location} - الموعد: ${newEvent.date}`);
     playSound('task');
   };
@@ -2750,12 +2786,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           title: notifTitle,
           message: notifMsg,
           type: 'announcement',
+          targetName: newAnn.targetType === 'committee' ? (newAnn.targetCommitteeName || 'أعضاء اللجنة') : 'كافة المتطوعين والإدارة',
+          requiredAction: newAnn.poll ? 'المطلوب: المشاركة في الاستطلاع وإبداء الرأي' : 'المطلوب: الاطلاع على القرار والالتزام بالتعليمات',
+          senderName: newAnn.authorName,
+          badgeText: newAnn.targetType === 'committee' ? 'خاص باللجنة' : 'تعميم عام',
           read: false,
           createdAt: 'الآن',
           linkTab: 'announcements'
         };
         setNotifications(prev => [notif, ...prev]);
       }
+    });
+
+    sendSystemPushNotification({
+      title: notifTitle,
+      body: `${newAnn.title} (${newAnn.authorName})`,
+      type: 'announcement'
     });
 
     playSound('announcement');
