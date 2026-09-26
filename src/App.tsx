@@ -40,6 +40,7 @@ import { DocumentsView } from './components/documents/DocumentsView';
 import { AdminAuditRBAC } from './components/admin/AdminAuditRBAC';
 import { ReportsView } from './components/reports/ReportsView';
 import { AppSettingsModal } from './components/settings/AppSettingsModal';
+import { DatabaseMasterModal } from './components/database/DatabaseMasterModal';
 import { CelebrationOverlay } from './components/common/CelebrationOverlay';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PendingApprovalsModal } from './components/members/PendingApprovalsModal';
@@ -64,6 +65,7 @@ const MainAppContent: React.FC = () => {
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [isPendingApprovalsOpen, setIsPendingApprovalsOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
 
   const [selectedEventForEdit, setSelectedEventForEdit] = useState<EventEntity | null>(null);
   const [selectedMemberIdForProfile, setSelectedMemberIdForProfile] = useState<string | null>(null);
@@ -114,6 +116,7 @@ const MainAppContent: React.FC = () => {
         onOpenComplaintModal={() => setIsComplaintModalOpen(true)}
         onOpenApprovalsModal={() => setIsPendingApprovalsOpen(true)}
         onOpenInstallModal={() => setIsInstallModalOpen(true)}
+        onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
       />
 
       {/* Main Layout Body */}
@@ -170,6 +173,7 @@ const MainAppContent: React.FC = () => {
                   onOpenAddMember={() => setIsAddMemberOpen(true)}
                   onOpenTransferModal={(m) => setSelectedMemberForTransfer(m)}
                   onOpenImportModal={() => setIsImportMembersOpen(true)}
+                  onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
                 />
               )}
 
@@ -277,6 +281,7 @@ const MainAppContent: React.FC = () => {
       <AddMemberModal isOpen={isAddMemberOpen} onClose={() => setIsAddMemberOpen(false)} />
       <ImportMembersModal isOpen={isImportMembersOpen} onClose={() => setIsImportMembersOpen(false)} />
       <AppSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <DatabaseMasterModal isOpen={isDatabaseModalOpen} onClose={() => setIsDatabaseModalOpen(false)} />
       <ComplaintModal isOpen={isComplaintModalOpen} onClose={() => setIsComplaintModalOpen(false)} />
       <PendingApprovalsModal isOpen={isPendingApprovalsOpen} onClose={() => setIsPendingApprovalsOpen(false)} />
 

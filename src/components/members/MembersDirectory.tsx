@@ -6,7 +6,7 @@ import {
   ChevronLeft, Eye, ArrowRightLeft, AlertTriangle, 
   Download, FileSpreadsheet, ChevronDown, Check,
   Upload, Trash2, ShieldAlert, UserPlus, Phone, Ban, RotateCcw,
-  Printer, Table, Grid, Sparkles, Mail, Lock
+  Printer, Table, Grid, Sparkles, Mail, Lock, Database
 } from 'lucide-react';
 import { exportMembersToExcel } from '../../utils/excelExport';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
@@ -17,13 +17,15 @@ interface MembersDirectoryProps {
   onOpenAddMember: () => void;
   onOpenTransferModal: (member: Member) => void;
   onOpenImportModal?: () => void;
+  onOpenDatabaseModal?: () => void;
 }
 
 export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
   onSelectMember,
   onOpenAddMember,
   onOpenTransferModal,
-  onOpenImportModal
+  onOpenImportModal,
+  onOpenDatabaseModal
 }) => {
   const { 
     members, committees, currentUser, isHighLeadership, 
@@ -246,6 +248,17 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                 >
                   <Upload className="w-3.5 h-3.5 text-blue-400" />
                   <span>استيراد Excel</span>
+                </button>
+              )}
+
+              {isHighLeadership && onOpenDatabaseModal && (
+                <button
+                  onClick={onOpenDatabaseModal}
+                  className="px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs font-bold text-emerald-300 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                  title="التحكم الشامل في قاعدة البيانات والتسكين والمناصب"
+                >
+                  <Database className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>تحكم قاعدة البيانات 🗄️</span>
                 </button>
               )}
 

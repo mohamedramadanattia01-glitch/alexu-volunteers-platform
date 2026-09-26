@@ -309,137 +309,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(`${STORAGE_KEY}_MEMBERS`);
     let list: Member[] = saved ? JSON.parse(saved) : initialMembers;
 
-    // Ensure all mandatory core leadership accounts exist
+    // Ensure all mandatory core leadership accounts exist if not in list
     initialMembers.forEach(coreMember => {
-      const idx = list.findIndex(m => m.id === coreMember.id || m.fullName === coreMember.fullName);
+      const idx = list.findIndex(m => m.id === coreMember.id);
       if (idx === -1) {
         list.push(coreMember);
       }
     });
 
+    // Zero points for leadership & heads
     list = list.map(m => {
-      let role = m.role;
-      let commId = m.currentCommitteeId;
-      let commName = m.currentCommitteeName;
-      let pos = m.position;
-
-      // 1. Youssef Mohamed -> Supreme Leadership (Team President / Super Admin)
-      if (
-        m.fullName?.includes('يوسف محمد') || 
-        m.fullName?.toLowerCase().includes('youssef') ||
-        m.id === 'user-president-youssef-mohamed' ||
-        pos?.includes('رئيس فريق') ||
-        pos?.includes('رئيس الفريق')
-      ) {
-        role = 'super_admin';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      // 2. Osama Mamdouh -> Supreme Leadership (Advisor)
-      else if (m.fullName?.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
-        role = 'advisor';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      // 3. Malak Mohamed -> Supreme Leadership (Vice President)
-      else if (m.fullName?.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
-        role = 'vice_president';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      // 4. Mohamed Ramadan -> Supreme Leadership (Advisor)
-      else if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName?.includes('محمد رمضان')) {
-        role = 'advisor';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      // 5. Rwan Abdallah Abdelsalam -> Head of HR Committee
-      else if (
-        m.fullName?.toLowerCase().includes('rwan') || 
-        m.fullName?.toLowerCase().includes('rawan') || 
-        m.fullName?.includes('روان') ||
-        m.id === 'user-head-rwan-abdallah'
-      ) {
-        role = 'head';
-        commId = 'comm-hr';
-        commName = 'لجنة الموارد البشرية';
-        pos = 'رئيس لجنة الموارد البشرية';
-      }
-      // 6. Any general advisor or vice president or supreme leadership
-      else if (role === 'advisor' || pos?.includes('مستشار')) {
-        role = 'advisor';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = pos || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      else if (role === 'vice_president' || pos?.includes('نائب رئيس الفريق') || pos?.includes('نائب رئيس فريق')) {
-        role = 'vice_president';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = pos || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      else if (role === 'super_admin' || pos?.includes('رئيس الفريق') || pos?.includes('رئيس فريق')) {
-        role = 'super_admin';
-        commId = 'comm-leadership';
-        commName = 'القيادة العليا والمجلس الاستشاري';
-        pos = pos || 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-      }
-      // 6. Automatic Committee & Role Normalization for Specialized Operational Heads/Vice Heads
-      else if (role === 'head' || role === 'vice_head' || pos?.includes('رئيس') || pos?.includes('هيد') || pos?.includes('نائب')) {
-        if (pos?.includes('نائب')) {
-          role = 'vice_head';
-        } else if (pos?.includes('رئيس') || pos?.includes('هيد')) {
-          role = 'head';
-        }
-
-        if (pos?.includes('التنظيم') || commId === 'comm-org') {
-          commId = 'comm-org';
-          commName = 'لجنة التنظيم';
-          if (role === 'head') pos = 'رئيس لجنة التنظيم';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التنظيم';
-        } else if (pos?.includes('الموارد البشرية') || pos?.includes('HR') || commId === 'comm-hr') {
-          commId = 'comm-hr';
-          commName = 'لجنة الموارد البشرية';
-          if (role === 'head') pos = 'رئيس لجنة الموارد البشرية';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة الموارد البشرية';
-        } else if (pos?.includes('المونتاج') || commId === 'comm-montage') {
-          commId = 'comm-montage';
-          commName = 'لجنة المونتاج';
-          if (role === 'head') pos = 'رئيس لجنة المونتاج';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة المونتاج';
-        } else if (pos?.includes('التصوير') || pos?.includes('الإعلام') || pos?.includes('فيديوغرافي') || commId === 'comm-media') {
-          commId = 'comm-media';
-          commName = 'لجنة التصوير الفوتوغرافي والفيديوغرافي';
-          if (role === 'head') pos = 'رئيس لجنة التصوير الفوتوغرافي والفيديوغرافي';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التصوير الفوتوغرافي والفيديوغرافي';
-        } else if (pos?.includes('المحتوى') || pos?.includes('صناعة المحتوى') || commId === 'comm-content') {
-          commId = 'comm-content';
-          commName = 'لجنة صناعة المحتوى';
-          if (role === 'head') pos = 'رئيس لجنة صناعة المحتوى';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة صناعة المحتوى';
-        } else if (pos?.includes('التصميم') || commId === 'comm-design') {
-          commId = 'comm-design';
-          commName = 'لجنة التصميم';
-          if (role === 'head') pos = 'رئيس لجنة التصميم';
-          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التصميم';
-        }
-      }
-
-      // 7. Strict 0 XP and Level 1 for all Heads, Vice Heads, and Leadership members
-      const isLeadOrHead = isHighLeadershipRole(role) || role === 'head' || role === 'vice_head' || commId === 'comm-leadership';
+      const isLeadOrHead = isHighLeadershipRole(m.role) || m.role === 'head' || m.role === 'vice_head' || m.currentCommitteeId === 'comm-leadership';
       const cleanPoints = isLeadOrHead ? 0 : (m.points || 0);
       const cleanLevel = isLeadOrHead ? 1 : (m.level || 1);
 
       return {
         ...m,
-        role,
-        currentCommitteeId: commId,
-        currentCommitteeName: commName,
-        position: pos,
         points: cleanPoints,
         level: cleanLevel
       };
@@ -1273,12 +1158,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     triggerGamificationCelebration(`📥 تم استيراد ${fullMembers.length} عضو بنجاح!`, 100);
   };
 
-  // Update Member
+  // Comprehensive Database-Level Member Update
   const updateMember = (id: string, updates: Partial<Member>) => {
+    let savedMember: Member | null = null;
+    let oldCommId = '';
+    let newCommId = '';
+
     setMembers(prev => prev.map(m => {
       if (m.id !== id) return m;
+      oldCommId = m.currentCommitteeId;
+      newCommId = updates.currentCommitteeId !== undefined ? updates.currentCommitteeId : m.currentCommitteeId;
+
       const combined = { ...m, ...updates };
-      if (updates.nationalId !== undefined || updates.birthDate !== undefined) {
+
+      if (updates.nationalId !== undefined || updates.birthDate !== undefined || updates.age !== undefined) {
         const bData = getMemberExactBirthData({
           nationalId: combined.nationalId,
           birthDate: combined.birthDate,
@@ -1287,9 +1180,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         combined.birthDate = bData.birthDate;
         combined.age = bData.currentAge;
       }
+
+      // If moved to leadership or high leadership role, keep 0 XP
+      const isLead = isHighLeadershipRole(combined.role) || combined.currentCommitteeId === 'comm-leadership';
+      if (isLead) {
+        combined.points = 0;
+        combined.level = 1;
+      }
+
+      savedMember = combined;
       return combined;
     }));
-    addAuditLog('تعديل بيانات عضو', `ID: ${id}`, 'تم تحديث ملف العضو');
+
+    // Update committee counts and leaders if committee or role changed
+    if (oldCommId && newCommId && oldCommId !== newCommId) {
+      setCommittees(prev => prev.map(c => {
+        if (c.id === oldCommId) {
+          const nextCount = Math.max(0, c.memberCount - 1);
+          return {
+            ...c,
+            memberCount: nextCount,
+            headId: c.headId === id ? '' : c.headId,
+            headName: c.headId === id ? 'لم يحدد' : c.headName,
+            viceId: c.viceId === id ? '' : c.viceId,
+            viceName: c.viceId === id ? 'لم يحدد' : c.viceName
+          };
+        }
+        if (c.id === newCommId) {
+          return {
+            ...c,
+            memberCount: c.memberCount + 1,
+            headId: updates.role === 'head' ? id : c.headId,
+            headName: updates.role === 'head' && savedMember ? (savedMember as Member).fullName : c.headName,
+            viceId: updates.role === 'vice_head' ? id : c.viceId,
+            viceName: updates.role === 'vice_head' && savedMember ? (savedMember as Member).fullName : c.viceName
+          };
+        }
+        return c;
+      }));
+    }
+
+    addAuditLog('تعديل وحفظ بيانات العضو في قاعدة البيانات', savedMember ? (savedMember as Member).fullName : `ID: ${id}`, `تم حفظ التعديلات بواسطة ${currentUser.fullName}`);
+    showNotification('success', `تم حفظ وتحديث بيانات ${savedMember ? (savedMember as Member).fullName : 'العضو'} بنجاح ✓`);
+    playSound('task');
+
+    if (savedMember) {
+      SupabaseService.upsertMember(savedMember).catch(e => console.warn('Supabase updateMember error:', e));
+    }
   };
 
   // Ban Member & Blacklist (Permanent Access Revocation)
@@ -1608,20 +1545,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (assignedRole === 'vice_head') {
           updatedComm.viceId = targetMember.id;
           updatedComm.viceName = targetMember.fullName;
-        } else if (c.headId === memberId) {
-          updatedComm.headId = '';
-          updatedComm.headName = 'لم يحدد';
-        } else if (c.viceId === memberId) {
-          updatedComm.viceId = '';
-          updatedComm.viceName = 'لم يحدد';
         }
       }
+
+      // Update member count
+      let count = updatedComm.memberCount || 0;
+      if (c.id === oldCommId && c.id !== newCommitteeId) {
+        count = Math.max(0, count - 1);
+      }
+      if (c.id === newCommitteeId && c.id !== oldCommId) {
+        count = count + 1;
+      }
+      updatedComm.memberCount = count;
 
       return updatedComm;
     }));
 
     addAuditLog('نقل وتسكين عضو بين اللجان والإدارة العليا', targetMember.fullName, `تم النقل إلى ${targetComm.name} - المنصب: ${assignedPosition} - السبب: ${reason}`);
     showNotification('success', `تم نقل وتسكين ${targetMember.fullName} في ${targetComm.name} (${assignedPosition}) بنجاح ✓`);
+    playSound('task');
+
+    const finalTransferredMember: Member = {
+      ...targetMember,
+      currentCommitteeId: newCommitteeId,
+      currentCommitteeName: targetComm.name,
+      role: assignedRole,
+      position: assignedPosition,
+      volunteerId: newVolId,
+      points: isLeadershipOrHead ? 0 : targetMember.points,
+      level: isLeadershipOrHead ? 1 : targetMember.level,
+    };
+    SupabaseService.upsertMember(finalTransferredMember).catch(e => console.warn('Supabase transfer member error:', e));
   };
 
   // Dedicated Quick Placement Helpers from Org Chart & Committees

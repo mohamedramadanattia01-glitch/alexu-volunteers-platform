@@ -4,7 +4,7 @@ import {
   Bell, AlertTriangle, CheckCircle, CheckCircle2,
   Sparkles, LogOut, X, Trash2,
   Sliders, MessageSquare, User,
-  UserCheck, Smartphone, BellRing
+  UserCheck, Smartphone, BellRing, Database
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -15,6 +15,7 @@ interface NavbarProps {
   onOpenComplaintModal: () => void;
   onOpenApprovalsModal: () => void;
   onOpenInstallModal?: () => void;
+  onOpenDatabaseModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -24,7 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSettings,
   onOpenComplaintModal,
   onOpenApprovalsModal,
-  onOpenInstallModal
+  onOpenInstallModal,
+  onOpenDatabaseModal
 }) => {
   const { 
     currentUser, 
@@ -151,6 +153,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline">شربيني AI</span>
           </button>
 
+          {/* Database Master Console Quick Button for Leadership */}
+          {isHighLeadership && onOpenDatabaseModal && (
+            <button
+              onClick={onOpenDatabaseModal}
+              title="لوحة التحكم الشاملة في قاعدة البيانات والتسكين والمناصب"
+              className="shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs font-bold text-emerald-300 transition-all cursor-pointer shadow-sm shadow-emerald-500/10 hover:scale-105"
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden md:inline">قاعدة البيانات 🗄️</span>
+            </button>
+          )}
+
           {/* Pending Join Requests for Leadership */}
           {(isHighLeadership || currentUser.role === 'hr_admin') && (
             <button
@@ -207,6 +221,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Left Side: Settings + Notifications + Persona Switcher + Logout */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           
+          {/* Database Master Console Trigger (for High Leadership) */}
+          {isHighLeadership && onOpenDatabaseModal && (
+            <button
+              onClick={onOpenDatabaseModal}
+              title="لوحة التحكم الشاملة في قاعدة البيانات والتسكين والمناصب"
+              className="p-1.5 sm:p-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 hover:text-white transition-all cursor-pointer shadow-sm"
+            >
+              <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+            </button>
+          )}
+
           {/* Settings Trigger (Restricted to High Leadership) */}
           {isHighLeadership && (
             <button
