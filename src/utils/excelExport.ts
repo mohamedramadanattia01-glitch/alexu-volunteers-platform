@@ -1,7 +1,8 @@
 import * as XLSX from 'xlsx';
 import { 
   AttendanceRecord, Member, Complaint, MemberEvaluationRecord, 
-  HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig 
+  HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig,
+  AttendanceSession
 } from '../types';
 
 /**
@@ -518,4 +519,86 @@ export const exportPostEventDailyReportToExcel = (
   const cleanEventName = event.name.replace(/[\s\/:*?"<>|]+/g, '_');
   const fileName = `التقرير_اليومي_الختامي_${cleanEventName}_${event.date}`;
   downloadExcelWorkbook(aoaData, fileName, 'التقرير اليومي الختامي');
+};
+
+/**
+ * 10. Export Daily Event / Session Dedicated Attendance Sheet to Excel (.xlsx)
+ * Links attendees directly with their full member details (National ID, College, Committee, Role, GPS, Time).
+ */
+export const exportDailySessionAttendanceToExcel = (
+  session: AttendanceSession | null,
+  event: EventEntity | null,
+  records: AttendanceRecord[],
+  members: Member[],
+  dateStr: string = new Date().toISOString().slice(0, 10)
+) => {
+  const headers = [
+    'الرقم التطوعي',
+    'الاسم الكامل',
+    'الرقم القومي',
+    'الكلية / المعهد',
+    'الفرقة الدراسية',
+    'رقم الواتساب / الهاتف',
+    'اللجنة التخصصية',
+    'المسمى التنظيمي / الدور',
+    'حالة الحضور',
+    'وقت تسجيل الحضور (Check-in)',
+    'وقت تسجيل الانصراف (Check-out)',
+    'المدة الميدانية',
+    'الموقع الجغرافي (GPS)',
+    'إحداثيات الموقع (Lat, Lng)',
+    'دقة الموقع (متر)',
+    'الفعالية المرتبطة',
+    'عنوان الجلسة',
+    'تاريخ التسجيل',
+    'التقييم اليومي (/30)',
+    'ملاحظات المقيّم'
+  ];
+
+  const rows = records.map(r => {
+    const mem = members.find(m => m.id === r.memberId);
+    const gps = r.gpsLocation;
+    const lat = gps ? (gps.lat ?? gps.latitude ?? 0) : 0;
+    const lng = gps ? (gps.lng ?? gps.longitude ?? 0) : 0;
+
+    return [
+      r.memberVolunteerId || mem?.volunteerId || r.memberId,
+      r.memberName || mem?.fullName || 'متطوع',
+      mem?.nationalId || '—',
+      mem?.college || 'جامعة الإسكندرية',
+      mem?.academicYear || '—',
+      mem?.whatsappNumber || mem?.phone || '—',
+      r.committeeName || mem?.currentCommitteeName || '—',
+      mem?.position || mem?.role || 'عضو متطوع',
+      r.status === 'Present' ? 'حاضر بالموعد ✓' : r.status === 'Late' ? 'متأخر' : r.status === 'Excused' ? 'غياب بعذر' : 'غائب',
+      r.checkInTime || '—',
+      r.checkOutTime || '—',
+      r.durationFormatted || (r.durationMinutes ? `${(r.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
+      gps?.address || 'جامعة الإسكندرية (ميداني)',
+      lat && lng ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : '—',
+      gps?.accuracy ? `±${Math.round(gps.accuracy)}م` : '—',
+      r.eventName || event?.name || session?.eventName || 'جلسة مباشرة',
+      r.sessionTitle || session?.title || 'حضور الميدان',
+      r.date || dateStr,
+      r.dailyEvaluation?.totalDailyScore ? `${r.dailyEvaluation.totalDailyScore}/30` : '—',
+      r.dailyEvaluation?.notes || '—'
+    ];
+  });
+
+  const eventTitle = event?.name || session?.eventName || session?.title || 'الميدان';
+  const cleanTitle = eventTitle.replace(/[\s\/:*?"<>|]+/g, '_');
+  const fileName = `شيت_حضور_اليوم_${cleanTitle}_${dateStr}`;
+
+  const aoaData = [
+    ['كشف الحضور الرسمي الميداني واليومي — اتحاد طلاب جامعة الإسكندرية'],
+    [`الفعالية / المناسبة: ${eventTitle}`],
+    [`تاريخ اليوم: ${dateStr}`],
+    [`اللجنة / الفئة: ${session?.committeeName || 'جميع اللجان'}`],
+    [`إجمالي المسجلين الحاضرين في هذا الشيت: ${records.length} متطوع`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  downloadExcelWorkbook(aoaData, fileName, 'شيت الحضور اليومي');
 };

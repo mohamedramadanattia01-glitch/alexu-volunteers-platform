@@ -24,26 +24,36 @@ export interface ParseResult {
  */
 export function resolveCommittee(text: string): { id: string; name: string } {
   const clean = (text || '').trim().toLowerCase();
-  if (clean.includes('تنظيم') || clean.includes('org')) {
+  if (
+    clean.includes('رئيس فريق') || 
+    clean.includes('نائب رئيس فريق') || 
+    clean.includes('نائب رئيس المتطوعين') || 
+    clean.includes('مستشار') || 
+    clean.includes('قيادة') || 
+    clean.includes('إدارة عليا') ||
+    clean.includes('ادارة عليا') ||
+    clean.includes('leadership') || 
+    clean.includes('استشاري')
+  ) {
+    return { id: 'comm-leadership', name: 'القيادة العليا والمجلس الاستشاري' };
+  }
+  if (clean.includes('تنظيم') || clean.includes('org') || clean.includes('oc')) {
     return { id: 'comm-org', name: 'لجنة التنظيم' };
   }
   if (clean.includes('موارد') || clean.includes('hr') || clean.includes('بشرية')) {
     return { id: 'comm-hr', name: 'لجنة الموارد البشرية' };
   }
-  if (clean.includes('فوتو') || clean.includes('تصوير') || clean.includes('photo')) {
-    return { id: 'comm-photo', name: 'لجنة التصوير الفوتوغرافي والفيديوغرافي' };
+  if (clean.includes('فوتو') || clean.includes('تصوير') || clean.includes('photo') || clean.includes('media')) {
+    return { id: 'comm-media', name: 'لجنة التصوير الفوتوغرافي والفيديوغرافي' };
   }
   if (clean.includes('مونتاج') || clean.includes('فيديو') || clean.includes('video') || clean.includes('montage')) {
-    return { id: 'comm-montage', name: 'لجنة المونتاج والفيديو' };
+    return { id: 'comm-montage', name: 'لجنة المونتاج' };
   }
   if (clean.includes('محتوى') || clean.includes('كتابة') || clean.includes('content') || clean.includes('صناعة')) {
     return { id: 'comm-content', name: 'لجنة صناعة المحتوى' };
   }
   if (clean.includes('تصميم') || clean.includes('جرافيك') || clean.includes('design') || clean.includes('ديزاين')) {
-    return { id: 'comm-design', name: 'لجنة التصميم والجرافيك' };
-  }
-  if (clean.includes('رئيس') || clean.includes('مستشار') || clean.includes('نائب') || clean.includes('قيادة') || clean.includes('leadership')) {
-    return { id: 'comm-leadership', name: 'القيادة العليا للفريق' };
+    return { id: 'comm-design', name: 'لجنة التصميم' };
   }
   return { id: 'comm-org', name: 'لجنة التنظيم' };
 }
@@ -58,7 +68,13 @@ export function resolveRole(roleStr: string, email: string): Role {
   if (cleanRole.includes('رئيس فريق') || cleanRole.includes('رئيس الفريق') || cleanRole.includes('super_admin') || cleanEmail.includes('president')) {
     return 'super_admin';
   }
-  if (cleanRole.includes('نائب رئيس فريق') || cleanRole.includes('نائب رئيس الفريق') || cleanRole.includes('vp') || cleanRole.includes('vice_president')) {
+  if (
+    cleanRole.includes('نائب رئيس فريق') || 
+    cleanRole.includes('نائب رئيس الفريق') || 
+    cleanRole.includes('نائب رئيس المتطوعين') ||
+    cleanRole.includes('vp') || 
+    cleanRole.includes('vice_president')
+  ) {
     return 'vice_president';
   }
   if (cleanRole.includes('مستشار') || cleanRole.includes('advisor') || cleanRole.includes('consultant')) {

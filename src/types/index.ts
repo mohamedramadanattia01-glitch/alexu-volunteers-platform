@@ -339,6 +339,9 @@ export interface AttendanceSession {
   isActive: boolean;
   notes?: string;
   sessionType?: 'members' | 'heads';
+  eventId?: string;
+  eventName?: string;
+  eventDate?: string;
 }
 
 export interface AttendanceRecord {

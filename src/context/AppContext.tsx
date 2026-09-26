@@ -91,7 +91,7 @@ interface AppContextType {
   bannedList: BannedUserRecord[];
   isUserBanned: (emailOrNationalId: string) => boolean;
   archiveMember: (id: string, reason: string) => void;
-  transferMemberCommittee: (memberId: string, newCommitteeId: string, reason: string) => void;
+  transferMemberCommittee: (memberId: string, newCommitteeId: string, reason: string, newRole?: Role, newPosition?: string) => void;
   revealNationalId: (memberId: string) => void;
   createCommittee: (committeeData: Partial<Committee>) => void;
   updateCommittee: (id: string, updates: Partial<Committee>) => void;
@@ -275,18 +275,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [members, setMembers] = useState<Member[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_MEMBERS`);
     let list: Member[] = saved ? JSON.parse(saved) : initialMembers;
-    list = list.map(m => {
-      if (m.id === 'user-advisor-mohamed-ramadan' || m.position?.includes('مستشار') || m.role === 'advisor') {
-        if (m.currentCommitteeId !== 'comm-leadership') {
-          return {
-            ...m,
-            currentCommitteeId: 'comm-leadership',
-            currentCommitteeName: 'القيادة العليا والمجلس الاستشاري'
-          };
-        }
+
+    // Ensure all mandatory core leadership accounts exist
+    initialMembers.forEach(coreMember => {
+      const idx = list.findIndex(m => m.id === coreMember.id || m.fullName === coreMember.fullName);
+      if (idx === -1) {
+        list.push(coreMember);
       }
+    });
+
+    list = list.map(m => {
+      // 1. Osama Mamdouh -> Supreme Leadership (Advisor)
+      if (m.fullName.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
+        return {
+          ...m,
+          role: 'advisor' as Role,
+          currentCommitteeId: 'comm-leadership',
+          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+          position: 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
+        };
+      }
+
+      // 2. Malak Mohamed -> Supreme Leadership (Vice President)
+      if (m.fullName.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
+        return {
+          ...m,
+          role: 'vice_president' as Role,
+          currentCommitteeId: 'comm-leadership',
+          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+          position: 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
+        };
+      }
+
+      // 3. Mohamed Ramadan -> Supreme Leadership (Advisor)
+      if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName.includes('محمد رمضان')) {
+        return {
+          ...m,
+          role: 'advisor' as Role,
+          currentCommitteeId: 'comm-leadership',
+          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+          position: 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
+        };
+      }
+
+      // 4. Any Vice President or General Advisor in general
+      if (m.role === 'vice_president' || m.position?.includes('نائب رئيس الفريق') || m.position?.includes('نائب رئيس المتطوعين')) {
+        return {
+          ...m,
+          role: 'vice_president' as Role,
+          currentCommitteeId: 'comm-leadership',
+          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+          position: m.position || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
+        };
+      }
+
+      if (m.role === 'advisor' || m.position?.includes('مستشار')) {
+        return {
+          ...m,
+          role: 'advisor' as Role,
+          currentCommitteeId: 'comm-leadership',
+          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+          position: m.position || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
+        };
+      }
+
+      // 5. If a Head of HR was mistakenly placed in comm-leadership, place in comm-hr
+      if ((m.role === 'head' || m.role === 'vice_head') && (m.position?.includes('الموارد البشرية') || m.position?.includes('HR')) && m.currentCommitteeId === 'comm-leadership') {
+        return {
+          ...m,
+          currentCommitteeId: 'comm-hr',
+          currentCommitteeName: 'لجنة الموارد البشرية'
+        };
+      }
+
       return m;
     });
+
     return list;
   });
 
@@ -616,38 +680,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const commMembers = members.filter(m => m.currentCommitteeId === commId && m.status === 'Active');
     const commMemberIds = new Set(commMembers.map(m => m.id));
     const commTasks = tasks.filter(t => t.committeeId === commId || t.assignedToMemberIds.some(id => commMemberIds.has(id)));
-    const commComplaints = complaints.filter(c => c.senderCommitteeId === commId);
 
-    const totalCommMembers = commMembers.length;
     const totalCommTasks = commTasks.length;
     const completedCommTasks = commTasks.filter(t => t.status === 'Approved').length;
 
-    // 1. Real Attendance Rate: from actual attendanceRecords
+    // 1. Real Attendance Rate: from actual attendanceRecords only
     const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
     const presentRecords = commRecords.filter(a => a.status === 'Present').length;
     const hasAttendance = commRecords.length > 0;
     const attendance = hasAttendance ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
-    // 2. Task Completion Rate
+    // 2. Task Completion Rate: from actual tasks
     const hasTasks = totalCommTasks > 0;
     const tasksRate = hasTasks ? Math.round((completedCommTasks / totalCommTasks) * 100) : 0;
 
-    // 3. Evaluations & Quality Score from actual memberEvaluations
+    // 3. Evaluations & Quality Score from actual memberEvaluations only
     const commEvals = memberEvaluations.filter(e => commMemberIds.has(e.memberId));
     const hasEvals = commEvals.length > 0;
     const performance = hasEvals
       ? Math.round(commEvals.reduce((acc, e) => acc + e.percentage, 0) / commEvals.length)
-      : (totalCommMembers > 0
-          ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 0), 0) / totalCommMembers)
-          : 0);
+      : 0;
 
-    // 4. Complaints & Resolution
-    const resolvedComplaints = commComplaints.filter(c => c.status === 'Resolved').length;
-    const totalComplaints = commComplaints.length;
-    const satisfaction = totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 100;
-
-    // If no active operations/members at all, return 0
-    if (!hasAttendance && !hasTasks && !hasEvals && performance === 0 && totalCommMembers === 0) {
+    // If no active real operations / records exist yet, return 0 (بانتظار بدء الأنشطة)
+    if (!hasAttendance && !hasTasks && !hasEvals) {
       return 0;
     }
 
@@ -662,19 +717,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       weightedSum += tasksRate * 0.35;
       totalWeight += 0.35;
     }
-    if (hasEvals || performance > 0) {
+    if (hasEvals) {
       weightedSum += performance * 0.30;
       totalWeight += 0.30;
     }
 
     if (totalWeight === 0) {
-      return totalCommMembers > 0 ? 0 : 0;
+      return 0;
     }
 
     return Math.min(100, Math.max(0, Math.round(weightedSum / totalWeight)));
   };
 
-  // Team Health Score: Real dynamic average of committees with SOS emergency penalty
+  // Team Health Score: Real dynamic average of operational committees with SOS emergency penalty
   const teamHealthScore = (() => {
     const operationalComms = committees.filter(c => c.id !== 'comm-leadership');
     if (operationalComms.length === 0) return 0;
@@ -682,9 +737,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const commScores = operationalComms.map(c => calculateCommitteeHealth(c.id));
     const activeScores = commScores.filter(s => s > 0);
 
-    const baseScore = activeScores.length > 0
-      ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length)
-      : Math.round(commScores.reduce((a, b) => a + b, 0) / operationalComms.length);
+    // If no operational committees have real activity/scores yet, strictly return 0
+    if (activeScores.length === 0) return 0;
+
+    const baseScore = Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length);
 
     const openSOSCount = sosAlerts.filter(s => s.status === 'Open').length;
     const sosPenalty = openSOSCount * 4;
@@ -1286,19 +1342,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('أرشفة ملف متطوع', `ID: ${id}`, `السبب: ${reason}`);
   };
 
-  // Transfer Member Committee
-  const transferMemberCommittee = (memberId: string, newCommitteeId: string, reason: string) => {
+  // Transfer Member Committee (Operational Committees or Supreme Leadership)
+  const transferMemberCommittee = (
+    memberId: string, 
+    newCommitteeId: string, 
+    reason: string,
+    newRole?: Role,
+    newPosition?: string
+  ) => {
     const targetComm = committees.find(c => c.id === newCommitteeId);
     if (!targetComm) return;
 
     setMembers(prev => prev.map(m => {
       if (m.id === memberId) {
         const oldCommName = m.currentCommitteeName;
-        const newVolId = generateCommitteeVolunteerId(newCommitteeId, m.role, prev);
+        const assignedRole = newRole || m.role;
+        const assignedPosition = newPosition || (
+          newCommitteeId === 'comm-leadership'
+            ? (assignedRole === 'advisor' ? 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+               assignedRole === 'vice_president' ? 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+               assignedRole === 'super_admin' ? 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+               assignedRole === 'general_coordinator' ? 'منسق عام فريق المتطوعين' :
+               assignedRole === 'operations_manager' ? 'مدير العمليات الميدانية' :
+               assignedRole === 'quality_officer' ? 'مسؤول الجودة والمتابعة' :
+               'عضو القيادة العليا')
+            : (assignedRole === 'head' ? `رئيس ${targetComm.name}` :
+               assignedRole === 'vice_head' ? `نائب رئيس ${targetComm.name}` :
+               assignedRole === 'hr_admin' ? `مسؤول موارد بشرية بـ ${targetComm.name}` :
+               `عضو متطوع بـ ${targetComm.name}`)
+        );
+
+        const newVolId = generateCommitteeVolunteerId(newCommitteeId, assignedRole, prev);
+
         return {
           ...m,
           currentCommitteeId: newCommitteeId,
           currentCommitteeName: targetComm.name,
+          role: assignedRole,
+          position: assignedPosition,
           volunteerId: newVolId,
           committeeHistory: [
             ...m.committeeHistory,
@@ -1309,7 +1390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               season: activeSeason.name,
               startDate: m.joinDate,
               endDate: new Date().toISOString().split('T')[0],
-              reason: `نقل إلى ${targetComm.name}: ${reason}`,
+              reason: `نقل إلى ${targetComm.name} (${assignedPosition}): ${reason}`,
               changedBy: currentUser.fullName
             }
           ]
@@ -1318,7 +1399,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return m;
     }));
 
-    addAuditLog('نقل عضو بين اللجان', `عضو ID: ${memberId}`, `تم النقل إلى ${targetComm.name} - السبب: ${reason}`);
+    addAuditLog('نقل وتسكين عضو بين اللجان والإدارة العليا', `عضو ID: ${memberId}`, `تم النقل إلى ${targetComm.name} - الدور: ${newRole || 'بدون تغيير'} - السبب: ${reason}`);
+    showNotification('success', `تم نقل العضو وتسكينه في ${targetComm.name} بنجاح ✓`);
   };
 
   // Reveal National ID
@@ -1693,9 +1775,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? { name: 'جميع اللجان' } 
       : committees.find(c => c.id === sessionData.committeeId);
 
+    const targetEvent = sessionData.eventId 
+      ? events.find(e => e.id === sessionData.eventId)
+      : undefined;
+
     const newSession: AttendanceSession = {
       id: `session-${Date.now()}`,
-      title: sessionData.title || 'جلسة حضور ميدانية جديدة',
+      title: sessionData.title || (targetEvent ? `جلسة حضور: ${targetEvent.name}` : 'جلسة حضور ميدانية جديدة'),
       committeeId: sessionData.committeeId || 'all',
       committeeName: sessionData.committeeName || (targetComm?.name || 'جميع اللجان'),
       createdByMemberId: currentUser.id,
@@ -1704,6 +1790,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().substring(0, 10),
       requireGPS: sessionData.requireGPS !== false,
       sessionType: sessionData.sessionType || 'members',
+      eventId: sessionData.eventId || targetEvent?.id,
+      eventName: sessionData.eventName || targetEvent?.name,
+      eventDate: sessionData.eventDate || targetEvent?.date,
       qrToken: `ALEXU_QR_${Math.random().toString(36).substring(2, 8).toUpperCase()}_${Date.now()}`,
       isActive: true,
       notes: sessionData.notes || ''
@@ -1711,8 +1800,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setAttendanceSessions(prev => [newSession, ...prev.map(s => ({ ...s, isActive: false }))]);
     playSound('task');
-    addAuditLog('إنشاء جلسة حضور QR', newSession.title, `اللجنة: ${newSession.committeeName} [${newSession.sessionType === 'heads' ? 'رؤساء اللجان' : 'المتطوعين'}] - بواسطة ${currentUser.fullName}`);
-    showNotification('success', `تم إنشاء جلسة الحضور بنجاح: "${newSession.title}"`);
+    addAuditLog('إنشاء جلسة حضور QR', newSession.title, `اللجنة: ${newSession.committeeName} [${newSession.sessionType === 'heads' ? 'رؤساء اللجان' : 'المتطوعين'}] - الفعالية: ${newSession.eventName || 'عامة'} - بواسطة ${currentUser.fullName}`);
+    showNotification('success', `تم إنشاء وتفعيل جلسة الحضور بنجاح: "${newSession.title}"`);
     return newSession;
   };
 
@@ -1735,12 +1824,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetMember = members.find(m => m.id === params.memberId);
     if (!targetMember) return { success: false, message: 'بيانات المتطوع غير موجودة' };
 
-    const targetEvent = events.find(e => e.id === params.eventId) || events[0];
     const session = attendanceSessions.find(s => s.id === params.sessionId) || activeAttendanceSession;
+    const targetEvent = events.find(e => e.id === (params.eventId || session?.eventId)) || events[0];
+
+    const linkedEventId = params.eventId || session?.eventId || targetEvent?.id || 'event-live';
+    const linkedEventName = session?.eventName || targetEvent?.name || session?.title || 'جلسة عمل ميدانية';
 
     const existing = attendanceRecords.find(a => 
       a.memberId === params.memberId && 
-      (params.sessionId ? a.sessionId === params.sessionId : a.eventId === targetEvent?.id)
+      (params.sessionId ? a.sessionId === params.sessionId : a.eventId === linkedEventId)
     );
 
     const timeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -1758,8 +1850,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         memberVolunteerId: targetMember.volunteerId,
         committeeId: targetMember.currentCommitteeId,
         committeeName: targetMember.currentCommitteeName,
-        eventId: targetEvent?.id || 'event-live',
-        eventName: session?.title || targetEvent?.name || 'جلسة عمل ميدانية',
+        eventId: linkedEventId,
+        eventName: linkedEventName,
         sessionId: session?.id,
         sessionTitle: session?.title,
         date: new Date().toISOString().split('T')[0],

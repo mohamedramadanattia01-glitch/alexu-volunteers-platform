@@ -6,9 +6,9 @@ import {
   QrCode, X, RefreshCw, CheckCircle2, Clock, 
   MapPin, ShieldCheck, UserCheck, AlertCircle, Plus, 
   Layers, Download, Award, Sparkles, Navigation, Check, Camera,
-  FlipHorizontal, Upload, Image as ImageIcon
+  FlipHorizontal, Upload, Image as ImageIcon, Zap, Calendar, FileSpreadsheet
 } from 'lucide-react';
-import { exportAttendanceToExcel } from '../../utils/excelExport';
+import { exportAttendanceToExcel, exportDailySessionAttendanceToExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
 import { GPSLocation } from '../../types';
 
@@ -20,6 +20,7 @@ interface QRAttendanceModalProps {
 export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, onClose }) => {
   const { 
     currentUser, 
+    members,
     committees, 
     events, 
     liveEvent, 
@@ -39,8 +40,12 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     isHostRole ? 'host_qr' : 'member_scan'
   );
 
-  // New session form
-  const [sessionTitle, setSessionTitle] = useState('اجتماع ولقاء الميدان الدوري');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayEvent = events.find(e => e.date === todayStr || e.status === 'Live') || liveEvent;
+
+  // New session form & event linking
+  const [selectedEventId, setSelectedEventId] = useState<string>(todayEvent?.id || '');
+  const [sessionTitle, setSessionTitle] = useState(todayEvent ? `حضور فعالية: ${todayEvent.name}` : 'اجتماع ولقاء الميدان الدوري');
   const [selectedCommId, setSelectedCommId] = useState('all');
   const [selectedSessionType, setSelectedSessionType] = useState<'members' | 'heads'>('members');
   const [requireGPS, setRequireGPS] = useState(true);
@@ -62,6 +67,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
   const [isProcessingScan, setIsProcessingScan] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -236,6 +242,22 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     startCamera(nextMode);
   };
 
+  const toggleTorch = async () => {
+    if (!mediaStreamRef.current) return;
+    const track = mediaStreamRef.current.getVideoTracks()[0];
+    if (track && 'applyConstraints' in track) {
+      try {
+        const nextTorch = !isTorchOn;
+        await (track as any).applyConstraints({
+          advanced: [{ torch: nextTorch }]
+        });
+        setIsTorchOn(nextTorch);
+      } catch (err) {
+        console.warn('Torch constraint error:', err);
+      }
+    }
+  };
+
   // Decode QR from uploaded image file
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -326,12 +348,17 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     e.preventDefault();
     if (!sessionTitle.trim()) return;
 
+    const targetEv = events.find(ev => ev.id === selectedEventId);
+
     createAttendanceSession({
       title: sessionTitle,
       committeeId: selectedCommId,
       sessionType: selectedSessionType,
       requireGPS,
-      notes: sessionNotes
+      notes: sessionNotes,
+      eventId: selectedEventId || undefined,
+      eventName: targetEv?.name || undefined,
+      eventDate: targetEv?.date || undefined
     });
 
     setMode('host_qr');
@@ -345,6 +372,15 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     showNotification('success', 'تم تصدير سجل حضور الجلسة إلى Excel بنجاح');
   };
 
+  const handleExportDailySessionSheet = () => {
+    const sessionRecords = attendanceRecords.filter(r => 
+      currentSession ? r.sessionId === currentSession.id : true
+    );
+    const linkedEvent = events.find(e => e.id === (currentSession?.eventId || selectedEventId)) || currentEvent || null;
+    exportDailySessionAttendanceToExcel(currentSession || null, linkedEvent, sessionRecords, members, todayStr);
+    showNotification('success', 'تم تصدير كشف الحضور المخصص لليوم والفعالية إلى Excel بنجاح 📊');
+  };
+
   // Attendees who scanned in this session
   const attendeesInThisSession = attendanceRecords.filter(r => 
     currentSession ? r.sessionId === currentSession.id : true
@@ -354,6 +390,9 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     a.memberId === currentUser.id && 
     (currentSession ? a.sessionId === currentSession.id : a.eventId === currentEvent?.id)
   );
+
+  // Active Linked Event for Current Session
+  const activeLinkedEvent = events.find(e => e.id === currentSession?.eventId) || (currentSession?.eventId ? { id: currentSession.eventId, name: currentSession.eventName, date: currentSession.eventDate } : todayEvent);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
@@ -432,30 +471,56 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
           <div className="space-y-4">
             
             {/* Session Info Bar */}
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs">
-              <div>
-                <span className="text-slate-400">الجلسة الفعالة:</span>
-                <strong className="text-white mr-1">{currentSession?.title}</strong>
-                <span className="mr-2 text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded text-[10px] border border-sky-500/30">
-                  {currentSession?.committeeName || 'جميع اللجان'}
-                </span>
-                {currentSession?.sessionType === 'heads' && (
-                  <span className="mr-1 text-purple-300 bg-purple-950/70 px-2 py-0.5 rounded text-[10px] border border-purple-500/40 font-bold">
-                    حضور رؤساء اللجان 👑
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-slate-400">الجلسة الفعالة:</span>
+                  <strong className="text-white mr-1">{currentSession?.title}</strong>
+                  <span className="mr-2 text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded text-[10px] border border-sky-500/30 font-bold">
+                    {currentSession?.committeeName || 'جميع اللجان'}
                   </span>
-                )}
+                  {currentSession?.sessionType === 'heads' && (
+                    <span className="mr-1 text-purple-300 bg-purple-950/70 px-2 py-0.5 rounded text-[10px] border border-purple-500/40 font-bold">
+                      حضور رؤساء اللجان 👑
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-slate-400 font-mono text-[11px]">
+                  بواسطة: <strong className="text-slate-200">{currentSession?.createdByMemberName}</strong>
+                </span>
               </div>
 
-              <span className="text-slate-400 font-mono text-[11px]">
-                بواسطة: <strong className="text-slate-200">{currentSession?.createdByMemberName}</strong>
-              </span>
+              {/* Linked Event Banner */}
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-slate-300">
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <span>الفعالية المرتبطة بهذا الكود:</span>
+                  <strong className="text-amber-300">
+                    {activeLinkedEvent ? activeLinkedEvent.name : 'جلسة عامة / غير مرتبطة بفعالية محددة'}
+                  </strong>
+                  {activeLinkedEvent?.date && (
+                    <span className="text-[10px] text-slate-400 font-mono">({activeLinkedEvent.date})</span>
+                  )}
+                </div>
+
+                {/* Direct Excel Roster Export Button */}
+                <button
+                  type="button"
+                  onClick={handleExportDailySessionSheet}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                  <span>تصدير شيت اليوم والفعالية (Excel) 📊</span>
+                </button>
+              </div>
             </div>
 
             {/* QR Card with countdown */}
             <div className="flex flex-col items-center justify-center p-6 bg-slate-900/60 rounded-2xl border border-blue-500/30 text-center space-y-3">
               <div className="p-4 rounded-2xl bg-white shadow-2xl border-4 border-blue-500/40 relative">
                 <QRCodeSVG 
-                  value={`https://volunteers.alexu.edu.eg/verify-attendance?session=${currentSession?.id || 'live'}&token=${qrToken}&comm=${currentSession?.committeeId || 'all'}&type=${currentSession?.sessionType || 'members'}`}
+                  value={`https://volunteers.alexu.edu.eg/verify-attendance?session=${currentSession?.id || 'live'}&token=${qrToken}&comm=${currentSession?.committeeId || 'all'}&type=${currentSession?.sessionType || 'members'}&event=${currentSession?.eventId || selectedEventId || ''}`}
                   size={210}
                   level="H"
                   includeMargin={true}
@@ -470,10 +535,10 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
               <div className="pt-2 text-xs text-slate-300">
                 <div className="font-bold text-white mb-0.5 flex items-center justify-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>رمز مشفر ومحمي برابط التحقق المباشر والـ GPS</span>
+                  <span>رمز مشفر ومحمي برابط التحقق المباشر والـ GPS والفعالية</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  يقوم {currentSession?.sessionType === 'heads' ? 'رؤساء ونواب اللجان' : 'أعضاء اللجنة'} بمسح هذا الكود من هواتفهم لسحب البيانات والموقع فورياً
+                  يقوم {currentSession?.sessionType === 'heads' ? 'رؤساء ونواب اللجان' : 'أعضاء اللجنة'} بمسح هذا الكود من هواتفهم لسحب البيانات والموقع فورياً وربطها بشيت اليوم
                 </p>
               </div>
             </div>
@@ -490,7 +555,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleExportSessionExcel}
+                    onClick={handleExportDailySessionSheet}
                     className="btn-secondary text-[11px] py-1.5 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-400" />
@@ -533,7 +598,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
           <form onSubmit={handleCreateSessionSubmit} className="space-y-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
             <div className="text-xs font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
               <Plus className="w-4 h-4 text-blue-400" />
-              <span>إنشاء وتخصيص جلسة حضور جديدة للهيد والقيادة</span>
+              <span>إنشاء وتخصيص جلسة حضور جديدة للهيد والقيادة العليا</span>
             </div>
 
             {/* Session Target Group Selection */}
@@ -568,6 +633,34 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 </div>
               </div>
             )}
+
+            {/* Event Linking Selection (Special for Heads and Supreme Leadership) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                ربط جلسة الحضور بفعالية معينة (ربط تلقائي لبيانات اليوم والشيت) 🎯
+              </label>
+              <select
+                value={selectedEventId}
+                onChange={e => {
+                  setSelectedEventId(e.target.value);
+                  const ev = events.find(event => event.id === e.target.value);
+                  if (ev) {
+                    setSessionTitle(`حضور فعالية: ${ev.name}`);
+                  }
+                }}
+                className="glass-input text-xs w-full cursor-pointer font-bold"
+              >
+                <option value="">جلسة مستقلة بدون ربط بفعالية (اجتماع روتيني)</option>
+                {events.map(ev => {
+                  const isToday = ev.date === todayStr;
+                  return (
+                    <option key={ev.id} value={ev.id} className="bg-slate-900 text-white">
+                      {isToday ? '✨ [اليوم] ' : ''}{ev.name} — ({ev.date})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -784,20 +877,35 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                   
                   {/* Top Controls Overlay */}
                   <div className="absolute top-2 inset-x-2 flex items-center justify-between px-2">
-                    <button
-                      type="button"
-                      onClick={handleToggleFacingMode}
-                      className="px-2.5 py-1 rounded-lg bg-black/70 border border-white/20 text-white text-[10px] font-bold flex items-center gap-1 hover:bg-black/90 cursor-pointer"
-                    >
-                      <FlipHorizontal className="w-3 h-3 text-sky-400" />
-                      <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleToggleFacingMode}
+                        className="px-2.5 py-1 rounded-lg bg-black/70 border border-white/20 text-white text-[10px] font-bold flex items-center gap-1 hover:bg-black/90 cursor-pointer"
+                      >
+                        <FlipHorizontal className="w-3 h-3 text-sky-400" />
+                        <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={toggleTorch}
+                        className={`p-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all ${
+                          isTorchOn 
+                            ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/30' 
+                            : 'bg-black/70 border-white/20 text-slate-300 hover:text-white'
+                        }`}
+                        title="تشغيل/إيقاف الفلاش"
+                      >
+                        <Zap className={`w-3.5 h-3.5 ${isTorchOn ? 'text-slate-950 fill-current' : 'text-amber-400'}`} />
+                      </button>
+                    </div>
 
                     <button
                       type="button"
                       onClick={stopCamera}
-                      className="p-1 rounded-lg bg-black/70 border border-white/20 text-slate-300 hover:text-white"
-                      title="إيقاف"
+                      className="p-1 rounded-lg bg-black/70 border border-white/20 text-slate-300 hover:text-white cursor-pointer"
+                      title="إيقاف الكاميرا"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

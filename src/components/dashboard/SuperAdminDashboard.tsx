@@ -35,10 +35,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const topRegularMembers = [...regularMembers]
     .map(member => {
       const evals = memberEvaluations.filter(e => e.memberId === member.id);
-      const evalScore = evals.length > 0 
+      const hasRealEval = evals.length > 0;
+      const evalScore = hasRealEval 
         ? Math.round(evals.reduce((a, b) => a + b.percentage, 0) / evals.length)
-        : (member.performance?.overallScore || 0);
-      return { ...member, dynamicOverallScore: evalScore };
+        : 0;
+      return { ...member, hasRealEval, dynamicOverallScore: evalScore };
     })
     .sort((a, b) => (b.dynamicOverallScore - a.dynamicOverallScore) || ((b.points || 0) - (a.points || 0)))
     .slice(0, 4);
@@ -47,11 +48,13 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const topHeads = [...committeeHeads]
     .map(head => {
       const headEvals = headEvaluations.filter(e => e.headId === head.id);
-      const evalScore = headEvals.length > 0 
+      const hasRealEval = headEvals.length > 0;
+      const evalScore = hasRealEval 
         ? Math.round(headEvals.reduce((a, b) => a + b.percentage, 0) / headEvals.length)
-        : (head.performance?.overallScore || 0);
+        : 0;
       return {
         ...head,
+        hasRealEval,
         computedScore: evalScore
       };
     })
@@ -432,10 +435,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                     <div className="text-right">
                       <div className="text-xs font-extrabold text-amber-400 font-mono">
-                        {member.dynamicOverallScore > 0 ? `${member.dynamicOverallScore}%` : '0%'}
+                        {member.hasRealEval ? `${member.dynamicOverallScore}%` : 'لم يُقيّم بعد'}
                       </div>
                       <div className="text-[9px] text-slate-400">
-                        {member.points} XP
+                        {member.points > 0 ? `${member.points} XP` : '0 XP'}
                       </div>
                     </div>
                   </div>
@@ -488,10 +491,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
                     <div className="text-right">
                       <div className="text-xs font-extrabold text-purple-400 font-mono">
-                        {headMember.computedScore > 0 ? `${headMember.computedScore}%` : 'لم يُقيّم بعد'}
+                        {headMember.hasRealEval ? `${headMember.computedScore}%` : 'لم يُقيّم بعد'}
                       </div>
                       <div className="text-[9px] text-slate-400">
-                        {headMember.points} XP
+                        {headMember.points > 0 ? `${headMember.points} XP` : '0 XP'}
                       </div>
                     </div>
                   </div>
