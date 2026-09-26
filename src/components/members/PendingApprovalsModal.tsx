@@ -6,6 +6,7 @@ import {
   Send, ExternalLink, ShieldCheck, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { Role } from '../../types';
+import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 
 interface PendingApprovalsModalProps {
   isOpen: boolean;
@@ -153,15 +154,15 @@ export const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ is
 
                     {/* WhatsApp & Contacts */}
                     <div className="flex items-center gap-2 text-xs">
-                      {applicant.whatsappNumber && (
+                      {hasValidWhatsApp(applicant.whatsappNumber || applicant.phone) && (
                         <a
-                          href={`https://wa.me/${applicant.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                          href={getWhatsAppUrl(applicant.whatsappNumber || applicant.phone)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold transition-all text-xs"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold transition-all text-xs cursor-pointer"
                         >
                           <Phone className="w-3.5 h-3.5" />
-                          <span>واتساب: {applicant.whatsappNumber}</span>
+                          <span>واتساب: {applicant.whatsappNumber || applicant.phone}</span>
                           <ExternalLink className="w-3 h-3 text-emerald-400" />
                         </a>
                       )}

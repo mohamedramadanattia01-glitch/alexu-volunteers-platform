@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Bell, AlertTriangle, CheckCircle, 
-  Sparkles, LogOut, X,
+  Sparkles, LogOut, X, Trash2,
   Sliders, MessageSquare, User,
   UserCheck, Smartphone
 } from 'lucide-react';
@@ -280,9 +280,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
                         title="مسح كافة الإشعارات"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
+                    <button
+                      onClick={() => setShowNotifMenu(false)}
+                      className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                      title="إغلاق نافذة الإشعارات"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

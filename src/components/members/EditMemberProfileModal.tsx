@@ -427,13 +427,13 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
 
               {/* WhatsApp */}
               <div>
-                <label className="block text-slate-300 font-bold mb-1">رقم الواتساب (للمجموعات الميدانية) *</label>
+                <label className="block text-slate-300 font-bold mb-1">رقم الواتساب (مثال: 01287791141) *</label>
                 <input
                   type="tel"
                   required
                   value={whatsappNumber}
                   onChange={(e) => setWhatsappNumber(e.target.value)}
-                  placeholder="01000000000"
+                  placeholder="01287791141"
                   className="glass-input text-xs font-mono"
                 />
               </div>

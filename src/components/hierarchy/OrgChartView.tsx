@@ -8,6 +8,7 @@ import {
   FileCheck, ShieldAlert, Laptop, Camera, Film, Palette, FileText
 } from 'lucide-react';
 import { ALL_ROLES_INFO, getRoleShortLabel } from '../../utils/roleUtils';
+import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 
 export const OrgChartView: React.FC = () => {
   const { members, committees, branding, currentUser } = useApp();
@@ -136,12 +137,12 @@ export const OrgChartView: React.FC = () => {
 
               {/* Contact Button */}
               <div className="flex items-center gap-2 self-stretch md:self-auto justify-end pt-3 md:pt-0 border-t md:border-t-0 border-white/10 shrink-0">
-                {advisor.whatsappNumber && (
+                {hasValidWhatsApp(advisor.whatsappNumber || (advisor as any).phone) && (
                   <a
-                    href={`https://wa.me/${advisor.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                    href={getWhatsAppUrl(advisor.whatsappNumber || (advisor as any).phone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/30"
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
                   >
                     <MessageSquare className="w-4 h-4" />
                     <span>تواصل واتساب مباشر</span>
@@ -181,12 +182,12 @@ export const OrgChartView: React.FC = () => {
 
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
                   <span className="font-mono text-sky-400 font-bold">{leader.volunteerId || 'AU-VOL'}</span>
-                  {leader.whatsappNumber && (
+                  {hasValidWhatsApp(leader.whatsappNumber || leader.phone) && (
                     <a
-                      href={`https://wa.me/${leader.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                      href={getWhatsAppUrl(leader.whatsappNumber || leader.phone)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1"
+                      className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Phone className="w-3 h-3" />
                       <span>تواصل</span>
@@ -262,12 +263,12 @@ export const OrgChartView: React.FC = () => {
                                 <div className="text-[10px] text-sky-400 font-mono font-bold">{head.volunteerId || 'HEAD'}</div>
                               </div>
                             </div>
-                            {head.whatsappNumber && (
+                            {hasValidWhatsApp(head.whatsappNumber || head.phone) && (
                               <a 
-                                href={`https://wa.me/${head.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                                href={getWhatsAppUrl(head.whatsappNumber || head.phone)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"
+                                className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors cursor-pointer"
                                 title="مراسلة واتساب"
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />
@@ -297,12 +298,12 @@ export const OrgChartView: React.FC = () => {
                                 <div className="text-[10px] text-purple-300 font-mono font-bold">{vHead.volunteerId || 'VICE'}</div>
                               </div>
                             </div>
-                            {vHead.whatsappNumber && (
+                            {hasValidWhatsApp(vHead.whatsappNumber || vHead.phone) && (
                               <a 
-                                href={`https://wa.me/${vHead.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                                href={getWhatsAppUrl(vHead.whatsappNumber || vHead.phone)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"
+                                className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors cursor-pointer"
                                 title="مراسلة واتساب"
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />

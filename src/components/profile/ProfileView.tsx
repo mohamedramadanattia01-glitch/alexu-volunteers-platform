@@ -11,6 +11,7 @@ import {
 import { exportAttendanceToExcel } from '../../utils/excelExport';
 import { downloadMemberPortfolioPDF } from '../../utils/pdfExport';
 import { getMemberExactBirthData } from '../../utils/nationalId';
+import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 
 interface ProfileViewProps {
   onOpenEditProfile: () => void;
@@ -132,16 +133,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               {/* Interactive Social Media Profile Links Bar */}
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3 pt-2 border-t border-slate-800/80">
-                {currentUser.whatsappNumber && (
+                {hasValidWhatsApp(currentUser.whatsappNumber || currentUser.phone) && (
                   <a
-                    href={`https://wa.me/${currentUser.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                    href={getWhatsAppUrl(currentUser.whatsappNumber || currentUser.phone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer"
                     title="فتح محادثة واتساب فورية"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>WhatsApp</span>
+                    <span>WhatsApp 💬</span>
                   </a>
                 )}
 
@@ -462,7 +463,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">الواتساب:</span>
-                <span className="font-mono">{currentUser.whatsappNumber}</span>
+                {hasValidWhatsApp(currentUser.whatsappNumber || currentUser.phone) ? (
+                  <a
+                    href={getWhatsAppUrl(currentUser.whatsappNumber || currentUser.phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    title="فتح محادثة واتساب فورية"
+                  >
+                    <span>{currentUser.whatsappNumber || currentUser.phone}</span>
+                    <span className="text-[10px]">💬</span>
+                  </a>
+                ) : (
+                  <span className="font-mono text-slate-400">{currentUser.whatsappNumber || '—'}</span>
+                )}
               </div>
             </div>
 

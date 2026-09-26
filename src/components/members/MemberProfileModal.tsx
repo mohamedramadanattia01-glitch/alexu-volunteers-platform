@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp, isHighLeadershipMember } from '../../context/AppContext';
 import { Member } from '../../types';
 import { getMemberExactBirthData } from '../../utils/nationalId';
+import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
 import { 
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
   Calendar, Phone, Mail, GraduationCap, Clock, 
@@ -215,15 +216,15 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">رقم الواتساب:</span>
-                {member.whatsappNumber ? (
+                {hasValidWhatsApp(member.whatsappNumber || member.phone) ? (
                   <a
-                    href={`https://wa.me/${member.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                    href={getWhatsAppUrl(member.whatsappNumber || member.phone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 underline"
+                    className="font-mono text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
                   >
-                    <span>{member.whatsappNumber}</span>
-                    <span className="text-[10px]">(فتح الشات 💬)</span>
+                    <span>{member.whatsappNumber || member.phone}</span>
+                    <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30 text-emerald-300">(فتح الشات 💬)</span>
                   </a>
                 ) : (
                   <span className="font-mono text-slate-500">—</span>

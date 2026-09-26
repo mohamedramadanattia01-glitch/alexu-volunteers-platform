@@ -8,6 +8,7 @@ import {
 import { Member } from '../../types';
 
 import { getMemberExactBirthData, MemberExactBirthData } from '../../utils/nationalId';
+import { getWhatsAppUrl } from '../../utils/whatsapp';
 
 interface MemberBirthdayItem {
   member: Member;
@@ -116,11 +117,8 @@ export const BirthdaysView: React.FC = () => {
   const handleSendWhatsApp = (m: Member, customText?: string) => {
     const info = getMemberBirthInfo(m);
     const textToSend = customText || generateMessage(m, info);
-    const phone = (m.whatsappNumber || m.phone || '').replace(/[^0-9]/g, '');
-    const cleanPhone = phone.startsWith('0') ? `20${phone.substring(1)}` : phone;
-
-    const encoded = encodeURIComponent(textToSend);
-    window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
+    const url = getWhatsAppUrl(m.whatsappNumber || m.phone, textToSend);
+    window.open(url, '_blank');
   };
 
   const handleSendInAppBirthdayPraise = (m: Member) => {

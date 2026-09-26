@@ -15,7 +15,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
   const [fullName, setFullName] = useState('');
   const [college, setCollege] = useState<string>(ALEXANDRIA_UNIVERSITY_COLLEGES[1]); // كلية الهندسة
   const [academicYear, setAcademicYear] = useState('الفرقة الثانية');
-  const [whatsappNumber, setWhatsappNumber] = useState('+2010');
+  const [whatsappNumber, setWhatsappNumber] = useState('01000000000');
   const [nationalId, setNationalId] = useState('30401010200000');
   const [committeeId, setCommitteeId] = useState(committees[0]?.id || 'comm-org');
   const [position, setPosition] = useState('عضو متطوع');
@@ -33,7 +33,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
       fullName: fullName.trim(),
       college,
       academicYear,
-      whatsappNumber,
+      whatsappNumber: whatsappNumber.trim(),
       nationalId: nationalId.trim(),
       birthDate: parsedNatId.isValid ? parsedNatId.birthDate : '2004-01-01',
       age: parsedNatId.isValid ? parsedNatId.age : 21,
@@ -101,11 +101,12 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">رقم الواتساب</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">رقم الواتساب (مثال: 01287791141)</label>
               <input 
-                type="text"
+                type="tel"
                 value={whatsappNumber}
                 onChange={(e) => setWhatsappNumber(e.target.value)}
+                placeholder="01287791141"
                 className="glass-input text-xs font-mono"
               />
             </div>
