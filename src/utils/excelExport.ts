@@ -4,6 +4,7 @@ import {
   HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig,
   AttendanceSession
 } from '../types';
+import { getRoleShortLabel, isHighLeadershipRole } from './roleUtils';
 
 /**
  * Universal Excel (.xlsx) & CSV Exporter with SheetJS
@@ -68,7 +69,7 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
   if (roleFilter === 'members_only') {
     filtered = members.filter(m => m.role === 'member');
   } else if (roleFilter === 'heads_only') {
-    filtered = members.filter(m => m.role === 'head' || m.role === 'vice_head');
+    filtered = members.filter(m => m.role === 'head' || m.role === 'vice_head' || m.position?.includes('رئيس') || m.position?.includes('هيد') || m.position?.includes('نائب'));
   }
 
   const headers = [
@@ -97,31 +98,37 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
     'تطلعات التعلم والتطوير'
   ];
 
-  const rows = filtered.map(m => [
-    m.volunteerId || m.id,
-    m.fullName,
-    m.nationalId || '—',
-    m.universityEmail,
-    m.phone || m.whatsappNumber || '—',
-    m.whatsappNumber || m.phone || '—',
-    m.college,
-    m.academicYear,
-    m.currentCommitteeName,
-    m.position,
-    m.role,
-    m.status === 'Active' ? 'نشط ومفعل' : m.status === 'Pending' ? 'قيد المراجعة' : m.status === 'Banned' ? 'محظور ⛔' : m.status,
-    m.joinDate,
-    m.bloodType || '—',
-    m.emergencyContact || '—',
-    m.address || '—',
-    m.points || 0,
-    m.level || 1,
-    `${m.performance?.overallScore || 0}%`,
-    `${m.performance?.attendanceRate || 0}%`,
-    `${m.performance?.taskCompletionRate || 0}%`,
-    m.hobbies && m.hobbies.length > 0 ? m.hobbies.join(' • ') : '—',
-    m.learningAspirations && m.learningAspirations.length > 0 ? m.learningAspirations.join(' • ') : '—'
-  ]);
+  const rows = filtered.map(m => {
+    const isLeadOrHead = isHighLeadershipRole(m.role) || m.role === 'head' || m.role === 'vice_head' || m.currentCommitteeId === 'comm-leadership' || m.position?.includes('رئيس') || m.position?.includes('هيد') || m.position?.includes('نائب');
+    const cleanPoints = isLeadOrHead ? 0 : (m.points || 0);
+    const cleanLevel = isLeadOrHead ? 1 : (m.level || 1);
+
+    return [
+      m.volunteerId || m.id,
+      m.fullName,
+      m.nationalId || '—',
+      m.universityEmail,
+      m.phone || m.whatsappNumber || '—',
+      m.whatsappNumber || m.phone || '—',
+      m.college,
+      m.academicYear,
+      m.currentCommitteeName,
+      m.position,
+      getRoleShortLabel(m.role, m.currentCommitteeName),
+      m.status === 'Active' ? 'نشط ومفعل' : m.status === 'Pending' ? 'قيد المراجعة' : m.status === 'Banned' ? 'محظور ⛔' : m.status,
+      m.joinDate,
+      m.bloodType || '—',
+      m.emergencyContact || '—',
+      m.address || '—',
+      cleanPoints,
+      cleanLevel,
+      m.performance?.evaluationsCount && m.performance.evaluationsCount > 0 ? `${m.performance.overallScore}%` : '0%',
+      `${m.performance?.attendanceRate || 0}%`,
+      `${m.performance?.taskCompletionRate || 0}%`,
+      m.hobbies && m.hobbies.length > 0 ? m.hobbies.join(' • ') : '—',
+      m.learningAspirations && m.learningAspirations.length > 0 ? m.learningAspirations.join(' • ') : '—'
+    ];
+  });
 
   const aoaData = [headers, ...rows];
   const title = customTitle || (roleFilter === 'heads_only' ? 'سجل_قادة_ورؤساء_اللجان' : 'شيت_قاعدة_بيانات_أعضاء_الفريق_الشامل');

@@ -300,27 +300,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let pos = m.position;
 
       // 1. Osama Mamdouh -> Supreme Leadership (Advisor)
-      if (m.fullName.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
+      if (m.fullName?.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
         role = 'advisor';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
       // 2. Malak Mohamed -> Supreme Leadership (Vice President)
-      else if (m.fullName.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
+      else if (m.fullName?.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
         role = 'vice_president';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
       // 3. Mohamed Ramadan -> Supreme Leadership (Advisor)
-      else if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName.includes('محمد رمضان')) {
+      else if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName?.includes('محمد رمضان')) {
         role = 'advisor';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      // 4. Any general advisor or vice president
+      // 4. Rwan Abdallah Abdelsalam -> Head of HR Committee
+      else if (
+        m.fullName?.toLowerCase().includes('rwan') || 
+        m.fullName?.toLowerCase().includes('rawan') || 
+        m.fullName?.includes('روان') ||
+        m.id === 'user-head-rwan-abdallah'
+      ) {
+        role = 'head';
+        commId = 'comm-hr';
+        commName = 'لجنة الموارد البشرية';
+        pos = 'رئيس لجنة الموارد البشرية';
+      }
+      // 5. Any general advisor or vice president
       else if (role === 'advisor' || pos?.includes('مستشار')) {
         role = 'advisor';
         commId = 'comm-leadership';
@@ -333,30 +345,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = pos || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      // 5. Automatic Committee Linking for Specialized Operational Heads/Vice Heads
-      else if (role === 'head' || role === 'vice_head' || pos?.includes('رئيس') || pos?.includes('هيد')) {
-        if (pos?.includes('التنظيم')) {
+      // 6. Automatic Committee & Role Normalization for Specialized Operational Heads/Vice Heads
+      else if (role === 'head' || role === 'vice_head' || pos?.includes('رئيس') || pos?.includes('هيد') || pos?.includes('نائب')) {
+        if (pos?.includes('نائب')) {
+          role = 'vice_head';
+        } else if (pos?.includes('رئيس') || pos?.includes('هيد')) {
+          role = 'head';
+        }
+
+        if (pos?.includes('التنظيم') || commId === 'comm-org') {
           commId = 'comm-org';
           commName = 'لجنة التنظيم';
-        } else if (pos?.includes('الموارد البشرية') || pos?.includes('HR')) {
+          if (role === 'head') pos = 'رئيس لجنة التنظيم';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التنظيم';
+        } else if (pos?.includes('الموارد البشرية') || pos?.includes('HR') || commId === 'comm-hr') {
           commId = 'comm-hr';
           commName = 'لجنة الموارد البشرية';
-        } else if (pos?.includes('المونتاج')) {
+          if (role === 'head') pos = 'رئيس لجنة الموارد البشرية';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة الموارد البشرية';
+        } else if (pos?.includes('المونتاج') || commId === 'comm-montage') {
           commId = 'comm-montage';
           commName = 'لجنة المونتاج';
-        } else if (pos?.includes('التصوير') || pos?.includes('الإعلام') || pos?.includes('فيديوغرافي')) {
+          if (role === 'head') pos = 'رئيس لجنة المونتاج';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة المونتاج';
+        } else if (pos?.includes('التصوير') || pos?.includes('الإعلام') || pos?.includes('فيديوغرافي') || commId === 'comm-media') {
           commId = 'comm-media';
           commName = 'لجنة التصوير الفوتوغرافي والفيديوغرافي';
-        } else if (pos?.includes('المحتوى') || pos?.includes('صناعة المحتوى')) {
+          if (role === 'head') pos = 'رئيس لجنة التصوير الفوتوغرافي والفيديوغرافي';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التصوير الفوتوغرافي والفيديوغرافي';
+        } else if (pos?.includes('المحتوى') || pos?.includes('صناعة المحتوى') || commId === 'comm-content') {
           commId = 'comm-content';
           commName = 'لجنة صناعة المحتوى';
-        } else if (pos?.includes('التصميم')) {
+          if (role === 'head') pos = 'رئيس لجنة صناعة المحتوى';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة صناعة المحتوى';
+        } else if (pos?.includes('التصميم') || commId === 'comm-design') {
           commId = 'comm-design';
           commName = 'لجنة التصميم';
+          if (role === 'head') pos = 'رئيس لجنة التصميم';
+          else if (role === 'vice_head') pos = 'نائب رئيس لجنة التصميم';
         }
       }
 
-      // 6. Zero out XP and volunteer points for ALL Heads and Leadership members
+      // 7. Strict 0 XP and Level 1 for all Heads, Vice Heads, and Leadership members
       const isLeadOrHead = isHighLeadershipRole(role) || role === 'head' || role === 'vice_head' || commId === 'comm-leadership';
       const cleanPoints = isLeadOrHead ? 0 : (m.points || 0);
       const cleanLevel = isLeadOrHead ? 1 : (m.level || 1);
@@ -374,6 +404,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return list;
   });
+
+  // Automatically keep committee head and vice names in 100% sync with active members list
+  useEffect(() => {
+    setCommittees(prev => prev.map(c => {
+      if (c.id === 'comm-leadership') return c;
+      const head = members.find(m => m.status === 'Active' && m.currentCommitteeId === c.id && (m.role === 'head' || (m.position && (m.position.includes('رئيس') || m.position.includes('هيد')))));
+      const vice = members.find(m => m.status === 'Active' && m.currentCommitteeId === c.id && (m.role === 'vice_head' || (m.position && m.position.includes('نائب'))));
+      
+      const newHeadName = head ? head.fullName : (c.headName && c.headName !== 'لم يحدد' ? c.headName : 'لم يحدد');
+      const newHeadId = head ? head.id : (c.headId || '');
+      const newViceName = vice ? vice.fullName : (c.viceName && c.viceName !== 'لم يحدد' ? c.viceName : 'لم يحدد');
+      const newViceId = vice ? vice.id : (c.viceId || '');
+
+      if (c.headName !== newHeadName || c.headId !== newHeadId || c.viceName !== newViceName || c.viceId !== newViceId) {
+        return {
+          ...c,
+          headName: newHeadName,
+          headId: newHeadId,
+          viceName: newViceName,
+          viceId: newViceId
+        };
+      }
+      return c;
+    }));
+  }, [members]);
 
   const [bannedList, setBannedList] = useState<BannedUserRecord[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_BANNED`);

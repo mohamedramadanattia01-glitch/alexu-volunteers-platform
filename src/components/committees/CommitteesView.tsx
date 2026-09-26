@@ -66,12 +66,12 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
           const committeeHeads = members.filter(m => 
             m.status === 'Active' &&
             m.currentCommitteeId === comm.id && 
-            m.role === 'head'
+            (m.role === 'head' || (m.position && (m.position.includes('رئيس') || m.position.includes('هيد'))) || comm.headId === m.id)
           );
           const committeeVices = members.filter(m => 
             m.status === 'Active' &&
             m.currentCommitteeId === comm.id && 
-            m.role === 'vice_head'
+            (m.role === 'vice_head' || (m.position && m.position.includes('نائب')) || comm.viceId === m.id)
           );
 
           const headsNamesList = committeeHeads.length > 0 

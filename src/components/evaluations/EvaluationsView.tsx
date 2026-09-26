@@ -16,7 +16,7 @@ export const EvaluationsView: React.FC = () => {
     updateMemberEvaluation, deleteMemberEvaluation,
     memberEvaluations, headEvaluations, headEvaluationRubric,
     evaluateHead, updateHeadEvaluation, deleteHeadEvaluation,
-    currentUser, isHighLeadership 
+    currentUser, isHighLeadership, isHighLeadershipMember 
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'members' | 'heads'>('members');
@@ -56,10 +56,22 @@ export const EvaluationsView: React.FC = () => {
   const headCurrentTotalEarned = Object.values(headEvalScores).reduce((a, b) => a + (Number(b) || 0), 0);
   const headCurrentPercentage = headTotalMaxScore > 0 ? Math.round((headCurrentTotalEarned / headTotalMaxScore) * 100) : 0;
 
-  // Filter regular members ONLY (excluding Heads, Vice Heads, and High Leadership)
-  const regularMembers = members.filter(m => m.status === 'Active' && m.role === 'member');
-  // Filter Heads and Vice Heads ONLY
-  const committeeHeads = members.filter(m => m.status === 'Active' && (m.role === 'head' || m.role === 'vice_head'));
+  // Filter Heads and Vice Heads across all 6 operational committees
+  const committeeHeads = members.filter(m => 
+    m.status === 'Active' && (
+      m.role === 'head' || 
+      m.role === 'vice_head' ||
+      (m.position && (m.position.includes('رئيس') || m.position.includes('هيد') || m.position.includes('نائب')))
+    ) && m.currentCommitteeId !== 'comm-leadership'
+  );
+
+  // Filter regular members ONLY (strictly excluding Heads, Vice Heads, and High Leadership)
+  const regularMembers = members.filter(m => 
+    m.status === 'Active' && 
+    m.currentCommitteeId !== 'comm-leadership' &&
+    !isHighLeadershipMember(m) &&
+    !committeeHeads.some(h => h.id === m.id)
+  );
 
   // Open New Member Evaluation
   const handleOpenEvaluateMember = (member: Member) => {
