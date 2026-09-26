@@ -220,21 +220,34 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
     if (stream) {
       mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.setAttribute('webkit-playsinline', 'true');
-        videoRef.current.muted = true;
-        try {
-          await videoRef.current.play();
-        } catch (playErr) {
-          console.warn('Video play auto-resume error:', playErr);
-        }
-      }
       setIsCameraActive(true);
       animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
     }
   };
+
+  // Ensure camera stream is attached immediately when video element mounts in DOM
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && mediaStreamRef.current) {
+      const video = videoRef.current;
+      video.srcObject = mediaStreamRef.current;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      video.muted = true;
+      video.play().catch(playErr => {
+        console.warn('Video stream auto-play error in effect:', playErr);
+      });
+    }
+  }, [isCameraActive]);
+
+  // Clean up media stream when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
 
   const handleToggleFacingMode = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -853,7 +866,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
             <div className="relative rounded-2xl overflow-hidden border-2 border-dashed border-sky-500/40 bg-slate-950 p-4 flex flex-col items-center justify-center text-center min-h-[260px]">
               
               {isCameraActive ? (
-                <div className="relative w-full max-w-sm rounded-xl overflow-hidden border-2 border-sky-400 shadow-2xl bg-black aspect-video sm:aspect-square flex items-center justify-center">
+                <div className="relative w-full max-w-sm rounded-2xl overflow-hidden border-2 border-sky-400 shadow-2xl bg-black aspect-square flex items-center justify-center">
                   <video 
                     ref={videoRef} 
                     autoPlay 
@@ -861,39 +874,48 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                     muted 
                     className="w-full h-full object-cover"
                   />
-                  {/* Viewfinder Target Corners */}
-                  <div className="absolute inset-8 border-2 border-white/60 rounded-xl pointer-events-none flex flex-col justify-between p-2">
-                    <div className="flex justify-between">
-                      <div className="w-5 h-5 border-t-4 border-r-4 border-sky-400" />
-                      <div className="w-5 h-5 border-t-4 border-l-4 border-sky-400" />
-                    </div>
-                    <div className="flex justify-between">
-                      <div className="w-5 h-5 border-b-4 border-r-4 border-sky-400" />
-                      <div className="w-5 h-5 border-b-4 border-l-4 border-sky-400" />
+
+                  {/* Darkened overlay mask with center cut-out viewfinder */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    {/* Viewfinder Target Box with size matching real QR codes */}
+                    <div className="relative w-56 h-56 rounded-2xl border-2 border-sky-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] overflow-hidden">
+                      
+                      {/* Corner Targeting Accents */}
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+
+                      {/* Continuous Laser Scanning Beam */}
+                      <div className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-qr-laser" />
+
+                      {/* Center Crosshair indicator */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                        <div className="w-8 h-[1px] bg-white" />
+                        <div className="h-8 w-[1px] bg-white" />
+                      </div>
                     </div>
                   </div>
-                  {/* Laser line */}
-                  <div className="absolute inset-x-8 top-1/2 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-lg shadow-emerald-400 animate-pulse pointer-events-none" />
                   
                   {/* Top Controls Overlay */}
-                  <div className="absolute top-2 inset-x-2 flex items-center justify-between px-2">
+                  <div className="absolute top-3 inset-x-3 flex items-center justify-between px-2 z-10">
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={handleToggleFacingMode}
-                        className="px-2.5 py-1 rounded-lg bg-black/70 border border-white/20 text-white text-[10px] font-bold flex items-center gap-1 hover:bg-black/90 cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold flex items-center gap-1.5 hover:bg-black/90 cursor-pointer shadow-lg"
                       >
-                        <FlipHorizontal className="w-3 h-3 text-sky-400" />
+                        <FlipHorizontal className="w-3.5 h-3.5 text-sky-400" />
                         <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={toggleTorch}
-                        className={`p-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all ${
+                        className={`p-1.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-lg ${
                           isTorchOn 
-                            ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/30' 
-                            : 'bg-black/70 border-white/20 text-slate-300 hover:text-white'
+                            ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-amber-500/30' 
+                            : 'bg-black/75 backdrop-blur-md border-white/20 text-slate-300 hover:text-white'
                         }`}
                         title="تشغيل/إيقاف الفلاش"
                       >
@@ -904,15 +926,23 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                     <button
                       type="button"
                       onClick={stopCamera}
-                      className="p-1 rounded-lg bg-black/70 border border-white/20 text-slate-300 hover:text-white cursor-pointer"
+                      className="p-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-rose-400 hover:text-rose-300 cursor-pointer shadow-lg"
                       title="إيقاف الكاميرا"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <div className="absolute bottom-2 inset-x-2 py-1 px-2 rounded-lg bg-black/75 backdrop-blur-sm text-center text-[10px] text-emerald-300 font-bold border border-emerald-500/30">
-                    {isProcessingScan ? '⏳ جاري التحقق وتسجيل الحضور...' : '📷 الكاميرا نشطة: وجهها نحو كود الحضور وسيسجل تلقائياً'}
+                  {/* Bottom Status Pill */}
+                  <div className="absolute bottom-3 inset-x-3 py-1.5 px-3 rounded-xl bg-slate-950/85 backdrop-blur-md text-center text-[11px] font-bold border border-slate-800 shadow-xl z-10">
+                    {isProcessingScan ? (
+                      <span className="text-amber-400 animate-pulse">⏳ جاري التحقق وتوثيق الحضور والـ GPS...</span>
+                    ) : (
+                      <span className="text-emerald-300 flex items-center justify-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                        <span>الكاميرا تعمل: وجه المربع نحو كود المشرف وسيلتقطه فورياً</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (

@@ -25,7 +25,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   onOpenDigitalPortfolio,
   onOpenEditProfile
 }) => {
-  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember, filterOutMember } = useApp();
+  const { members, revealNationalId, currentUser, badges, isHighLeadership, banMember, unbanMember, filterOutMember, grantBadgeToMember, revokeBadgeFromMember } = useApp();
   const [isNationalIdRevealed, setIsNationalIdRevealed] = useState(false);
   const [isBanModalOpen, setIsBanModalOpen] = useState(false);
   const [banReasonInput, setBanReasonInput] = useState('');
@@ -436,6 +436,73 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
             )}
           </div>
 
+        </div>
+
+        {/* Badges & Honors Section (الأوسمة والأنواط) */}
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-950/20 via-slate-900/60 to-slate-900/40 border border-amber-500/30">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-amber-500/20">
+            <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-amber-400" />
+              <span>الأوسمة والأنواط الممنوحة ({member.badges?.length || 0})</span>
+            </h4>
+            
+            {isHighLeadership && (
+              <div className="flex items-center gap-2">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      grantBadgeToMember(member.id, e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  defaultValue=""
+                  className="bg-slate-950 border border-amber-500/40 text-amber-300 text-[10px] font-bold rounded-lg px-2 py-1 cursor-pointer focus:outline-none"
+                >
+                  <option value="" disabled>+ منح وسام جديد للعضو</option>
+                  {badges.filter(b => !(member.badges || []).includes(b.id)).map(b => (
+                    <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                      {b.icon} {b.titleAr || b.title} (+{b.xpReward} XP)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {(!member.badges || member.badges.length === 0) ? (
+            <p className="text-xs text-slate-500 py-2">لا توجد أوسمة ممنوحة لهذا العضو حتى الآن.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {member.badges.map(bId => {
+                const bInfo = badges.find(b => b.id === bId);
+                return (
+                  <div key={bId} className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-between gap-2 shadow-sm group">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base">{bInfo?.icon || '🏅'}</span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">{bInfo?.titleAr || bInfo?.title || bId}</div>
+                        <div className="text-[9px] text-amber-400 font-mono">+{bInfo?.xpReward || 50} XP</div>
+                      </div>
+                    </div>
+
+                    {isHighLeadership && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`هل أنت متأكد من سحب وسام "${bInfo?.titleAr || bId}" من هذا العضو؟`)) {
+                            revokeBadgeFromMember(member.id, bId);
+                          }
+                        }}
+                        className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-all cursor-pointer text-[10px]"
+                        title="سحب الوسام"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Skills Matrix */}

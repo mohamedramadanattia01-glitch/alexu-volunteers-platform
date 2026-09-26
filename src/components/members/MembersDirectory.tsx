@@ -26,7 +26,8 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
 }) => {
   const { 
     members, committees, currentUser, isHighLeadership, 
-    deleteMember, banMember, unbanMember, filterOutMember, showNotification 
+    deleteMember, banMember, unbanMember, filterOutMember, showNotification,
+    attendanceRecords, memberEvaluations, headEvaluations
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'directory' | 'master_grid'>('directory');
@@ -49,6 +50,38 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
   // Filter Out Modal State
   const [memberToFilterOut, setMemberToFilterOut] = useState<Member | null>(null);
   const [filterOutReasonInput, setFilterOutReasonInput] = useState('');
+
+  const getMemberDynamicStats = (m: Member) => {
+    const isLeader = m.role === 'head' || m.role === 'vice_head' || m.role === 'advisor' || m.role === 'vice_president' || m.role === 'super_admin' || m.role === 'general_coordinator';
+
+    // Real attendance
+    const myAtt = attendanceRecords.filter(a => a.memberId === m.id);
+    const presentCount = myAtt.filter(a => a.status === 'Present').length;
+    const attendanceRate = myAtt.length > 0 ? Math.round((presentCount / myAtt.length) * 100) : null;
+
+    // Real evaluation
+    let evalScore: number | null = null;
+    if (isLeader) {
+      const headEvals = headEvaluations.filter(e => e.headId === m.id);
+      if (headEvals.length > 0) {
+        evalScore = Math.round(headEvals.reduce((a, b) => a + b.percentage, 0) / headEvals.length);
+      }
+    } else {
+      const mEvals = memberEvaluations.filter(e => e.memberId === m.id);
+      if (mEvals.length > 0) {
+        evalScore = Math.round(mEvals.reduce((a, b) => a + b.percentage, 0) / mEvals.length);
+      }
+    }
+
+    const points = (m.points && m.points > 0) ? m.points : 0;
+
+    return {
+      isLeader,
+      attendanceDisplay: attendanceRate !== null ? `${attendanceRate}%` : '—',
+      evalDisplay: evalScore !== null ? `${evalScore}%` : 'لم يُقيّم بعد',
+      pointsDisplay: points > 0 ? `${points} XP` : '0 XP'
+    };
+  };
 
   const filteredMembers = members.filter(m => {
     const volId = m.volunteerId || '';
@@ -372,10 +405,10 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                             {member.joinDate}
                           </td>
                           <td className="p-3 border-l border-slate-800/60 text-amber-400 font-bold">
-                            {member.points || 0} XP
+                            {getMemberDynamicStats(member).pointsDisplay}
                           </td>
                           <td className="p-3 border-l border-slate-800/60 text-emerald-400 font-bold">
-                            {member.performance?.overallScore || 0}%
+                            {getMemberDynamicStats(member).evalDisplay}
                           </td>
                           <td className="p-2 text-center">
                             <div className="flex items-center justify-center gap-1 font-sans">
@@ -410,7 +443,9 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
           {/* ========================================================= */}
           {activeSubTab === 'directory' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMembers.map(member => (
+              {filteredMembers.map(member => {
+                const stats = getMemberDynamicStats(member);
+                return (
                 <div 
                   key={member.id}
                   className={`glass-card p-4 transition-all relative overflow-hidden group ${
@@ -461,15 +496,15 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                   <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center mb-3">
                     <div>
                       <div className="text-[9px] text-slate-400">النقاط XP</div>
-                      <div className="text-xs font-mono font-bold text-amber-400">{member.points || 0}</div>
+                      <div className="text-xs font-mono font-bold text-amber-400">{stats.pointsDisplay}</div>
                     </div>
                     <div>
                       <div className="text-[9px] text-slate-400">الحضور</div>
-                      <div className="text-xs font-mono font-bold text-emerald-400">{member.performance?.attendanceRate || 0}%</div>
+                      <div className="text-xs font-mono font-bold text-emerald-400">{stats.attendanceDisplay}</div>
                     </div>
                     <div>
                       <div className="text-[9px] text-slate-400">التقييم</div>
-                      <div className="text-xs font-mono font-bold text-purple-400">{member.performance?.overallScore || 0}%</div>
+                      <div className="text-xs font-mono font-bold text-purple-400">{stats.evalDisplay}</div>
                     </div>
                   </div>
 
@@ -540,8 +575,9 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                   </div>
 
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
           )}
 
           {/* Filter Out / Dismiss Member Confirmation Modal */}

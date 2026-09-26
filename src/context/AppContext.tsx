@@ -239,8 +239,10 @@ interface AppContextType {
     bio?: string;
     skills?: { [k: string]: number };
   }) => { success: boolean; message: string; member?: Member };
-  approveMemberRegistration: (memberId: string, assignedCommitteeId: string, customRole?: Role) => { success: boolean; volunteerId: string };
+  approveMemberRegistration: (memberId: string, assignedCommitteeId: string, customRole?: Role, customPosition?: string) => { success: boolean; volunteerId: string };
   rejectMemberRegistration: (memberId: string, reason?: string) => void;
+  grantBadgeToMember: (memberId: string, badgeId: string) => void;
+  revokeBadgeFromMember: (memberId: string, badgeId: string) => void;
   logout: () => void;
   setFontSizeMode: (mode: 'compact' | 'normal' | 'large') => void;
   hasPermission: (permCode: string) => boolean;
@@ -2236,9 +2238,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetBadge = badges.find(b => b.id === id);
     const badgeName = targetBadge?.titleAr || targetBadge?.title || id;
     setBadges(prev => prev.filter(b => b.id !== id));
-    addAuditLog('حذف شارة وسام', badgeName, 'تم حذف الشارة من الكتالوج');
-    showNotification('info', `تم حذف الوسام "${badgeName}"`);
+    // Also remove from any members who had this badge
+    setMembers(prev => prev.map(m => ({
+      ...m,
+      badges: (m.badges || []).filter(bId => bId !== id)
+    })));
+    addAuditLog('حذف شارة وسام', badgeName, 'تم حذف الشارة من الكتالوج العام وسحبها من كافة الأعضاء');
+    showNotification('info', `تم حذف الوسام "${badgeName}" بنجاح`);
     playSound('task');
+  };
+
+  const grantBadgeToMember = (memberId: string, badgeId: string) => {
+    const targetBadge = badges.find(b => b.id === badgeId);
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetBadge || !targetMember) return;
+
+    if (targetMember.badges?.includes(badgeId)) {
+      showNotification('warning', `الوسام "${targetBadge.titleAr}" ممنوح بالفعل للعضو.`);
+      return;
+    }
+
+    const updatedBadges = [...(targetMember.badges || []), badgeId];
+    updateMemberSelfProfile(memberId, { badges: updatedBadges });
+    addAuditLog('منح وسام لعضو', `${targetMember.fullName}`, `تم منح وسام: ${targetBadge.titleAr}`);
+    showNotification('success', `تم منح الوسام "${targetBadge.titleAr}" للعضو ${targetMember.fullName} بنجاح 🏅`);
+    playSound('achievement');
+  };
+
+  const revokeBadgeFromMember = (memberId: string, badgeId: string) => {
+    const targetBadge = badges.find(b => b.id === badgeId);
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetMember) return;
+
+    const updatedBadges = (targetMember.badges || []).filter(id => id !== badgeId);
+    updateMemberSelfProfile(memberId, { badges: updatedBadges });
+    const badgeName = targetBadge?.titleAr || badgeId;
+    addAuditLog('سحب وسام من عضو', `${targetMember.fullName}`, `تم سحب وسام: ${badgeName}`);
+    showNotification('info', `تم حذف وسام "${badgeName}" من العضو ${targetMember.fullName}`);
   };
 
   const addDocument = (docData: Omit<DocumentItem, 'id' | 'uploadedAt'>) => {
@@ -2846,14 +2882,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const approveMemberRegistration = (memberId: string, assignedCommitteeId: string, customRole: Role = 'member') => {
+  const approveMemberRegistration = (
+    memberId: string, 
+    assignedCommitteeId: string, 
+    customRole: Role = 'member',
+    customPosition?: string
+  ) => {
     const targetMember = members.find(m => m.id === memberId);
     if (!targetMember) return { success: false, volunteerId: '' };
 
     const targetComm = committees.find(c => c.id === assignedCommitteeId) || committees[0];
     const newVolunteerId = generateCommitteeVolunteerId(targetComm.id, customRole, members);
 
-    const positionTitle = getRoleOfficialTitle(customRole, targetComm.name);
+    const positionTitle = customPosition?.trim() || getRoleOfficialTitle(customRole, targetComm.name);
 
     const updatedMemberData: Member = {
       ...targetMember,
@@ -2863,6 +2904,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentCommitteeName: targetComm.name,
       position: positionTitle,
       role: customRole,
+      points: 0,
+      level: 1,
+      performance: {
+        attendanceRate: 0,
+        taskCompletionRate: 0,
+        taskQuality: 0,
+        commitment: 0,
+        teamwork: 0,
+        leadership: 0,
+        overallScore: 0,
+        evaluationsCount: 0
+      },
+      badges: targetMember.badges || [],
       joinDate: new Date().toISOString().split('T')[0]
     };
 
@@ -3118,6 +3172,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBadge,
         updateBadge,
         deleteBadge,
+        grantBadgeToMember,
+        revokeBadgeFromMember,
         addDocument,
         updateDocument,
         deleteDocument,

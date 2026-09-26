@@ -392,20 +392,26 @@ export const LeaderboardView: React.FC = () => {
               </div>
 
               {isHighLeadership && (
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => handleOpenEditBadge(badge)}
-                    className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 transition-all cursor-pointer"
+                    className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
                     title="تعديل الوسام"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">تعديل</span>
                   </button>
                   <button
-                    onClick={() => deleteBadge(badge.id)}
-                    className="p-1 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-rose-400 transition-all cursor-pointer"
+                    onClick={() => {
+                      if (window.confirm(`هل أنت متأكد من حذف وسام "${badge.titleAr}" نهائياً من المنظومة وسحبه من كافة الأعضاء؟`)) {
+                        deleteBadge(badge.id);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
                     title="حذف الوسام"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">حذف</span>
                   </button>
                 </div>
               )}

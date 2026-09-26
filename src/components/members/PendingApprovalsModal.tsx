@@ -21,11 +21,47 @@ export const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ is
 
   const [selectedCommitteeMap, setSelectedCommitteeMap] = useState<{ [memberId: string]: string }>({});
   const [selectedRoleMap, setSelectedRoleMap] = useState<{ [memberId: string]: Role }>({});
+  const [selectedPositionMap, setSelectedPositionMap] = useState<{ [memberId: string]: string }>({});
   const [rejectReasonMap, setRejectReasonMap] = useState<{ [memberId: string]: string }>({});
   const [rejectingMemberId, setRejectingMemberId] = useState<string | null>(null);
   const [lastApprovedInfo, setLastApprovedInfo] = useState<{ name: string; id: string; commName: string } | null>(null);
 
   if (!isOpen) return null;
+
+  const handleCommitteeChange = (applicantId: string, newCommId: string) => {
+    setSelectedCommitteeMap(prev => ({ ...prev, [applicantId]: newCommId }));
+    const isLeadership = newCommId === 'comm-leadership';
+    const nextRole: Role = isLeadership ? 'advisor' : 'member';
+    setSelectedRoleMap(prev => ({ ...prev, [applicantId]: nextRole }));
+    const comm = committees.find(c => c.id === newCommId);
+    setSelectedPositionMap(prev => ({
+      ...prev,
+      [applicantId]: isLeadership 
+        ? 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية' 
+        : `عضو متطوع بـ ${comm?.name || 'اللجنة'}`
+    }));
+  };
+
+  const handleRoleChange = (applicantId: string, newRole: Role, commId: string) => {
+    setSelectedRoleMap(prev => ({ ...prev, [applicantId]: newRole }));
+    const comm = committees.find(c => c.id === commId);
+    if (commId === 'comm-leadership') {
+      let pos = 'عضو القيادة العليا';
+      if (newRole === 'advisor') pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      else if (newRole === 'vice_president') pos = 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      else if (newRole === 'super_admin') pos = 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      else if (newRole === 'general_coordinator') pos = 'منسق عام فريق المتطوعين';
+      else if (newRole === 'operations_manager') pos = 'مدير العمليات الميدانية';
+      else if (newRole === 'quality_officer') pos = 'مسؤول الجودة والمتابعة المؤسسية';
+      setSelectedPositionMap(prev => ({ ...prev, [applicantId]: pos }));
+    } else {
+      let pos = `عضو متطوع بـ ${comm?.name || 'اللجنة'}`;
+      if (newRole === 'head') pos = `رئيس ${comm?.name || 'اللجنة'}`;
+      else if (newRole === 'vice_head') pos = `نائب رئيس ${comm?.name || 'اللجنة'}`;
+      else if (newRole === 'hr_admin') pos = `مسؤول موارد بشرية بـ ${comm?.name || 'اللجنة'}`;
+      setSelectedPositionMap(prev => ({ ...prev, [applicantId]: pos }));
+    }
+  };
 
   const handleApprove = (memberId: string) => {
     const targetMember = pendingMembers.find(m => m.id === memberId);
@@ -33,14 +69,15 @@ export const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ is
 
     const assignedCommId = selectedCommitteeMap[memberId] || targetMember.preferredCommitteeId || committees[0]?.id || 'comm-org';
     const assignedRole = selectedRoleMap[memberId] || 'member';
+    const assignedPosition = selectedPositionMap[memberId];
 
-    const res = approveMemberRegistration(memberId, assignedCommId, assignedRole);
+    const res = approveMemberRegistration(memberId, assignedCommId, assignedRole, assignedPosition);
     if (res.success) {
       const comm = committees.find(c => c.id === assignedCommId);
       setLastApprovedInfo({
         name: targetMember.fullName,
         id: res.volunteerId,
-        commName: comm?.name || 'لجنة التنظيم'
+        commName: comm?.name || 'لجنة العمل'
       });
       setTimeout(() => setLastApprovedInfo(null), 6000);
     }
@@ -177,46 +214,68 @@ export const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ is
                     </p>
                   )}
 
-                  {/* Committee & Role Selection Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                        تعيين اللجنة المعتمدة:
-                      </label>
-                      <select
-                        value={selectedCommId}
-                        onChange={e => setSelectedCommitteeMap({ ...selectedCommitteeMap, [applicant.id]: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
-                      >
-                        {committees.map(c => (
-                          <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                            {c.name} ({c.code}) {applicant.preferredCommitteeId === c.id ? '⭐ المرغوبة' : ''}
-                          </option>
-                        ))}
-                      </select>
+                  {/* Committee & Role & Position Customization Row */}
+                  <div className="space-y-2.5 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                          تعيين وتسكين اللجنة المعتمدة:
+                        </label>
+                        <select
+                          value={selectedCommId}
+                          onChange={e => handleCommitteeChange(applicant.id, e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-bold"
+                        >
+                          {committees.map(c => (
+                            <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                              {c.id === 'comm-leadership' ? '👑 القيادة العليا والمجلس الاستشاري' : `🏢 ${c.name} (${c.code})`} {applicant.preferredCommitteeId === c.id ? '⭐ المرغوبة' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                          الرتبة / الصفة الإدارية الممنوحة:
+                        </label>
+                        <select
+                          value={selectedRole}
+                          onChange={e => handleRoleChange(applicant.id, e.target.value as Role, selectedCommId)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-bold"
+                        >
+                          {selectedCommId === 'comm-leadership' ? (
+                            <>
+                              <option value="advisor" className="bg-slate-900 text-white">🎓 مستشار فريق متطوعين اتحاد الطلاب</option>
+                              <option value="vice_president" className="bg-slate-900 text-white">⭐ نائب رئيس فريق متطوعين اتحاد الطلاب</option>
+                              <option value="super_admin" className="bg-slate-900 text-white">👑 رئيس فريق متطوعين اتحاد الطلاب (Super Admin)</option>
+                              <option value="general_coordinator" className="bg-slate-900 text-white">⚡ المنسق العام لفريق المتطوعين</option>
+                              <option value="operations_manager" className="bg-slate-900 text-white">🚨 مدير العمليات والميدان</option>
+                              <option value="quality_officer" className="bg-slate-900 text-white">💎 مسؤول الجودة والمتابعة المؤسسية</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="member" className="bg-slate-900 text-white">🌟 عضو متطوع (Volunteer Member)</option>
+                              <option value="vice_head" className="bg-slate-900 text-white">⚔️ نائب رئيس لجنة (Vice Head)</option>
+                              <option value="head" className="bg-slate-900 text-white">🛡️ رئيس لجنة (Committee Head)</option>
+                              <option value="hr_admin" className="bg-slate-900 text-white">👥 مسؤول موارد بشرية باللجنة (HR)</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
                     </div>
 
+                    {/* Custom Position Title Input */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                        الصفة / الدور الممنوح:
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        المسمى والمنصب المعتمد للكارنيه والشهادات:
                       </label>
-                      <select
-                        value={selectedRole}
-                        onChange={e => setSelectedRoleMap({ ...selectedRoleMap, [applicant.id]: e.target.value as Role })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
-                      >
-                        <option value="member" className="bg-slate-900 text-white">🌟 عضو متطوع (Volunteer Member)</option>
-                        <option value="vice_head" className="bg-slate-900 text-white">⚔️ نائب رئيس لجنة (Vice Head)</option>
-                        <option value="head" className="bg-slate-900 text-white">🛡️ رئيس لجنة (Committee Head)</option>
-                        <option value="hr_admin" className="bg-slate-900 text-white">👥 مسؤول الموارد البشرية (HR Lead)</option>
-                        <option value="event_manager" className="bg-slate-900 text-white">🎪 مسؤول الفعاليات والمشاريع (Event Lead)</option>
-                        <option value="quality_officer" className="bg-slate-900 text-white">💎 مسؤول الجودة والتقييم المؤسسي</option>
-                        <option value="operations_manager" className="bg-slate-900 text-white">🚨 مسؤول العمليات والميدان</option>
-                        <option value="general_coordinator" className="bg-slate-900 text-white">⚡ المنسق العام لفريق المتطوعين</option>
-                        <option value="advisor" className="bg-slate-900 text-white">🎓 مستشار فريق متطوعين اتحاد الطلاب</option>
-                        <option value="vice_president" className="bg-slate-900 text-white">⭐ نائب رئيس فريق متطوعين اتحاد الطلاب</option>
-                        <option value="super_admin" className="bg-slate-900 text-white">👑 رئيس فريق متطوعين اتحاد الطلاب (Super Admin)</option>
-                      </select>
+                      <input
+                        type="text"
+                        value={selectedPositionMap[applicant.id] !== undefined ? selectedPositionMap[applicant.id] : (selectedCommId === 'comm-leadership' ? 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية' : `عضو متطوع بـ ${committees.find(c => c.id === selectedCommId)?.name || 'لجنة العمل'}`)}
+                        onChange={e => setSelectedPositionMap({ ...selectedPositionMap, [applicant.id]: e.target.value })}
+                        placeholder="المسمى الوظيفي المعتمد..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
                     </div>
                   </div>
 
