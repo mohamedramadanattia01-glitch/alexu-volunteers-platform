@@ -108,6 +108,8 @@ interface AppContextType {
   addMember: (memberData: Partial<Member>) => void;
   importMembersBulk: (newMembers: Partial<Member>[]) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
+  isVolunteerIdAvailable: (volunteerId: string, excludeMemberId?: string) => { isAvailable: boolean; heldByMember?: Member };
+  changeVolunteerId: (memberId: string, newVolunteerId: string, allowSwap?: boolean) => { success: boolean; message: string; swappedWithMemberId?: string; existingMember?: Member };
   deleteMember: (id: string, alsoBanEmail?: boolean, banReason?: string) => void;
   banMember: (id: string, reason: string) => void;
   unbanMember: (id: string) => void;
@@ -1227,6 +1229,111 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (savedMember) {
       SupabaseService.upsertMember(savedMember).catch(e => console.warn('Supabase updateMember error:', e));
     }
+  };
+
+  // Check if a volunteer ID is available or held by another member
+  const isVolunteerIdAvailable = (volunteerId: string, excludeMemberId?: string): { isAvailable: boolean; heldByMember?: Member } => {
+    const cleanId = volunteerId.trim().toUpperCase();
+    if (!cleanId) return { isAvailable: false };
+    const found = members.find(m => m.id !== excludeMemberId && (m.volunteerId || '').trim().toUpperCase() === cleanId);
+    if (found) {
+      return { isAvailable: false, heldByMember: found };
+    }
+    return { isAvailable: true };
+  };
+
+  // Change or Swap Volunteer ID with complete Platform-wide and Database propagation
+  const changeVolunteerId = (
+    memberId: string, 
+    newVolunteerId: string, 
+    allowSwap: boolean = false
+  ): { success: boolean; message: string; swappedWithMemberId?: string; existingMember?: Member } => {
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetMember) {
+      return { success: false, message: 'العضو غير موجود بالمنظومة' };
+    }
+
+    const cleanNewId = newVolunteerId.trim().toUpperCase();
+    if (!cleanNewId) {
+      return { success: false, message: 'يرجى إدخال رقم تطوعي صحيح وغير فارغ' };
+    }
+
+    const oldVolunteerId = (targetMember.volunteerId || '').trim().toUpperCase();
+    if (oldVolunteerId === cleanNewId) {
+      return { success: true, message: 'الرقم التطوعي هو نفسه بالفعل دون تغيير' };
+    }
+
+    const holder = members.find(m => m.id !== memberId && (m.volunteerId || '').trim().toUpperCase() === cleanNewId);
+
+    if (holder && !allowSwap) {
+      return { 
+        success: false, 
+        message: `الرقم التطوعي (${cleanNewId}) مسجل ومستخدم حالياً بواسطة "${holder.fullName}" (${holder.currentCommitteeName || 'لجنة غير محددة'}).`,
+        existingMember: holder
+      };
+    }
+
+    // If holder exists and allowSwap is true -> Swap the IDs
+    if (holder && allowSwap) {
+      const holderNewId = oldVolunteerId || generateCommitteeVolunteerId(holder.currentCommitteeId, holder.role, members);
+      
+      const updatedTargetMember: Member = { ...targetMember, volunteerId: cleanNewId };
+      const updatedHolderMember: Member = { ...holder, volunteerId: holderNewId };
+
+      setMembers(prev => prev.map(m => {
+        if (m.id === targetMember.id) return updatedTargetMember;
+        if (m.id === holder.id) return updatedHolderMember;
+        return m;
+      }));
+
+      // Update Attendance records if needed
+      setAttendanceRecords(prev => prev.map(a => {
+        if (a.memberId === targetMember.id) return { ...a, memberName: targetMember.fullName };
+        if (a.memberId === holder.id) return { ...a, memberName: holder.fullName };
+        return a;
+      }));
+
+      // Audit Log
+      addAuditLog(
+        'تبديل ونقل رقم تطوعي',
+        `${targetMember.fullName} ⇄ ${holder.fullName}`,
+        `تم منح الرقم (${cleanNewId}) لـ ${targetMember.fullName} ونقل الرقم (${holderNewId}) لـ ${holder.fullName} بواسطة ${currentUser.fullName}`
+      );
+
+      // Cloud Sync
+      SupabaseService.upsertMember(updatedTargetMember).catch(e => console.warn('Supabase target update error:', e));
+      SupabaseService.upsertMember(updatedHolderMember).catch(e => console.warn('Supabase holder update error:', e));
+
+      showNotification('success', `تم تبديل ونقل الرقم التطوعي (${cleanNewId}) لـ ${targetMember.fullName} وتعيين (${holderNewId}) لـ ${holder.fullName} بنجاح ✓`);
+      playSound('task');
+
+      return {
+        success: true,
+        message: `تم تبديل ونقل الرقم التطوعي بنجاح بين ${targetMember.fullName} و ${holder.fullName}`,
+        swappedWithMemberId: holder.id,
+        existingMember: holder
+      };
+    }
+
+    // No holder: direct assignment
+    const updatedMember: Member = { ...targetMember, volunteerId: cleanNewId };
+    setMembers(prev => prev.map(m => m.id === memberId ? updatedMember : m));
+
+    addAuditLog(
+      'تعديل رقم تطوعي',
+      `${targetMember.fullName} (كود: ${cleanNewId})`,
+      `تم تغيير الرقم التطوعي من ${oldVolunteerId || 'بدون'} إلى ${cleanNewId} بواسطة ${currentUser.fullName}`
+    );
+
+    SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase save error:', e));
+
+    showNotification('success', `تم تعيين وتحديث الرقم التطوعي لـ ${targetMember.fullName} إلى (${cleanNewId}) بنجاح ✓`);
+    playSound('task');
+
+    return {
+      success: true,
+      message: `تم تحديث الرقم التطوعي إلى (${cleanNewId}) بنجاح ✓`
+    };
   };
 
   // Ban Member & Blacklist (Permanent Access Revocation)
@@ -3341,6 +3448,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addMember,
         importMembersBulk,
         updateMember,
+        isVolunteerIdAvailable,
+        changeVolunteerId,
         deleteMember,
         archiveMember,
         transferMemberCommittee,

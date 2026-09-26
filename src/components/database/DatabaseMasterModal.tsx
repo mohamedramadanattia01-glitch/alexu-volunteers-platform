@@ -17,6 +17,7 @@ interface DatabaseMasterModalProps {
 export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen, onClose }) => {
   const { 
     members, committees, updateMember, deleteMember, addMember, 
+    changeVolunteerId, isVolunteerIdAvailable,
     syncWithCloud, isSupabaseConnected, currentUser, isHighLeadership 
   } = useApp();
 
@@ -114,10 +115,17 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     const commName = targetComm ? targetComm.name : 'لجنة التنظيم';
     const isLeadOrHead = isHighLeadershipRole(editForm.role) || editForm.role === 'head' || editForm.role === 'vice_head' || editForm.currentCommitteeId === 'comm-leadership';
 
+    // 1. Handle Volunteer ID change or swap if changed
+    const originalVolId = (editingMember?.volunteerId || '').trim().toUpperCase();
+    const newVolId = editForm.volunteerId.trim().toUpperCase();
+    if (newVolId && newVolId !== originalVolId) {
+      changeVolunteerId(editForm.id, newVolId, true);
+    }
+
     const updates: Partial<Member> = {
       fullName: editForm.fullName.trim(),
       universityEmail: editForm.universityEmail.trim(),
-      volunteerId: editForm.volunteerId.trim(),
+      volunteerId: newVolId || originalVolId,
       password: editForm.password?.trim() || undefined,
       nationalId: editForm.nationalId.trim(),
       phone: editForm.phone.trim(),
@@ -135,7 +143,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
 
     updateMember(editForm.id, updates);
     setEditingMember(null);
-    setSaveSuccessNotice(`تم حفظ وتحديث بيانات العضو "${editForm.fullName}" بنجاح في قاعدة البيانات ✓`);
+    setSaveSuccessNotice(`تم حفظ وتحديث بيانات العضو "${editForm.fullName}" وتثبيت الرقم التطوعي (${newVolId || originalVolId}) بنجاح في قاعدة البيانات ✓`);
     setTimeout(() => setSaveSuccessNotice(null), 4000);
   };
 
@@ -427,14 +435,43 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 mb-1">الكود التطوعي (Volunteer ID) *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-300">الكود التطوعي (Volunteer ID) *</label>
+                      {editForm.volunteerId && (
+                        (() => {
+                          const check = isVolunteerIdAvailable(editForm.volunteerId, editForm.id);
+                          if (!check.isAvailable && check.heldByMember) {
+                            return (
+                              <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                                <span>⚠️ مستخدم: {check.heldByMember.fullName}</span>
+                              </span>
+                            );
+                          }
+                          if (editForm.volunteerId !== editingMember?.volunteerId) {
+                            return <span className="text-[10px] text-emerald-400 font-bold">✓ كود متاح وجديد</span>;
+                          }
+                          return null;
+                        })()
+                      )}
+                    </div>
                     <input
                       type="text"
                       required
                       value={editForm.volunteerId}
-                      onChange={e => setEditForm(prev => ({ ...prev, volunteerId: e.target.value }))}
+                      onChange={e => setEditForm(prev => ({ ...prev, volunteerId: e.target.value.toUpperCase() }))}
                       className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-sky-400 font-bold"
                     />
+                    {(() => {
+                      const check = isVolunteerIdAvailable(editForm.volunteerId, editForm.id);
+                      if (!check.isAvailable && check.heldByMember) {
+                        return (
+                          <div className="mt-1.5 p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[10px] text-amber-200">
+                            <span>📌 هذا الكود مسجل لـ <b>{check.heldByMember.fullName}</b> ({check.heldByMember.currentCommitteeName || 'لجنة'}). عند الحفظ سيتم تبديل الكود ونقله لـ <b>{editForm.fullName}</b> تلقائياً ومزامنته في قاعدة البيانات.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 

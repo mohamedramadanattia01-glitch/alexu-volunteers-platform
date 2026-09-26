@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alexu-volunteers-v2';
+const CACHE_NAME = 'alexu-volunteers-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -70,6 +70,7 @@ self.addEventListener('message', (event) => {
       body: options?.body || 'إشعار جديد من فريق متطوعين جامعة الإسكندرية',
       icon: options?.icon || '/logo.png',
       badge: options?.badge || '/logo.png',
+      image: options?.image || options?.icon || '/logo.png',
       vibrate: options?.vibrate || [200, 100, 200, 100, 400],
       tag: options?.tag || `notif-${Date.now()}`,
       requireInteraction: options?.requireInteraction ?? true,
@@ -111,7 +112,8 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body,
     icon: data.icon || '/logo.png',
-    badge: '/logo.png',
+    badge: data.badge || '/logo.png',
+    image: data.image || data.icon || '/logo.png',
     vibrate: [250, 100, 250, 100, 450],
     data: data.url || '/',
     dir: 'rtl',

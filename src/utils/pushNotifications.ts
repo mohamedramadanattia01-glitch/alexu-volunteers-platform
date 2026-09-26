@@ -6,6 +6,7 @@ export interface PushNotificationPayload {
   type?: 'task' | 'alert' | 'sos' | 'announcement' | 'eval' | 'complaint' | 'achievement' | 'event' | string;
   icon?: string;
   badge?: string;
+  image?: string;
   tag?: string;
   data?: Record<string, any>;
   sound?: boolean;
@@ -50,6 +51,7 @@ export async function sendSystemPushNotification(payload: PushNotificationPayloa
     type = 'announcement',
     icon = '/logo.png',
     badge = '/logo.png',
+    image = '/logo.png',
     tag = `notif-${Date.now()}`,
     data = {}
   } = payload;
@@ -79,8 +81,10 @@ export async function sendSystemPushNotification(payload: PushNotificationPayloa
 
   const notificationOptions: NotificationOptions = {
     body,
-    icon,
-    badge,
+    icon: icon || '/logo.png',
+    badge: badge || '/logo.png',
+    // @ts-ignore - Chrome / Android / Windows rich preview image
+    image: image || icon || '/logo.png',
     tag,
     data: {
       url: window.location.href,

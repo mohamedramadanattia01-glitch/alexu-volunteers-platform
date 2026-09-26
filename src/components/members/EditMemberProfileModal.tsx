@@ -23,7 +23,10 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { updateMemberSelfProfile, isHighLeadership, badges: masterBadges, committees } = useApp();
+  const { 
+    updateMemberSelfProfile, isHighLeadership, badges: masterBadges, 
+    committees, changeVolunteerId, isVolunteerIdAvailable 
+  } = useApp();
 
   // High Leadership Exclusive Staffing & Admin Fields
   const [adminCommitteeId, setAdminCommitteeId] = useState<string>(member.currentCommitteeId || 'comm-org');
@@ -222,9 +225,16 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
     const selectedComm = committees.find(c => c.id === adminCommitteeId);
     const commName = selectedComm ? selectedComm.name : member.currentCommitteeName;
 
+    // Handle Volunteer ID swap / assignment if modified by Leadership
+    const originalVolId = (member.volunteerId || '').trim().toUpperCase();
+    const newVolId = adminVolunteerId.trim().toUpperCase();
+    if (isHighLeadership && newVolId && newVolId !== originalVolId) {
+      changeVolunteerId(member.id, newVolId, true);
+    }
+
     updateMemberSelfProfile(member.id, {
       fullName: fullName.trim() || member.fullName,
-      volunteerId: isHighLeadership ? (adminVolunteerId.trim() || member.volunteerId) : member.volunteerId,
+      volunteerId: isHighLeadership ? (newVolId || originalVolId) : member.volunteerId,
       currentCommitteeId: isHighLeadership ? adminCommitteeId : member.currentCommitteeId,
       currentCommitteeName: isHighLeadership ? commName : member.currentCommitteeName,
       role: isHighLeadership ? adminRole : member.role,
@@ -1035,14 +1045,43 @@ export const EditMemberProfileModal: React.FC<EditMemberProfileModalProps> = ({
 
                   {/* Volunteer ID Input */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 mb-1">كود المتطوع الرسمي (Volunteer ID)</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-300">كود المتطوع الرسمي (Volunteer ID)</label>
+                      {adminVolunteerId && (
+                        (() => {
+                          const check = isVolunteerIdAvailable(adminVolunteerId, member.id);
+                          if (!check.isAvailable && check.heldByMember) {
+                            return (
+                              <span className="text-[10px] text-amber-400 font-bold">
+                                ⚠️ مستخدم: {check.heldByMember.fullName}
+                              </span>
+                            );
+                          }
+                          if (adminVolunteerId !== member.volunteerId) {
+                            return <span className="text-[10px] text-emerald-400 font-bold">✓ كود متاح وجديد</span>;
+                          }
+                          return null;
+                        })()
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={adminVolunteerId}
-                      onChange={(e) => setAdminVolunteerId(e.target.value)}
-                      placeholder="VOL-LEAD-01"
+                      onChange={(e) => setAdminVolunteerId(e.target.value.toUpperCase())}
+                      placeholder="AU-ORG-001"
                       className="glass-input text-xs font-mono font-bold text-sky-300"
                     />
+                    {(() => {
+                      const check = isVolunteerIdAvailable(adminVolunteerId, member.id);
+                      if (!check.isAvailable && check.heldByMember) {
+                        return (
+                          <div className="mt-1.5 p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[10px] text-amber-200">
+                            <span>📌 هذا الكود مسجل لـ <b>{check.heldByMember.fullName}</b> ({check.heldByMember.currentCommitteeName || 'لجنة'}). عند الحفظ سيتم تبديل ونقل الكود لـ <b>{fullName || member.fullName}</b> فورياً وحفظه في قاعدة البيانات.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
