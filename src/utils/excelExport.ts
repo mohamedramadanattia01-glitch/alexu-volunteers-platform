@@ -99,9 +99,9 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
   ];
 
   const rows = filtered.map(m => {
-    const isLeadOrHead = isHighLeadershipRole(m.role) || m.role === 'head' || m.role === 'vice_head' || m.currentCommitteeId === 'comm-leadership' || m.position?.includes('رئيس') || m.position?.includes('هيد') || m.position?.includes('نائب');
-    const cleanPoints = isLeadOrHead ? 0 : (m.points || 0);
-    const cleanLevel = isLeadOrHead ? 1 : (m.level || 1);
+    const isLeadership = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership';
+    const cleanPoints = isLeadership && !m.points ? 0 : (m.points || 0);
+    const cleanLevel = m.level || 1;
 
     return [
       m.volunteerId || m.id,

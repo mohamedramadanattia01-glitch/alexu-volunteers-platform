@@ -4,13 +4,17 @@ import {
   LayoutDashboard, Zap, Users, Layers, CheckSquare, 
   Calendar, QrCode, Target, GraduationCap, Trophy, 
   Bot, Megaphone, FolderGit2, ShieldAlert, 
-  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2
+  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2, Database
 } from 'lucide-react';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onOpenDatabaseModal?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal }) => {
   const { 
     activeTab, setActiveTab, tasks, isLiveCommandCenterActive, 
-    sosAlerts, teamHealthScore, currentUser, complaints 
+    sosAlerts, teamHealthScore, currentUser, complaints, isHighLeadership 
   } = useApp();
 
   const activeTasksCount = tasks.filter(t => t.status !== 'Approved' && t.status !== 'Cancelled').length;
@@ -136,6 +140,25 @@ export const Sidebar: React.FC = () => {
             </button>
           );
         })}
+
+        {/* High Leadership Exclusive Database Console Button */}
+        {isHighLeadership && onOpenDatabaseModal && (
+          <div className="pt-2 mt-2 border-t border-slate-800/80">
+            <button
+              onClick={onOpenDatabaseModal}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-950/40 to-slate-900 hover:from-emerald-900/40 hover:to-slate-800 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer shadow-md hover:scale-[1.02]"
+              title="التحكم الكامل في قاعدة البيانات وتسكين اللجان وتعديل النقاط لكافة الأعضاء"
+            >
+              <div className="flex items-center gap-2.5">
+                <Database className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                <span className="truncate">قاعدة البيانات والتسكين</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black shrink-0">
+                إدارة 🗄️
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Footer Health Score Widget */}

@@ -115,15 +115,13 @@ const MainAppContent: React.FC = () => {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenComplaintModal={() => setIsComplaintModalOpen(true)}
         onOpenApprovalsModal={() => setIsPendingApprovalsOpen(true)}
-        onOpenInstallModal={() => setIsInstallModalOpen(true)}
-        onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
       />
 
       {/* Main Layout Body */}
       <div className="max-w-7xl mx-auto w-full flex flex-1 overflow-x-hidden">
         
         {/* Desktop Sidebar */}
-        <Sidebar />
+        <Sidebar onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)} />
 
         {/* Main Content Area with Animated Page Transitions */}
         <main className="flex-1 p-3 sm:p-5 max-w-full overflow-hidden">
@@ -261,6 +259,7 @@ const MainAppContent: React.FC = () => {
         onClose={() => setIsMobileDrawerOpen(false)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenInstallModal={() => setIsInstallModalOpen(true)}
+        onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
       />
 
       {/* Global Modals */}

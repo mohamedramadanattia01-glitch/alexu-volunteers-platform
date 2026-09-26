@@ -6,7 +6,7 @@ import {
   GraduationCap, Trophy, Bot, 
   Megaphone, FolderGit2, ShieldAlert, BarChart3, 
   HeartPulse, MessageSquare, Sliders, User, Smartphone, Download,
-  Building2, Cake 
+  Building2, Cake, Database
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -14,13 +14,15 @@ interface MobileDrawerProps {
   onClose: () => void;
   onOpenSettings?: () => void;
   onOpenInstallModal?: () => void;
+  onOpenDatabaseModal?: () => void;
 }
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({ 
   isOpen, 
   onClose, 
   onOpenSettings,
-  onOpenInstallModal
+  onOpenInstallModal,
+  onOpenDatabaseModal
 }) => {
   const { activeTab, setActiveTab, teamHealthScore, isLiveCommandCenterActive, branding, complaints, currentUser, isHighLeadership } = useApp();
 
@@ -134,6 +136,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
         {/* Footer */}
         <div className="space-y-2 pt-2 border-t border-slate-800/80">
+          {isHighLeadership && onOpenDatabaseModal && (
+            <button
+              onClick={() => { onOpenDatabaseModal(); onClose(); }}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-emerald-950/60 hover:from-emerald-900/60 hover:to-slate-800 text-emerald-300 border border-emerald-500/40 flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <Database className="w-4 h-4 text-emerald-400" />
+              <span>قاعدة البيانات والتسكين 🗄️</span>
+            </button>
+          )}
+
           {onOpenInstallModal && (
             <button
               onClick={() => { onOpenInstallModal(); onClose(); }}

@@ -295,7 +295,8 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
                   onChange={(e) => setSelectedCommittee(e.target.value)}
                   className="glass-input text-xs cursor-pointer w-full sm:w-auto"
                 >
-                  <option value="all" className="bg-slate-900 text-white">كل اللجان (6)</option>
+                  <option value="all" className="bg-slate-900 text-white">كل اللجان (الـ 6 + القيادة العليا)</option>
+                  <option value="comm-leadership" className="bg-slate-900 text-amber-300">👑 القيادة العليا والمجلس الاستشاري</option>
                   {committees.map(c => (
                     <option key={c.id} value={c.id} className="bg-slate-900 text-white">{c.name}</option>
                   ))}

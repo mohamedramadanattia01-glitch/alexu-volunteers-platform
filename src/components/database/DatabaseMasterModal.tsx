@@ -4,10 +4,14 @@ import { Member, Role, Committee, MemberStatus } from '../../types';
 import { 
   Database, X, Search, Filter, Edit3, Trash2, ShieldCheck, 
   Check, Save, RefreshCw, Crown, AlertCircle, Plus, Users, 
-  Key, ArrowRightLeft, Sparkles, Sliders, CheckCircle2, Cloud
+  Key, ArrowRightLeft, Sparkles, Sliders, CheckCircle2, Cloud,
+  Download, FileSpreadsheet, Trophy, Flame, Lock, Phone, Mail, MapPin, Building,
+  GraduationCap, Heart, AlertTriangle
 } from 'lucide-react';
 import { ALL_ROLES_INFO, isHighLeadershipRole, isHeadRole } from '../../utils/roleUtils';
 import { parseEgyptianNationalId } from '../../utils/nationalId';
+import { exportMembersToExcel } from '../../utils/excelExport';
+import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 
 interface DatabaseMasterModalProps {
   isOpen: boolean;
@@ -25,11 +29,10 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
   const [selectedCommitteeFilter, setSelectedCommitteeFilter] = useState<string>('all');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
   const [editingMember, setEditingMember] = useState<Member | null>(null);
-  const [isNewMemberModalOpen, setIsNewMemberModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
 
-  // Form State for editing / inserting
+  // Form State for editing
   const [editForm, setEditForm] = useState<{
     id: string;
     fullName: string;
@@ -47,6 +50,10 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     points: number;
     level: number;
     status: MemberStatus;
+    bloodType?: string;
+    emergencyContact?: string;
+    address?: string;
+    bio?: string;
   }>({
     id: '',
     fullName: '',
@@ -56,14 +63,18 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     nationalId: '',
     phone: '',
     whatsappNumber: '',
-    college: 'جامعة الإسكندرية',
+    college: 'كلية الهندسة',
     academicYear: 'الفرقة الثالثة',
     currentCommitteeId: 'comm-org',
     role: 'member',
     position: 'عضو متطوع',
     points: 0,
     level: 1,
-    status: 'Active'
+    status: 'Active',
+    bloodType: 'O+',
+    emergencyContact: '',
+    address: 'الإسكندرية',
+    bio: ''
   });
 
   if (!isOpen) return null;
@@ -77,7 +88,8 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
       m.universityEmail.toLowerCase().includes(q) ||
       (m.position && m.position.toLowerCase().includes(q)) ||
       (m.nationalId && m.nationalId.includes(q)) ||
-      (m.phone && m.phone.includes(q));
+      (m.phone && m.phone.includes(q)) ||
+      (m.college && m.college.toLowerCase().includes(q));
 
     const matchesComm = selectedCommitteeFilter === 'all' || m.currentCommitteeId === selectedCommitteeFilter;
     const matchesRole = selectedRoleFilter === 'all' || m.role === selectedRoleFilter;
@@ -101,9 +113,13 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
       currentCommitteeId: m.currentCommitteeId || 'comm-org',
       role: m.role || 'member',
       position: m.position || 'عضو متطوع',
-      points: m.points || 0,
-      level: m.level || 1,
-      status: m.status || 'Active'
+      points: m.points !== undefined ? m.points : 0,
+      level: m.level !== undefined ? m.level : 1,
+      status: m.status || 'Active',
+      bloodType: m.bloodType || 'O+',
+      emergencyContact: m.emergencyContact || '',
+      address: m.address || 'الإسكندرية',
+      bio: m.bio || ''
     });
   };
 
@@ -111,9 +127,10 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     e.preventDefault();
     if (!editForm.id || !editForm.fullName.trim()) return;
 
-    const targetComm = committees.find(c => c.id === editForm.currentCommitteeId);
+    const targetComm = editForm.currentCommitteeId === 'comm-leadership' 
+      ? { id: 'comm-leadership', name: 'القيادة العليا والمجلس الاستشاري' }
+      : committees.find(c => c.id === editForm.currentCommitteeId);
     const commName = targetComm ? targetComm.name : 'لجنة التنظيم';
-    const isLeadOrHead = isHighLeadershipRole(editForm.role) || editForm.role === 'head' || editForm.role === 'vice_head' || editForm.currentCommitteeId === 'comm-leadership';
 
     // 1. Handle Volunteer ID change or swap if changed
     const originalVolId = (editingMember?.volunteerId || '').trim().toUpperCase();
@@ -136,14 +153,18 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
       currentCommitteeName: commName,
       role: editForm.role,
       position: editForm.position.trim(),
-      points: isLeadOrHead ? 0 : Number(editForm.points),
-      level: isLeadOrHead ? 1 : Number(editForm.level),
-      status: editForm.status
+      points: Number(editForm.points || 0),
+      level: Number(editForm.level || 1),
+      status: editForm.status,
+      bloodType: editForm.bloodType,
+      emergencyContact: editForm.emergencyContact?.trim(),
+      address: editForm.address?.trim(),
+      bio: editForm.bio?.trim()
     };
 
     updateMember(editForm.id, updates);
     setEditingMember(null);
-    setSaveSuccessNotice(`تم حفظ وتحديث بيانات العضو "${editForm.fullName}" وتثبيت الرقم التطوعي (${newVolId || originalVolId}) بنجاح في قاعدة البيانات ✓`);
+    setSaveSuccessNotice(`تم حفظ وتحديث بيانات العضو "${editForm.fullName}" وتثبيت الرقم التطوعي (${newVolId || originalVolId}) ورصيد النقاط (${editForm.points} XP) بنجاح في قاعدة البيانات ✓`);
     setTimeout(() => setSaveSuccessNotice(null), 4000);
   };
 
@@ -174,9 +195,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     setEditForm(prev => ({
       ...prev,
       role: newRole,
-      position: defaultPos,
-      points: isLeadership || newRole === 'head' || newRole === 'vice_head' ? 0 : prev.points,
-      level: isLeadership || newRole === 'head' || newRole === 'vice_head' ? 1 : prev.level
+      position: defaultPos
     }));
   };
 
@@ -215,6 +234,12 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     setTimeout(() => setSaveSuccessNotice(null), 4000);
   };
 
+  const handleExportExcel = () => {
+    exportMembersToExcel(filteredMembers, 'قاعدة_بيانات_متطوعي_جامعة_الإسكندرية_المجمعة');
+    setSaveSuccessNotice('تم تصدير شيت إكسيل (.xlsx) يحتوي على كافة بيانات المتطوعين بنجاح 📊');
+    setTimeout(() => setSaveSuccessNotice(null), 4000);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div className="glass-card max-w-6xl w-full p-4 sm:p-6 border border-blue-500/40 shadow-2xl bg-slate-950 text-right my-4 max-h-[94vh] flex flex-col">
@@ -232,11 +257,22 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   صلاحية القيادة العليا
                 </span>
               </div>
-              <p className="text-xs text-slate-400">تعديل بيانات المتطوعين، المناصب، اللجان، كلمات المرور، والأكواد التطوعية مع الحفظ المباشر</p>
+              <p className="text-xs text-slate-400">تعديل بيانات المتطوعين، المناصب، اللجان، النقاط، كلمات المرور، والأكواد التطوعية مع سحب البيانات إكسيل</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Excel Export Button */}
+            <button
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/30 active:scale-95"
+              title="تصدير السجلات الحالية إلى ملف Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>تصدير Excel (.xlsx)</span>
+            </button>
+
+            {/* Cloud Sync Button */}
             <button
               onClick={handleSyncCloud}
               disabled={isSyncing}
@@ -272,7 +308,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم، الكود، البريد، الهاتف، القومي..."
+              placeholder="بحث بالاسم، الكود، البريد، الكلية، الهاتف..."
               className="w-full pr-9 pl-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 text-right"
             />
           </div>
@@ -284,6 +320,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:outline-hidden focus:border-blue-500 text-right"
             >
               <option value="all">كل اللجان (الـ 6 + القيادة العليا)</option>
+              <option value="comm-leadership">👑 القيادة العليا والمجلس الاستشاري</option>
               {committees.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -297,13 +334,16 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:outline-hidden focus:border-blue-500 text-right"
             >
               <option value="all">كل الأدوار والمناصب</option>
-              <option value="super_admin">رئيس الفريق (Super Admin)</option>
-              <option value="vice_president">نائب رئيس الفريق</option>
-              <option value="advisor">مستشار الفريق</option>
-              <option value="head">رئيس لجنة (Head)</option>
-              <option value="vice_head">نائب رئيس لجنة (Vice Head)</option>
-              <option value="hr_admin">مسؤول موارد بشرية</option>
-              <option value="member">عضو متطوع</option>
+              <option value="super_admin">👑 رئيس الفريق (Super Admin)</option>
+              <option value="vice_president">⭐ نائب رئيس الفريق</option>
+              <option value="advisor">🎓 مستشار الفريق</option>
+              <option value="general_coordinator">⚡ منسق عام الفريق</option>
+              <option value="operations_manager">🚨 مدير العمليات والميدان</option>
+              <option value="quality_officer">💎 مسؤول الجودة والتقييم</option>
+              <option value="head">🛡️ رئيس لجنة (Head)</option>
+              <option value="vice_head">🌟 نائب رئيس لجنة (Vice Head)</option>
+              <option value="hr_admin">👥 مسؤول موارد بشرية</option>
+              <option value="member">👤 عضو متطوع</option>
             </select>
           </div>
         </div>
@@ -318,7 +358,8 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                 <th className="p-3">اللجنة المسكن عليها</th>
                 <th className="p-3">الدور الإداري</th>
                 <th className="p-3">المسمى الوظيفي الرسمي</th>
-                <th className="p-3">النقاط</th>
+                <th className="p-3">الكلية والفرقة</th>
+                <th className="p-3">النقاط (XP)</th>
                 <th className="p-3">الحالة</th>
                 <th className="p-3 text-center">إجراءات</th>
               </tr>
@@ -326,7 +367,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
             <tbody className="divide-y divide-slate-800/60">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-500">
+                  <td colSpan={9} className="p-8 text-center text-slate-500">
                     لا توجد سجلات تطابق معايير البحث
                   </td>
                 </tr>
@@ -359,8 +400,18 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                         </span>
                       </td>
                       <td className="p-3 text-slate-300 font-medium truncate max-w-xs">{m.position}</td>
+                      <td className="p-3 text-slate-400 text-[11px] truncate max-w-[140px]">
+                        {m.college || 'جامعة الإسكندرية'} • {m.academicYear || 'الفرقة الثالثة'}
+                      </td>
                       <td className="p-3 font-mono font-bold text-emerald-400">
-                        {isLead ? <span className="text-slate-500 text-[10px]">—</span> : `${m.points || 0} XP`}
+                        {isLead ? (
+                          <span className="text-amber-400/80 text-[10px] font-bold">قيادة عليا</span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Flame className="w-3 h-3 text-amber-400" />
+                            <span>{m.points || 0} XP</span>
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
@@ -375,10 +426,10 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                         <button
                           onClick={() => handleOpenEdit(m)}
                           className="px-2.5 py-1 text-[11px] font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/40 rounded-lg transition-all cursor-pointer flex items-center gap-1 mx-auto shadow-xs"
-                          title="تعديل وتسكين كامل في قاعدة البيانات"
+                          title="تعديل وتسكين كامل في قاعدة البيانات وتعديل النقاط"
                         >
                           <Edit3 className="w-3 h-3" />
-                          <span>تعديل التسكين</span>
+                          <span>تعديل السجل</span>
                         </button>
                       </td>
                     </tr>
@@ -390,8 +441,17 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
         </div>
 
         {/* Footer info */}
-        <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
-          <span>إجمالي السجلات: {filteredMembers.length} من {members.length}</span>
+        <div className="mt-3 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 shrink-0">
+          <div className="flex items-center gap-3">
+            <span>إجمالي السجلات: <strong className="text-white">{filteredMembers.length}</strong> من {members.length}</span>
+            <button 
+              onClick={handleExportExcel}
+              className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>سحب الشيت إكسيل</span>
+            </button>
+          </div>
           <span className="flex items-center gap-1 text-emerald-400 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" />
             كافة التعديلات تحفظ فوراً في التخزين المحلي وتتزامن مع السحابة
@@ -401,7 +461,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
         {/* Edit Member Database Record Modal */}
         {editingMember && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in overflow-y-auto">
-            <div className="glass-card max-w-xl w-full p-5 border border-blue-500/50 shadow-2xl bg-slate-950 text-right max-h-[92vh] overflow-y-auto my-6">
+            <div className="glass-card max-w-2xl w-full p-5 border border-blue-500/50 shadow-2xl bg-slate-950 text-right max-h-[92vh] overflow-y-auto my-6">
               
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
                 <div className="flex items-center gap-2">
@@ -410,7 +470,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-white">تعديل سجل وقاعدة بيانات: {editingMember.fullName}</h4>
-                    <p className="text-[10px] text-slate-400">تعديل التسكين، الدور، المسمى، الكود، وكلمة المرور</p>
+                    <p className="text-[10px] text-slate-400">تعديل التسكين، النقاط XP، المنصب، الكود، البيانات الشخصية والجامعية</p>
                   </div>
                 </div>
                 <button
@@ -421,7 +481,9 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                 </button>
               </div>
 
-              <form onSubmit={handleSaveMember} className="space-y-3">
+              <form onSubmit={handleSaveMember} className="space-y-3.5">
+                
+                {/* 1. Basic Info */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">الاسم الكامل *</label>
@@ -475,6 +537,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
                 </div>
 
+                {/* 2. Committee & Role */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">اللجنة المسكن عليها *</label>
@@ -483,6 +546,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                       onChange={e => handleCommitteeChangeInForm(e.target.value)}
                       className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
                     >
+                      <option value="comm-leadership">👑 القيادة العليا والمجلس الاستشاري</option>
                       {committees.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
@@ -510,6 +574,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
                 </div>
 
+                {/* 3. Official Position Title */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 mb-1">المسمى الوظيفي الرسمي المعتمد *</label>
                   <input
@@ -521,6 +586,82 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   />
                 </div>
 
+                {/* 4. Points (XP) and Level Editable by Leadership */}
+                <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/30 to-blue-950/30 border border-amber-500/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-300 mb-1 flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-amber-400" />
+                      <span>نقاط التطوع (XP) المكتسبة</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editForm.points}
+                      onChange={e => setEditForm(prev => ({ ...prev, points: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-amber-500/40 rounded-lg text-xs font-mono text-amber-300 font-bold"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">يمكن للإدارة العليا تعديل رصيد النقاط لأي شخص مباشرة</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-sky-300 mb-1 flex items-center gap-1">
+                      <Trophy className="w-3.5 h-3.5 text-sky-400" />
+                      <span>المستوى (Level)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={editForm.level}
+                      onChange={e => setEditForm(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-sky-500/40 rounded-lg text-xs font-mono text-sky-300 font-bold"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">الرتبة والمستوى في لوحة الشرف ونظام الجيمي فيكيشن</p>
+                  </div>
+                </div>
+
+                {/* 5. College & Academic Year */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <Building className="w-3.5 h-3.5 text-blue-400" />
+                      <span>الكلية / المعهد *</span>
+                    </label>
+                    <select
+                      value={editForm.college}
+                      onChange={e => setEditForm(prev => ({ ...prev, college: e.target.value }))}
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
+                    >
+                      {ALEXANDRIA_UNIVERSITY_COLLEGES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="جامعة الإسكندرية">جامعة الإسكندرية (عام)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <GraduationCap className="w-3.5 h-3.5 text-blue-400" />
+                      <span>الفرقة الدراسية *</span>
+                    </label>
+                    <select
+                      value={editForm.academicYear}
+                      onChange={e => setEditForm(prev => ({ ...prev, academicYear: e.target.value }))}
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
+                    >
+                      <option value="الفرقة الأولى">الفرقة الأولى</option>
+                      <option value="الفرقة الثانية">الفرقة الثانية</option>
+                      <option value="الفرقة الثالثة">الفرقة الثالثة</option>
+                      <option value="الفرقة الرابعة">الفرقة الرابعة</option>
+                      <option value="الفرقة الخامسة">الفرقة الخامسة</option>
+                      <option value="الفرقة السادسة">الفرقة السادسة</option>
+                      <option value="دراسات عليا">دراسات عليا / ماجستير</option>
+                      <option value="خريج">خريج</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 6. Email & Password */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">البريد الجامعي / الإلكتروني *</label>
@@ -545,6 +686,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
                 </div>
 
+                {/* 7. National ID & Phone & Status */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">الرقم القومي (14 رقم)</label>
@@ -557,7 +699,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 mb-1">رقم الواتساب</label>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">رقم الواتساب / الهاتف</label>
                     <input
                       type="text"
                       value={editForm.whatsappNumber}
@@ -581,17 +723,78 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   </div>
                 </div>
 
+                {/* 8. Medical & Emergency Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <Heart className="w-3.5 h-3.5 text-rose-400" />
+                      <span>فصيلة الدم</span>
+                    </label>
+                    <select
+                      value={editForm.bloodType || 'O+'}
+                      onChange={e => setEditForm(prev => ({ ...prev, bloodType: e.target.value }))}
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
+                    >
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">هاتف الطوارئ</label>
+                    <input
+                      type="text"
+                      value={editForm.emergencyContact || ''}
+                      onChange={e => setEditForm(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                      placeholder="رقم هاتف ولي الأمر أو الطوارئ"
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>العنوان ومحل الإقامة</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.address || ''}
+                      onChange={e => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="المنطقة أو الحي بالإسكندرية"
+                      className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 9. Bio */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">نبذة تعريفية / ملاحظات إدارية</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.bio || ''}
+                    onChange={e => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
+                    placeholder="نبذة عن العضو أو ملاحظات القيادة العليا..."
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white resize-none"
+                  />
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setEditingMember(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700"
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Save className="w-4 h-4" />
                     <span>حفظ وتحديث في قاعدة البيانات فوراً</span>
@@ -605,3 +808,4 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     </div>
   );
 };
+
