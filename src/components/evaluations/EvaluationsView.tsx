@@ -56,13 +56,15 @@ export const EvaluationsView: React.FC = () => {
   const headCurrentTotalEarned = Object.values(headEvalScores).reduce((a, b) => a + (Number(b) || 0), 0);
   const headCurrentPercentage = headTotalMaxScore > 0 ? Math.round((headCurrentTotalEarned / headTotalMaxScore) * 100) : 0;
 
-  // Filter Heads and Vice Heads across all 6 operational committees
+  // Filter Heads and Vice Heads across all 6 operational committees (excluding Supreme Leadership)
   const committeeHeads = members.filter(m => 
     m.status === 'Active' && (
       m.role === 'head' || 
       m.role === 'vice_head' ||
       (m.position && (m.position.includes('رئيس') || m.position.includes('هيد') || m.position.includes('نائب')))
-    ) && m.currentCommitteeId !== 'comm-leadership'
+    ) && 
+    m.currentCommitteeId !== 'comm-leadership' &&
+    !isHighLeadershipMember(m)
   );
 
   // Filter regular members ONLY (strictly excluding Heads, Vice Heads, and High Leadership)

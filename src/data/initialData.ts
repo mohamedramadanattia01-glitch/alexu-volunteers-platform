@@ -32,7 +32,7 @@ export const initialCommittees: Committee[] = [
       'إدارة الأزمات الكبرى وبلاغات الطوارئ',
       'التحكيم النهائي في التظلمات وتطوير الكوادر'
     ],
-    memberCount: 3,
+    memberCount: 4,
     activeTasksCount: 0,
     completedTasksCount: 0,
     attendanceRate: 0,
@@ -310,6 +310,52 @@ export const initialMembers: Member[] = [
     bio: 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية • الإشراف العام والمتابعة الميدانية للجان التخصصية.',
     hobbies: ['التنسيق والمتابعة', 'العلاقات العامة'],
     learningAspirations: ['القيادة التنفيذية للفرق التطوعية']
+  },
+  {
+    id: 'user-president-youssef-mohamed',
+    volunteerId: 'AU-000',
+    fullName: 'يوسف محمد',
+    universityEmail: 'youssef.mohamed@alexu.edu.eg',
+    college: 'جامعة الإسكندرية',
+    academicYear: 'رئيس الفريق',
+    whatsappNumber: '+201000000004',
+    birthDate: '2002-01-01',
+    age: 24,
+    nationalId: '30201010200000',
+    currentCommitteeId: 'comm-leadership',
+    currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
+    position: 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية',
+    role: 'super_admin',
+    joinDate: '2026-09-01',
+    status: 'Active',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    password: 'youssef',
+    performance: {
+      overallScore: 0,
+      attendanceRate: 0,
+      taskCompletionRate: 0,
+      taskQuality: 0,
+      commitment: 0,
+      teamwork: 0,
+      leadership: 0,
+      evaluationsCount: 0
+    },
+    skills: {
+      'القيادة الاستراتيجية': 5,
+      'إدارة المنظومة': 5,
+      'التوجيه العام': 5
+    },
+    activeWorkload: 0,
+    workloadStatus: 'Optimal',
+    engagementRisk: 'Low',
+    points: 0,
+    level: 1,
+    badges: [],
+    committeeHistory: [],
+    availability: 'Available',
+    bio: 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية • القيادة العامة والتمثيل الرسمي للاتحاد.',
+    hobbies: ['القيادة', 'التنظيم المؤسسي'],
+    learningAspirations: ['الإدارة التنفيذية']
   }
 ];
 

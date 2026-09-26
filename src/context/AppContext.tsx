@@ -29,10 +29,31 @@ import { isHighLeadershipRole, getRoleOfficialTitle } from '../utils/roleUtils';
 import { SupabaseService } from '../services/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { getMemberExactBirthData } from '../utils/nationalId';
+import { 
+  getNotificationPermission, 
+  requestNotificationPermission as reqPushPerm, 
+  sendSystemPushNotification 
+} from '../utils/pushNotifications';
 
 export const isHighLeadershipMember = (member?: Member | null): boolean => {
   if (!member) return false;
-  return isHighLeadershipRole(member.role);
+  if (isHighLeadershipRole(member.role)) return true;
+  if (member.currentCommitteeId === 'comm-leadership') return true;
+  if (member.currentCommitteeName?.includes('القيادة العليا')) return true;
+  if (
+    member.position?.includes('رئيس فريق') || 
+    member.position?.includes('رئيس الفريق') || 
+    member.position?.includes('نائب رئيس') || 
+    member.position?.includes('مستشار')
+  ) return true;
+  if (
+    member.fullName?.includes('يوسف محمد') || 
+    member.fullName?.includes('ملك محمد') || 
+    member.fullName?.includes('أسامة ممدوح') || 
+    member.fullName?.includes('محمد رمضان')
+  ) return true;
+  if (['user-president-youssef-mohamed', 'user-vp-malak-mohamed', 'user-advisor-osama-mamdouh', 'user-advisor-mohamed-ramadan'].includes(member.id)) return true;
+  return false;
 };
 
 interface AppContextType {
@@ -62,6 +83,9 @@ interface AppContextType {
   candidates: RecruitmentCandidate[];
   permissions: Permission[];
   notifications: SystemNotification[];
+  notificationPermission: NotificationPermission | 'unsupported';
+  requestNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
+  dispatchPushNotification: (title: string, message: string, type?: SystemNotification['type']) => Promise<boolean>;
   complaints: Complaint[];
   soundSettings: AppSoundSettings;
   branding: AppBrandingSettings;
@@ -299,28 +323,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let commName = m.currentCommitteeName;
       let pos = m.position;
 
-      // 1. Osama Mamdouh -> Supreme Leadership (Advisor)
-      if (m.fullName?.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
+      // 1. Youssef Mohamed -> Supreme Leadership (Team President / Super Admin)
+      if (
+        m.fullName?.includes('يوسف محمد') || 
+        m.fullName?.toLowerCase().includes('youssef') ||
+        m.id === 'user-president-youssef-mohamed' ||
+        pos?.includes('رئيس فريق') ||
+        pos?.includes('رئيس الفريق')
+      ) {
+        role = 'super_admin';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      }
+      // 2. Osama Mamdouh -> Supreme Leadership (Advisor)
+      else if (m.fullName?.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
         role = 'advisor';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      // 2. Malak Mohamed -> Supreme Leadership (Vice President)
+      // 3. Malak Mohamed -> Supreme Leadership (Vice President)
       else if (m.fullName?.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
         role = 'vice_president';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      // 3. Mohamed Ramadan -> Supreme Leadership (Advisor)
+      // 4. Mohamed Ramadan -> Supreme Leadership (Advisor)
       else if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName?.includes('محمد رمضان')) {
         role = 'advisor';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      // 4. Rwan Abdallah Abdelsalam -> Head of HR Committee
+      // 5. Rwan Abdallah Abdelsalam -> Head of HR Committee
       else if (
         m.fullName?.toLowerCase().includes('rwan') || 
         m.fullName?.toLowerCase().includes('rawan') || 
@@ -332,18 +369,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         commName = 'لجنة الموارد البشرية';
         pos = 'رئيس لجنة الموارد البشرية';
       }
-      // 5. Any general advisor or vice president
+      // 6. Any general advisor or vice president or supreme leadership
       else if (role === 'advisor' || pos?.includes('مستشار')) {
         role = 'advisor';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = pos || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-      else if (role === 'vice_president' || pos?.includes('نائب رئيس الفريق')) {
+      else if (role === 'vice_president' || pos?.includes('نائب رئيس الفريق') || pos?.includes('نائب رئيس فريق')) {
         role = 'vice_president';
         commId = 'comm-leadership';
         commName = 'القيادة العليا والمجلس الاستشاري';
         pos = pos || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      }
+      else if (role === 'super_admin' || pos?.includes('رئيس الفريق') || pos?.includes('رئيس فريق')) {
+        role = 'super_admin';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = pos || 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
       // 6. Automatic Committee & Role Normalization for Specialized Operational Heads/Vice Heads
       else if (role === 'head' || role === 'vice_head' || pos?.includes('رئيس') || pos?.includes('هيد') || pos?.includes('نائب')) {
@@ -520,6 +563,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<SystemNotification[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_NOTIFS`);
     return saved ? JSON.parse(saved) : initialNotifications;
+  });
+
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
+    return getNotificationPermission();
   });
 
   const [complaints, setComplaints] = useState<Complaint[]>(() => {
@@ -839,6 +886,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playAppTone(cat, soundSettings);
   };
 
+  // Request push notification permission
+  const requestNotificationPermission = async (): Promise<NotificationPermission | 'unsupported'> => {
+    const perm = await reqPushPerm();
+    setNotificationPermission(perm);
+    if (perm === 'granted') {
+      showNotification('success', 'تم تفعيل إشعارات الهاتف بنجاح! ستصلك التنبيهات الميدانية والمهام دائماً 🔔');
+    }
+    return perm;
+  };
+
+  // Dispatch System Push Notification (Mobile Lockscreen / Background & Foreground)
+  const dispatchPushNotification = async (title: string, message: string, type: SystemNotification['type'] = 'announcement'): Promise<boolean> => {
+    // 1. Audio tone
+    if (type === 'sos' || type === 'eval' || type === 'complaint') {
+      playSound('alert');
+    } else if (type === 'task' || type === 'achievement') {
+      playSound('task');
+    } else {
+      playSound('announcement');
+    }
+
+    // 2. Hardware Vibration
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        if (type === 'sos') navigator.vibrate([300, 100, 300, 100, 500]);
+        else navigator.vibrate([200, 100, 200]);
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. System Push Notification
+    return await sendSystemPushNotification({
+      title,
+      body: message,
+      type,
+      icon: '/logo.png',
+      badge: '/logo.png',
+      tag: `push-${Date.now()}`
+    });
+  };
+
   // Toast / High-priority system notification helper
   const showNotification = (type: 'success' | 'error' | 'info' | 'warning', message: string) => {
     const notifType: SystemNotification['type'] = type === 'error' ? 'sos' : type === 'success' ? 'achievement' : 'task';
@@ -865,23 +954,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Native Browser / Mobile Web Notification API
-    try {
-      if (typeof window !== 'undefined' && 'Notification' in window) {
-        if (Notification.permission === 'granted') {
-          new Notification(newNotif.title, {
-            body: message,
-            icon: '/logo.png',
-            badge: '/logo.png',
-            tag: newNotif.id
-          });
-        } else if (Notification.permission !== 'denied') {
-          Notification.requestPermission();
-        }
-      }
-    } catch {
-      // Ignore background notification restrictions
-    }
+    // Native Browser / Mobile PWA ServiceWorker Push Notification
+    sendSystemPushNotification({
+      title: newNotif.title,
+      body: message,
+      type: notifType,
+      icon: '/logo.png',
+      badge: '/logo.png',
+      tag: newNotif.id
+    });
   };
 
   // Audit Log
@@ -3269,6 +3350,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         candidates,
         permissions,
         notifications,
+        notificationPermission,
+        requestNotificationPermission,
+        dispatchPushNotification,
         complaints,
         soundSettings,
         branding,

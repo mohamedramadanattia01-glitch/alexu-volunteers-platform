@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alexu-volunteers-v1';
+const CACHE_NAME = 'alexu-volunteers-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -6,6 +6,7 @@ const STATIC_ASSETS = [
   '/favicon.png',
   '/favicon.ico',
   '/logo.png',
+  '/icon-maskable.svg',
   '/stamp.png'
 ];
 
@@ -61,9 +62,42 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push Notifications handler
+// Message listener from foreground/background app scripts
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    const notifOptions = {
+      body: options?.body || 'إشعار جديد من فريق متطوعين جامعة الإسكندرية',
+      icon: options?.icon || '/logo.png',
+      badge: options?.badge || '/logo.png',
+      vibrate: options?.vibrate || [200, 100, 200, 100, 400],
+      tag: options?.tag || `notif-${Date.now()}`,
+      requireInteraction: options?.requireInteraction ?? true,
+      renotify: options?.renotify ?? true,
+      silent: false,
+      data: options?.data || { url: '/' },
+      dir: 'rtl',
+      lang: 'ar',
+      actions: options?.actions || [
+        { action: 'open', title: '📱 فتح المنظومة' }
+      ]
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(title || '👑 فريق متطوعين جامعة الإسكندرية', notifOptions)
+    );
+  }
+});
+
+// Push Notifications handler (Web Push from Server / Cloud)
 self.addEventListener('push', (event) => {
-  let data = { title: 'إشعار جديد', body: 'تحديث جديد في منظومة متطوعين جامعة الإسكندرية', icon: '/logo.png' };
+  let data = { 
+    title: '👑 إشعار من منظومة متطوعين جامعة الإسكندرية', 
+    body: 'تحديث جديد في منظومة متطوعين اتحاد طلاب جامعة الإسكندرية', 
+    icon: '/logo.png',
+    type: 'announcement'
+  };
+
   try {
     if (event.data) {
       data = event.data.json();
@@ -78,12 +112,15 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: data.icon || '/logo.png',
     badge: '/logo.png',
-    vibrate: [200, 100, 200, 100, 300],
+    vibrate: [250, 100, 250, 100, 450],
     data: data.url || '/',
     dir: 'rtl',
     lang: 'ar',
+    requireInteraction: true,
+    renotify: true,
+    tag: data.tag || `push-${Date.now()}`,
     actions: [
-      { action: 'open', title: 'فتح التطبيق 📱' }
+      { action: 'open', title: '📱 فتح المنظومة' }
     ]
   };
 
@@ -94,7 +131,8 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data || '/';
+  const notifData = event.notification.data;
+  const urlToOpen = (typeof notifData === 'object' && notifData?.url) ? notifData.url : (typeof notifData === 'string' ? notifData : '/');
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

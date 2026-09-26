@@ -11,7 +11,7 @@ import {
 import { exportMembersToExcel } from '../../utils/excelExport';
 
 export const LeaderboardView: React.FC = () => {
-  const { members, badges, headEvaluations, currentUser, isHighLeadership, addBadge, updateBadge, deleteBadge } = useApp();
+  const { members, badges, headEvaluations, currentUser, isHighLeadership, isHighLeadershipMember, addBadge, updateBadge, deleteBadge } = useApp();
 
   const [activeBoard, setActiveBoard] = useState<'members' | 'heads'>('members');
   const [period, setPeriod] = useState<'monthly' | 'season'>('season');
@@ -81,12 +81,12 @@ export const LeaderboardView: React.FC = () => {
 
   // Filter ONLY regular members (strictly excluding Heads, Vice Heads, and High Leadership)
   const rankedMembers = [...members]
-    .filter(m => m.status === 'Active' && m.role === 'member')
+    .filter(m => m.status === 'Active' && m.role === 'member' && m.currentCommitteeId !== 'comm-leadership' && !isHighLeadershipMember(m))
     .sort((a, b) => b.points - a.points);
 
   // Filter ONLY Committee Heads and Vice Heads (sorted strictly by real headEvaluations)
   const rankedHeads = [...members]
-    .filter(m => m.status === 'Active' && (m.role === 'head' || m.role === 'vice_head'))
+    .filter(m => m.status === 'Active' && (m.role === 'head' || m.role === 'vice_head') && m.currentCommitteeId !== 'comm-leadership' && !isHighLeadershipMember(m))
     .map(head => {
       const evals = headEvaluations.filter(e => e.headId === head.id);
       const evalScore = evals.length > 0 
