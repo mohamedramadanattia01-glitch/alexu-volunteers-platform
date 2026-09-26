@@ -518,6 +518,8 @@ export interface MemberEvaluationRecord {
   evaluatorName: string;
   evaluatorRole: Role;
   evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
+  eventId?: string; // كود الفعالية المقيمة (اختياري)
+  eventName?: string; // اسم الفعالية المقيمة (اختياري)
   scores: { [criterionId: string]: number }; // points earned per criterion
   totalScore: number;
   maxTotalScore: number;
@@ -537,6 +539,8 @@ export interface HeadEvaluationRecord {
   evaluatorName: string;
   evaluatorRole: Role;
   evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
+  eventId?: string; // كود الفعالية المقيمة (اختياري)
+  eventName?: string; // اسم الفعالية المقيمة (اختياري)
   scores: { [criterionId: string]: number };
   totalScore: number;
   maxTotalScore: number;

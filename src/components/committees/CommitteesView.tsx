@@ -52,7 +52,7 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
 
       {/* Committees Grid Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {committees.map(comm => {
+        {committees.filter(c => c.id !== 'comm-leadership').map(comm => {
           const commMembers = members.filter(m => m.currentCommitteeId === comm.id && m.status === 'Active');
           const commTasks = tasks.filter(t => t.committeeId === comm.id);
           const completedTasks = commTasks.filter(t => t.status === 'Approved').length;

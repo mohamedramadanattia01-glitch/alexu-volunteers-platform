@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Member, Role } from '../../types';
-import { X, ArrowRightLeft, Crown, Shield, Users, Sparkles } from 'lucide-react';
+import { X, ArrowRightLeft, Crown, Shield, Users, Sparkles, Star, Check } from 'lucide-react';
+import { isHighLeadershipRole, isHeadRole } from '../../utils/roleUtils';
 
 interface TransferCommitteeModalProps {
   member: Member | null;
@@ -16,28 +17,32 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
 }) => {
   const { committees, transferMemberCommittee } = useApp();
 
-  const [newCommId, setNewCommId] = useState('');
-  const [newRole, setNewRole] = useState<Role>('member');
+  const [destinationType, setDestinationType] = useState<'leadership' | 'committee'>('leadership');
+  const [newCommId, setNewCommId] = useState('comm-leadership');
+  const [newRole, setNewRole] = useState<Role>('advisor');
   const [newPosition, setNewPosition] = useState('');
   const [reason, setReason] = useState('');
+
+  const operationalCommittees = committees.filter(c => c.id !== 'comm-leadership');
 
   // When member opens, initialize defaults
   useEffect(() => {
     if (member && isOpen) {
-      const defaultComm = committees.find(c => c.id !== member.currentCommitteeId) || committees[0];
-      const initialCommId = defaultComm?.id || 'comm-leadership';
-      setNewCommId(initialCommId);
-
-      const isLeadership = initialCommId === 'comm-leadership';
-      const initialRole: Role = isLeadership 
-        ? (member.role === 'vice_president' ? 'vice_president' : 'advisor') 
-        : (member.role === 'head' ? 'head' : 'member');
-      setNewRole(initialRole);
-
-      setNewPosition(getDefaultPosition(initialCommId, initialRole, defaultComm?.name || ''));
+      if (member.currentCommitteeId === 'comm-leadership' || isHighLeadershipRole(member.role)) {
+        setDestinationType('leadership');
+        setNewCommId('comm-leadership');
+        setNewRole(member.role === 'vice_president' ? 'vice_president' : (member.role === 'super_admin' ? 'super_admin' : 'advisor'));
+        setNewPosition(member.position || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية');
+      } else {
+        // By default when opening transfer, allow easily selecting either Leadership or another committee
+        setDestinationType('leadership');
+        setNewCommId('comm-leadership');
+        setNewRole('advisor');
+        setNewPosition('مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية');
+      }
       setReason('');
     }
-  }, [member, isOpen, committees]);
+  }, [member, isOpen]);
 
   // Helper to suggest default position title
   const getDefaultPosition = (commId: string, role: Role, commName: string): string => {
@@ -46,9 +51,9 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
         case 'advisor': return 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
         case 'vice_president': return 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
         case 'super_admin': return 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
-        case 'general_coordinator': return 'منسق عام فريق المتطوعين';
-        case 'operations_manager': return 'مدير العمليات الميدانية';
-        case 'quality_officer': return 'مسؤول الجودة والمتابعة المؤسسية';
+        case 'general_coordinator': return 'المنسق العام لفريق المتطوعين';
+        case 'operations_manager': return 'مدير العمليات والميدان لفريق المتطوعين';
+        case 'quality_officer': return 'مسؤول الجودة والتقييم والتطوير المؤسسي';
         default: return 'عضو القيادة العليا والمجلس الاستشاري';
       }
     } else {
@@ -61,17 +66,30 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
     }
   };
 
-  // Handle Committee change
+  const handleDestinationTypeChange = (type: 'leadership' | 'committee') => {
+    setDestinationType(type);
+    if (type === 'leadership') {
+      setNewCommId('comm-leadership');
+      setNewRole('advisor');
+      setNewPosition('مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية');
+    } else {
+      const firstOp = operationalCommittees[0] || committees[0];
+      const targetId = (firstOp && firstOp.id !== member?.currentCommitteeId) 
+        ? firstOp.id 
+        : (operationalCommittees[1]?.id || firstOp?.id || 'comm-org');
+      const targetComm = committees.find(c => c.id === targetId);
+      setNewCommId(targetId);
+      setNewRole('head');
+      setNewPosition(getDefaultPosition(targetId, 'head', targetComm?.name || ''));
+    }
+  };
+
   const handleCommChange = (commId: string) => {
     setNewCommId(commId);
     const comm = committees.find(c => c.id === commId);
-    const isLeadership = commId === 'comm-leadership';
-    const nextRole: Role = isLeadership ? 'advisor' : 'member';
-    setNewRole(nextRole);
-    setNewPosition(getDefaultPosition(commId, nextRole, comm?.name || ''));
+    setNewPosition(getDefaultPosition(commId, newRole, comm?.name || ''));
   };
 
-  // Handle Role change
   const handleRoleChange = (role: Role) => {
     setNewRole(role);
     const comm = committees.find(c => c.id === newCommId);
@@ -80,7 +98,7 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
 
   if (!isOpen || !member) return null;
 
-  const isMovingToLeadership = newCommId === 'comm-leadership';
+  const isMovingToLeadership = destinationType === 'leadership' || newCommId === 'comm-leadership';
   const isMovingFromLeadership = member.currentCommitteeId === 'comm-leadership';
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -122,7 +140,7 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
               </strong>
             </div>
             <div className="text-slate-400 mt-1">
-              المنصب الحالي: <span className="text-slate-200">{member.position}</span>
+              المنصب الحالي: <span className="text-slate-200 font-semibold">{member.position}</span>
             </div>
           </div>
           <div className="text-left font-mono text-[11px] text-slate-400">
@@ -132,58 +150,107 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* Target Committee Selector */}
+          {/* Destination Type Switcher Tabs */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
-              اللجنة الجديدة المراد النقل والتسكين إليها *
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              جهة التسكين والترقية المراد النقل إليها *
             </label>
-            <select
-              value={newCommId}
-              onChange={(e) => handleCommChange(e.target.value)}
-              className="glass-input text-xs w-full cursor-pointer font-bold"
-            >
-              {committees.map(c => (
-                <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                  {c.id === 'comm-leadership' ? '👑 القيادة العليا والمجلس الاستشاري' : `🏢 ${c.name} (${c.code})`}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleDestinationTypeChange('leadership')}
+                className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  destinationType === 'leadership'
+                    ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-lg shadow-amber-600/30 border border-amber-400/40'
+                    : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/60'
+                }`}
+              >
+                <Crown className="w-4 h-4 text-amber-300" />
+                <span>👑 الإدارة العليا والمجلس الاستشاري</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDestinationTypeChange('committee')}
+                className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  destinationType === 'committee'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 border border-blue-400/40'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Shield className="w-4 h-4 text-blue-300" />
+                <span>🏢 اللجان التشغيلية التخصصية</span>
+              </button>
+            </div>
           </div>
 
-          {/* Role / Rank Selector */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
-              الدور / الصفة التنظيمية الجديدة *
-            </label>
-            <select
-              value={newRole}
-              onChange={(e) => handleRoleChange(e.target.value as Role)}
-              className="glass-input text-xs w-full cursor-pointer font-bold"
-            >
-              {isMovingToLeadership ? (
-                <>
+          {/* Conditional Destination Selectors */}
+          {destinationType === 'leadership' ? (
+            <div className="p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/30 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span>اختيار منصب القيادة العليا والمجلس الاستشاري:</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">الرتبة والصفة القيادية *</label>
+                <select
+                  value={newRole}
+                  onChange={(e) => handleRoleChange(e.target.value as Role)}
+                  className="glass-input text-xs w-full cursor-pointer font-bold bg-slate-900 text-white border-amber-500/40"
+                >
                   <option value="advisor" className="bg-slate-900 text-white">مستشار الفريق (Advisor) 👑</option>
+                  <option value="super_admin" className="bg-slate-900 text-white">رئيس الفريق / قائد الكيان (President / Super Admin) 👑</option>
                   <option value="vice_president" className="bg-slate-900 text-white">نائب رئيس الفريق (Vice President) 👑</option>
-                  <option value="super_admin" className="bg-slate-900 text-white">رئيس الفريق (President / Super Admin) 👑</option>
-                  <option value="general_coordinator" className="bg-slate-900 text-white">منسق عام الفريق (General Coordinator)</option>
-                  <option value="operations_manager" className="bg-slate-900 text-white">مدير العمليات الميدانية (Operations Manager)</option>
-                  <option value="quality_officer" className="bg-slate-900 text-white">مسؤول الجودة والمتابعة (Quality Officer)</option>
-                </>
-              ) : (
-                <>
+                  <option value="general_coordinator" className="bg-slate-900 text-white">المنسق العام للفريق (General Coordinator) ⚡</option>
+                  <option value="operations_manager" className="bg-slate-900 text-white">مدير العمليات الميدانية (Operations Manager) 📋</option>
+                  <option value="quality_officer" className="bg-slate-900 text-white">مسؤول الجودة والمتابعة (Quality Officer) 🛡️</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
+              {/* Committee Selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  اللجنة التخصصية المستهدفة *
+                </label>
+                <select
+                  value={newCommId}
+                  onChange={(e) => handleCommChange(e.target.value)}
+                  className="glass-input text-xs w-full cursor-pointer font-bold"
+                >
+                  {operationalCommittees.map(c => (
+                    <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                      🏢 {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Role in Committee */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  الدور / الصفة التنظيمية باللجنة *
+                </label>
+                <select
+                  value={newRole}
+                  onChange={(e) => handleRoleChange(e.target.value as Role)}
+                  className="glass-input text-xs w-full cursor-pointer font-bold"
+                >
                   <option value="head" className="bg-slate-900 text-white">رئيس اللجنة (Head) ⭐</option>
-                  <option value="vice_head" className="bg-slate-900 text-white">نائب رئيس اللجنة (Vice Head)</option>
-                  <option value="hr_admin" className="bg-slate-900 text-white">مسؤول موارد بشرية باللجنة (HR Officer)</option>
-                  <option value="member" className="bg-slate-900 text-white">عضو متطوع باللجنة (Volunteer Member)</option>
-                </>
-              )}
-            </select>
-          </div>
+                  <option value="vice_head" className="bg-slate-900 text-white">نائب رئيس اللجنة (Vice Head) ⚔️</option>
+                  <option value="hr_admin" className="bg-slate-900 text-white">مسؤول موارد بشرية باللجنة (HR Officer) 👥</option>
+                  <option value="member" className="bg-slate-900 text-white">عضو متطوع باللجنة (Volunteer Member) 🌟</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* New Position Title */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              المسمى الوظيفي / المنصب الرسمي *
+              المسمى الوظيفي / المنصب الرسمي المعتمد *
             </label>
             <input
               type="text"
@@ -191,7 +258,7 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
               value={newPosition}
               onChange={(e) => setNewPosition(e.target.value)}
               placeholder="مثال: مستشار فريق متطوعين، نائب رئيس الفريق، رئيس لجنة التنظيم..."
-              className="glass-input text-xs w-full"
+              className="glass-input text-xs w-full font-bold text-white"
             />
           </div>
 
@@ -210,7 +277,7 @@ export const TransferCommitteeModal: React.FC<TransferCommitteeModalProps> = ({
             )}
             <div>
               {isMovingToLeadership && (
-                <span>👑 ترقية العضو إلى <strong>الإدارة العليا والمجلس الاستشاري</strong> مع منحه صلاحيات القيادة وإشراف عام على اللجان.</span>
+                <span>👑 ترقية وتكليف العضو ضمن <strong>القيادة العليا والمجلس الاستشاري</strong> مع منحه صلاحيات القيادة وإشراف عام على اللجان وتصفير نقاط الـ XP للأعضاء.</span>
               )}
               {isMovingFromLeadership && !isMovingToLeadership && (
                 <span>🏢 نقل العضو من الإدارة العليا إلى <strong>لجنة تشغيلية ميدانية</strong>.</span>

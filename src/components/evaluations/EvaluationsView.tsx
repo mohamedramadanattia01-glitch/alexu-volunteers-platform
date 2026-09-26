@@ -12,7 +12,7 @@ import { exportEvaluationsToExcel, exportHeadEvaluationsToExcel } from '../../ut
 
 export const EvaluationsView: React.FC = () => {
   const { 
-    members, evaluationRubric, submitMemberEvaluation, 
+    members, events, evaluationRubric, submitMemberEvaluation, 
     updateMemberEvaluation, deleteMemberEvaluation,
     memberEvaluations, headEvaluations, headEvaluationRubric,
     evaluateHead, updateHeadEvaluation, deleteHeadEvaluation,
@@ -33,6 +33,7 @@ export const EvaluationsView: React.FC = () => {
   const todayStr = new Date().toISOString().split('T')[0];
   const [evalDate, setEvalDate] = useState<string>(todayStr);
   const [headEvalDate, setHeadEvalDate] = useState<string>(todayStr);
+  const [headEventId, setHeadEventId] = useState<string>('');
 
   // Dynamic evaluation scores map: { [criterionId]: number }
   const [evalScores, setEvalScores] = useState<{ [critId: string]: number }>({});
@@ -95,6 +96,7 @@ export const EvaluationsView: React.FC = () => {
     setEditingHeadEval(null);
     setSelectedHead(headMember);
     setHeadEvalDate(todayStr);
+    setHeadEventId('');
     const initialScores: { [critId: string]: number } = {};
     headEvaluationRubric.criteria.forEach(crit => {
       initialScores[crit.id] = Math.round(crit.maxPoints * 0.9);
@@ -117,6 +119,7 @@ export const EvaluationsView: React.FC = () => {
 
     setSelectedHead(targetHead);
     setHeadEvalDate(evalRecord.evaluationDate || evalRecord.evaluatedAt?.split(' ')[0] || todayStr);
+    setHeadEventId(evalRecord.eventId || '');
     setHeadEvalScores({ ...evalRecord.scores });
     setHeadEvalFeedback(evalRecord.feedback || '');
   };
@@ -172,12 +175,17 @@ export const EvaluationsView: React.FC = () => {
     e.preventDefault();
     if (!selectedHead) return;
 
+    const matchedEvent = events.find(ev => ev.id === headEventId);
+    const eventName = matchedEvent ? matchedEvent.name : undefined;
+
     if (editingHeadEval) {
       updateHeadEvaluation(editingHeadEval.id, {
         scores: headEvalScores,
         maxTotalScore: headTotalMaxScore,
         feedback: headEvalFeedback,
-        evaluationDate: headEvalDate
+        evaluationDate: headEvalDate,
+        eventId: headEventId || undefined,
+        eventName: eventName || undefined,
       });
     } else {
       evaluateHead({
@@ -193,7 +201,9 @@ export const EvaluationsView: React.FC = () => {
         maxTotalScore: headTotalMaxScore,
         leadershipRating: 5,
         feedback: headEvalFeedback,
-        evaluationDate: headEvalDate
+        evaluationDate: headEvalDate,
+        eventId: headEventId || undefined,
+        eventName: eventName || undefined,
       });
     }
 
@@ -619,6 +629,7 @@ export const EvaluationsView: React.FC = () => {
                       <th className="py-2 font-bold">المسؤول القيادي</th>
                       <th className="py-2 font-bold">الكود</th>
                       <th className="py-2 font-bold">اللجنة</th>
+                      <th className="py-2 font-bold">الفاعلية / المناسبة</th>
                       <th className="py-2 font-bold">المقيم</th>
                       <th className="py-2 font-bold">الدرجة</th>
                       <th className="py-2 font-bold">النسبة (%)</th>
@@ -635,6 +646,15 @@ export const EvaluationsView: React.FC = () => {
                         <td className="py-2.5 font-bold text-white">{ev.headName}</td>
                         <td className="py-2.5 font-mono text-sky-400">{ev.headVolunteerId}</td>
                         <td className="py-2.5 text-slate-300">{ev.committeeName}</td>
+                        <td className="py-2.5">
+                          {ev.eventName ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-bold">
+                              {ev.eventName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[10px]">تقييم دوري عام</span>
+                          )}
+                        </td>
                         <td className="py-2.5 text-slate-400">{ev.evaluatorName}</td>
                         <td className="py-2.5 font-mono font-bold text-amber-400">{ev.totalScore} / {ev.maxTotalScore}</td>
                         <td className="py-2.5 font-mono text-emerald-400 font-bold">{ev.percentage}%</td>
@@ -885,6 +905,26 @@ export const EvaluationsView: React.FC = () => {
                   onChange={(e) => setHeadEvalDate(e.target.value)}
                   className="glass-input font-mono font-bold text-amber-300 text-xs py-1.5 px-3 rounded-lg border-amber-500/40 cursor-pointer bg-slate-900"
                 />
+              </div>
+
+              {/* Event Association Selector */}
+              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+                <label className="font-bold text-white text-xs block flex items-center justify-between">
+                  <span>الفاعلية أو المشروع المرتبط بالتقييم (اختياري):</span>
+                  <span className="text-[10px] text-amber-400">ربط التقييم بفاعلية محددة</span>
+                </label>
+                <select
+                  value={headEventId}
+                  onChange={(e) => setHeadEventId(e.target.value)}
+                  className="glass-input w-full text-xs py-2 px-3 rounded-lg border-slate-700 bg-slate-900 text-slate-200 cursor-pointer"
+                >
+                  <option value="">-- تقييم دوري عام (بدون فاعلية محددة) --</option>
+                  {events.map(ev => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name} ({ev.date})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Dynamic Head Rubric Scoring Fields */}

@@ -290,70 +290,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     list = list.map(m => {
+      let role = m.role;
+      let commId = m.currentCommitteeId;
+      let commName = m.currentCommitteeName;
+      let pos = m.position;
+
       // 1. Osama Mamdouh -> Supreme Leadership (Advisor)
       if (m.fullName.includes('أسامة ممدوح') || m.id === 'user-advisor-osama-mamdouh') {
-        return {
-          ...m,
-          role: 'advisor' as Role,
-          currentCommitteeId: 'comm-leadership',
-          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
-          position: 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
-        };
+        role = 'advisor';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-
       // 2. Malak Mohamed -> Supreme Leadership (Vice President)
-      if (m.fullName.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
-        return {
-          ...m,
-          role: 'vice_president' as Role,
-          currentCommitteeId: 'comm-leadership',
-          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
-          position: 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
-        };
+      else if (m.fullName.includes('ملك محمد') || m.id === 'user-vp-malak-mohamed') {
+        role = 'vice_president';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
       }
-
       // 3. Mohamed Ramadan -> Supreme Leadership (Advisor)
-      if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName.includes('محمد رمضان')) {
-        return {
-          ...m,
-          role: 'advisor' as Role,
-          currentCommitteeId: 'comm-leadership',
-          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
-          position: 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
-        };
+      else if (m.id === 'user-advisor-mohamed-ramadan' || m.fullName.includes('محمد رمضان')) {
+        role = 'advisor';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      }
+      // 4. Any general advisor or vice president
+      else if (role === 'advisor' || pos?.includes('مستشار')) {
+        role = 'advisor';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = pos || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      }
+      else if (role === 'vice_president' || pos?.includes('نائب رئيس الفريق')) {
+        role = 'vice_president';
+        commId = 'comm-leadership';
+        commName = 'القيادة العليا والمجلس الاستشاري';
+        pos = pos || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية';
+      }
+      // 5. Automatic Committee Linking for Specialized Operational Heads/Vice Heads
+      else if (role === 'head' || role === 'vice_head' || pos?.includes('رئيس') || pos?.includes('هيد')) {
+        if (pos?.includes('التنظيم')) {
+          commId = 'comm-org';
+          commName = 'لجنة التنظيم';
+        } else if (pos?.includes('الموارد البشرية') || pos?.includes('HR')) {
+          commId = 'comm-hr';
+          commName = 'لجنة الموارد البشرية';
+        } else if (pos?.includes('المونتاج')) {
+          commId = 'comm-montage';
+          commName = 'لجنة المونتاج';
+        } else if (pos?.includes('التصوير') || pos?.includes('الإعلام') || pos?.includes('فيديوغرافي')) {
+          commId = 'comm-media';
+          commName = 'لجنة التصوير الفوتوغرافي والفيديوغرافي';
+        } else if (pos?.includes('المحتوى') || pos?.includes('صناعة المحتوى')) {
+          commId = 'comm-content';
+          commName = 'لجنة صناعة المحتوى';
+        } else if (pos?.includes('التصميم')) {
+          commId = 'comm-design';
+          commName = 'لجنة التصميم';
+        }
       }
 
-      // 4. Any Vice President or General Advisor in general
-      if (m.role === 'vice_president' || m.position?.includes('نائب رئيس الفريق') || m.position?.includes('نائب رئيس المتطوعين')) {
-        return {
-          ...m,
-          role: 'vice_president' as Role,
-          currentCommitteeId: 'comm-leadership',
-          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
-          position: m.position || 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
-        };
-      }
+      // 6. Zero out XP and volunteer points for ALL Heads and Leadership members
+      const isLeadOrHead = isHighLeadershipRole(role) || role === 'head' || role === 'vice_head' || commId === 'comm-leadership';
+      const cleanPoints = isLeadOrHead ? 0 : (m.points || 0);
+      const cleanLevel = isLeadOrHead ? 1 : (m.level || 1);
 
-      if (m.role === 'advisor' || m.position?.includes('مستشار')) {
-        return {
-          ...m,
-          role: 'advisor' as Role,
-          currentCommitteeId: 'comm-leadership',
-          currentCommitteeName: 'القيادة العليا والمجلس الاستشاري',
-          position: m.position || 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية'
-        };
-      }
-
-      // 5. If a Head of HR was mistakenly placed in comm-leadership, place in comm-hr
-      if ((m.role === 'head' || m.role === 'vice_head') && (m.position?.includes('الموارد البشرية') || m.position?.includes('HR')) && m.currentCommitteeId === 'comm-leadership') {
-        return {
-          ...m,
-          currentCommitteeId: 'comm-hr',
-          currentCommitteeName: 'لجنة الموارد البشرية'
-        };
-      }
-
-      return m;
+      return {
+        ...m,
+        role,
+        currentCommitteeId: commId,
+        currentCommitteeName: commName,
+        position: pos,
+        points: cleanPoints,
+        level: cleanLevel
+      };
     });
 
     return list;
@@ -1378,6 +1390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
         const newVolId = generateCommitteeVolunteerId(newCommitteeId, assignedRole, prev);
+        const isLeadershipOrHead = newCommitteeId === 'comm-leadership' || isHighLeadershipRole(assignedRole) || assignedRole === 'head' || assignedRole === 'vice_head';
 
         return {
           ...m,
@@ -1386,6 +1399,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: assignedRole,
           position: assignedPosition,
           volunteerId: newVolId,
+          points: isLeadershipOrHead ? 0 : m.points,
+          level: isLeadershipOrHead ? 1 : m.level,
           committeeHistory: [
             ...m.committeeHistory,
             {
@@ -3025,6 +3040,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           age: profileData.age !== undefined ? profileData.age : m.age
         });
 
+        const targetRole = profileData.role !== undefined ? profileData.role : m.role;
+        const targetCommId = profileData.currentCommitteeId !== undefined ? profileData.currentCommitteeId : m.currentCommitteeId;
+        const isLeadershipOrHead = isHighLeadershipRole(targetRole) || targetRole === 'head' || targetRole === 'vice_head' || targetCommId === 'comm-leadership';
+        const finalPoints = isLeadershipOrHead ? 0 : (profileData.points !== undefined ? profileData.points : m.points);
+        const finalLevel = isLeadershipOrHead ? 1 : (profileData.level !== undefined ? profileData.level : m.level);
+
         updatedMember = {
           ...m,
           ...profileData,
@@ -3033,12 +3054,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           nationalId: rawNatId,
           phone: profileData.phone || m.phone || profileData.whatsappNumber || m.whatsappNumber,
           whatsappNumber: profileData.whatsappNumber || profileData.phone || m.whatsappNumber,
-          points: profileData.points !== undefined ? profileData.points : m.points,
-          level: profileData.level !== undefined ? profileData.level : m.level,
+          points: finalPoints,
+          level: finalLevel,
           badges: profileData.badges !== undefined ? profileData.badges : m.badges,
           position: profileData.position !== undefined ? profileData.position : m.position,
-          role: profileData.role !== undefined ? profileData.role : m.role,
-          currentCommitteeId: profileData.currentCommitteeId !== undefined ? profileData.currentCommitteeId : m.currentCommitteeId,
+          role: targetRole,
+          currentCommitteeId: targetCommId,
           currentCommitteeName: profileData.currentCommitteeName !== undefined ? profileData.currentCommitteeName : m.currentCommitteeName,
           volunteerId: profileData.volunteerId !== undefined ? profileData.volunteerId : m.volunteerId,
           performance: profileData.performance !== undefined 

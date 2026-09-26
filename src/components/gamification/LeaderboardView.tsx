@@ -84,17 +84,22 @@ export const LeaderboardView: React.FC = () => {
     .filter(m => m.status === 'Active' && m.role === 'member')
     .sort((a, b) => b.points - a.points);
 
-  // Filter ONLY Committee Heads and Vice Heads (sorted by real headEvaluations)
+  // Filter ONLY Committee Heads and Vice Heads (sorted strictly by real headEvaluations)
   const rankedHeads = [...members]
     .filter(m => m.status === 'Active' && (m.role === 'head' || m.role === 'vice_head'))
     .map(head => {
       const evals = headEvaluations.filter(e => e.headId === head.id);
       const evalScore = evals.length > 0 
         ? Math.round(evals.reduce((a, b) => a + b.percentage, 0) / evals.length)
-        : (head.performance?.overallScore || 0);
-      return { ...head, dynamicScore: evalScore };
+        : 0;
+      return { 
+        ...head, 
+        dynamicScore: evalScore,
+        evalCount: evals.length,
+        hasEvaluations: evals.length > 0
+      };
     })
-    .sort((a, b) => (b.dynamicScore - a.dynamicScore) || (b.points - a.points));
+    .sort((a, b) => b.dynamicScore - a.dynamicScore);
 
   const handleOpenNewBadge = () => {
     setEditingBadge(null);
@@ -212,7 +217,7 @@ export const LeaderboardView: React.FC = () => {
           </h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
             {activeBoard === 'heads' 
-              ? 'سيظهر تصنيف رؤساء ونواب اللجان هنا فور تعيينهم وتقييم أدائهم القيادي من قِبل الإدارة العليا.' 
+              ? 'سيظهر تصنيف رؤساء ونواب اللجان هنا فور تعيينهم وتقييم أدائهم القيادي الفعلي من قِبل الإدارة العليا في الفعاليات.' 
               : 'سيظهر ترتيب المتطوعين وأبطال الموسم فور تسجيل الأعضاء الجدد واعتمادهم وإنجاز المهام.'}
           </p>
         </div>
@@ -230,7 +235,9 @@ export const LeaderboardView: React.FC = () => {
               <p className="text-[11px] text-slate-400">{activeRankList[1].currentCommitteeName} • {activeRankList[1].position}</p>
               <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">
                 {activeBoard === 'heads' 
-                  ? `${(activeRankList[1] as any).dynamicScore || 90}% تقييم القيادة`
+                  ? ((activeRankList[1] as any).evalCount > 0 
+                      ? `${(activeRankList[1] as any).dynamicScore}% (مؤشر القيادة)`
+                      : `0% (لم يُقيّم بعد)`)
                   : `${activeRankList[1].points} XP`}
               </div>
             </div>
@@ -248,7 +255,9 @@ export const LeaderboardView: React.FC = () => {
               <p className="text-xs text-amber-300">{activeRankList[0].currentCommitteeName} • {activeRankList[0].position}</p>
               <div className="mt-2 font-mono font-black text-amber-400 text-xl">
                 {activeBoard === 'heads' 
-                  ? `${(activeRankList[0] as any).dynamicScore || 95}% تقييم القيادة`
+                  ? ((activeRankList[0] as any).evalCount > 0 
+                      ? `${(activeRankList[0] as any).dynamicScore}% (مؤشر القيادة)`
+                      : `0% (لم يُقيّم بعد)`)
                   : `${activeRankList[0].points} XP`}
               </div>
             </div>
@@ -265,7 +274,9 @@ export const LeaderboardView: React.FC = () => {
               <p className="text-[11px] text-slate-400">{activeRankList[2].currentCommitteeName} • {activeRankList[2].position}</p>
               <div className="mt-2 font-mono font-extrabold text-amber-400 text-base">
                 {activeBoard === 'heads' 
-                  ? `${(activeRankList[2] as any).dynamicScore || 85}% تقييم القيادة`
+                  ? ((activeRankList[2] as any).evalCount > 0 
+                      ? `${(activeRankList[2] as any).dynamicScore}% (مؤشر القيادة)`
+                      : `0% (لم يُقيّم بعد)`)
                   : `${activeRankList[2].points} XP`}
               </div>
             </div>
@@ -278,7 +289,7 @@ export const LeaderboardView: React.FC = () => {
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-white">
-            {activeBoard === 'heads' ? '👑 الترتيب القيادي لرؤساء ونواب اللجان' : 'الترتيب الشامل للأعضاء المتطوعين'}
+            {activeBoard === 'heads' ? '👑 الترتيب القيادي لرؤساء ونواب اللجان (مربوط بالتقييمات الحقيقية)' : 'الترتيب الشامل للأعضاء المتطوعين'}
           </h3>
           <span className="text-xs text-slate-400">إجمالي المنافسين: {activeRankList.length}</span>
         </div>
@@ -293,8 +304,8 @@ export const LeaderboardView: React.FC = () => {
                 <th className="py-2.5 font-bold">{activeBoard === 'heads' ? 'المنصب' : 'المستوى'}</th>
                 {activeBoard === 'heads' ? (
                   <>
-                    <th className="py-2.5 font-bold text-purple-400">مؤشر القيادة</th>
-                    <th className="py-2.5 font-bold">إنجاز مهام اللجنة</th>
+                    <th className="py-2.5 font-bold text-purple-400">مؤشر القيادة الفعلي</th>
+                    <th className="py-2.5 font-bold">سجل تقييمات الفعاليات</th>
                   </>
                 ) : (
                   <>
@@ -337,8 +348,12 @@ export const LeaderboardView: React.FC = () => {
                     </td>
                     {activeBoard === 'heads' ? (
                       <>
-                        <td className="py-3 font-mono text-purple-400 font-bold">{m.performance?.leadership || 88}%</td>
-                        <td className="py-3 font-mono text-emerald-400">{m.performance?.taskCompletionRate || 92}%</td>
+                        <td className="py-3 font-mono text-purple-400 font-bold">
+                          {(m as any).evalCount > 0 ? `${(m as any).dynamicScore}%` : '0% (لم يُقيّم بعد)'}
+                        </td>
+                        <td className="py-3 text-slate-300">
+                          {(m as any).evalCount > 0 ? `${(m as any).evalCount} تقييمات معتمدة` : '0 فاعليات مقيمة'}
+                        </td>
                       </>
                     ) : (
                       <>
@@ -347,7 +362,9 @@ export const LeaderboardView: React.FC = () => {
                       </>
                     )}
                     <td className="py-3 font-mono font-extrabold text-amber-400">
-                      {activeBoard === 'heads' ? `${(m as any).dynamicScore || 90}%` : `${m.points} XP`}
+                      {activeBoard === 'heads' 
+                        ? ((m as any).evalCount > 0 ? `${(m as any).dynamicScore}%` : '0%') 
+                        : `${m.points} XP`}
                     </td>
                   </tr>
                 ))
