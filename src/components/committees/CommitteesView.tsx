@@ -64,24 +64,26 @@ export const CommitteesView: React.FC<CommitteesViewProps> = ({
           const realAttendanceRate = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
           const committeeHeads = members.filter(m => 
+            m.status === 'Active' &&
             m.currentCommitteeId === comm.id && 
-            (m.role === 'head' || m.position?.includes('رئيس لجنة') || (m.position && m.position.startsWith('رئيس ')))
+            m.role === 'head'
           );
           const committeeVices = members.filter(m => 
+            m.status === 'Active' &&
             m.currentCommitteeId === comm.id && 
-            (m.role === 'vice_head' || m.position?.includes('نائب رئيس'))
+            m.role === 'vice_head'
           );
 
           const headsNamesList = committeeHeads.length > 0 
             ? committeeHeads.map(h => h.fullName).join(' • ')
-            : (comm.headNames?.length ? comm.headNames.join(' • ') : (comm.headName || 'بانتظار تعيين القائد'));
+            : (comm.headName && comm.headName !== 'لم يحدد' ? comm.headName : 'بانتظار تعيين القائد');
 
           const vicesNamesList = committeeVices.length > 0
             ? committeeVices.map(v => v.fullName).join(' • ')
-            : (comm.viceNames?.length ? comm.viceNames.join(' • ') : (comm.viceName || ''));
+            : (comm.viceName && comm.viceName !== 'لم يحدد' ? comm.viceName : '');
 
-          const isMultipleHeads = committeeHeads.length > 1 || (comm.headNames && comm.headNames.length > 1);
-          const isMultipleVices = committeeVices.length > 1 || (comm.viceNames && comm.viceNames.length > 1);
+          const isMultipleHeads = committeeHeads.length > 1;
+          const isMultipleVices = committeeVices.length > 1;
 
           return (
             <div 

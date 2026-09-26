@@ -92,6 +92,10 @@ interface AppContextType {
   isUserBanned: (emailOrNationalId: string) => boolean;
   archiveMember: (id: string, reason: string) => void;
   transferMemberCommittee: (memberId: string, newCommitteeId: string, reason: string, newRole?: Role, newPosition?: string) => void;
+  assignCommitteeHead: (committeeId: string, memberId: string) => void;
+  assignCommitteeViceHead: (committeeId: string, memberId: string) => void;
+  removeCommitteeHead: (committeeId: string, memberId: string) => void;
+  removeCommitteeViceHead: (committeeId: string, memberId: string) => void;
   revealNationalId: (memberId: string) => void;
   createCommittee: (committeeData: Partial<Committee>) => void;
   updateCommittee: (id: string, updates: Partial<Committee>) => void;
@@ -1370,28 +1374,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetComm = committees.find(c => c.id === newCommitteeId);
     if (!targetComm) return;
 
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetMember) return;
+
+    const oldCommId = targetMember.currentCommitteeId;
+    const oldCommName = targetMember.currentCommitteeName;
+    const assignedRole = newRole || targetMember.role;
+    const assignedPosition = newPosition || (
+      newCommitteeId === 'comm-leadership'
+        ? (assignedRole === 'advisor' ? 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+           assignedRole === 'vice_president' ? 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+           assignedRole === 'super_admin' ? 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
+           assignedRole === 'general_coordinator' ? 'منسق عام فريق المتطوعين' :
+           assignedRole === 'operations_manager' ? 'مدير العمليات الميدانية' :
+           assignedRole === 'quality_officer' ? 'مسؤول الجودة والمتابعة' :
+           'عضو القيادة العليا والمجلس الاستشاري')
+        : (assignedRole === 'head' ? `رئيس ${targetComm.name}` :
+           assignedRole === 'vice_head' ? `نائب رئيس ${targetComm.name}` :
+           assignedRole === 'hr_admin' ? `مسؤول موارد بشرية بـ ${targetComm.name}` :
+           `عضو متطوع بـ ${targetComm.name}`)
+    );
+
+    const isLeadershipOrHead = newCommitteeId === 'comm-leadership' || isHighLeadershipRole(assignedRole) || assignedRole === 'head' || assignedRole === 'vice_head';
+    const newVolId = generateCommitteeVolunteerId(newCommitteeId, assignedRole, members);
+
+    // 1. Update Members list ensuring strictly 1 placement and 1 role
     setMembers(prev => prev.map(m => {
+      // The transferred member
       if (m.id === memberId) {
-        const oldCommName = m.currentCommitteeName;
-        const assignedRole = newRole || m.role;
-        const assignedPosition = newPosition || (
-          newCommitteeId === 'comm-leadership'
-            ? (assignedRole === 'advisor' ? 'مستشار فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
-               assignedRole === 'vice_president' ? 'نائب رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
-               assignedRole === 'super_admin' ? 'رئيس فريق متطوعين اتحاد طلاب جامعة الإسكندرية' :
-               assignedRole === 'general_coordinator' ? 'منسق عام فريق المتطوعين' :
-               assignedRole === 'operations_manager' ? 'مدير العمليات الميدانية' :
-               assignedRole === 'quality_officer' ? 'مسؤول الجودة والمتابعة' :
-               'عضو القيادة العليا')
-            : (assignedRole === 'head' ? `رئيس ${targetComm.name}` :
-               assignedRole === 'vice_head' ? `نائب رئيس ${targetComm.name}` :
-               assignedRole === 'hr_admin' ? `مسؤول موارد بشرية بـ ${targetComm.name}` :
-               `عضو متطوع بـ ${targetComm.name}`)
-        );
-
-        const newVolId = generateCommitteeVolunteerId(newCommitteeId, assignedRole, prev);
-        const isLeadershipOrHead = newCommitteeId === 'comm-leadership' || isHighLeadershipRole(assignedRole) || assignedRole === 'head' || assignedRole === 'vice_head';
-
         return {
           ...m,
           currentCommitteeId: newCommitteeId,
@@ -1406,9 +1416,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             {
               id: `hist-trans-${Date.now()}`,
               committeeName: oldCommName,
-              role: m.position,
+              role: targetMember.position,
               season: activeSeason.name,
-              startDate: m.joinDate,
+              startDate: targetMember.joinDate,
               endDate: new Date().toISOString().split('T')[0],
               reason: `نقل إلى ${targetComm.name} (${assignedPosition}): ${reason}`,
               changedBy: currentUser.fullName
@@ -1416,11 +1426,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ]
         };
       }
+
+      // If another member in target committee was head, and this member becomes head -> demote previous head to member
+      if (assignedRole === 'head' && m.currentCommitteeId === newCommitteeId && m.role === 'head' && m.id !== memberId) {
+        return {
+          ...m,
+          role: 'member' as Role,
+          position: `عضو متطوع بـ ${targetComm.name}`
+        };
+      }
+
+      // If another member in target committee was vice_head, and this member becomes vice_head -> demote previous vice_head to member
+      if (assignedRole === 'vice_head' && m.currentCommitteeId === newCommitteeId && m.role === 'vice_head' && m.id !== memberId) {
+        return {
+          ...m,
+          role: 'member' as Role,
+          position: `عضو متطوع بـ ${targetComm.name}`
+        };
+      }
+
       return m;
     }));
 
-    addAuditLog('نقل وتسكين عضو بين اللجان والإدارة العليا', `عضو ID: ${memberId}`, `تم النقل إلى ${targetComm.name} - الدور: ${newRole || 'بدون تغيير'} - السبب: ${reason}`);
-    showNotification('success', `تم نقل العضو وتسكينه في ${targetComm.name} بنجاح ✓`);
+    // 2. Synchronize Committees state: update headId / viceId cleanly
+    setCommittees(prev => prev.map(c => {
+      let updatedComm = { ...c };
+
+      // Clear from old committee if member was listed as head or vice
+      if (c.id === oldCommId && c.id !== newCommitteeId) {
+        if (c.headId === memberId) {
+          updatedComm.headId = '';
+          updatedComm.headName = 'لم يحدد';
+        }
+        if (c.viceId === memberId) {
+          updatedComm.viceId = '';
+          updatedComm.viceName = 'لم يحدد';
+        }
+      }
+
+      // Update target committee if assigned as head or vice
+      if (c.id === newCommitteeId) {
+        if (assignedRole === 'head') {
+          updatedComm.headId = targetMember.id;
+          updatedComm.headName = targetMember.fullName;
+        } else if (assignedRole === 'vice_head') {
+          updatedComm.viceId = targetMember.id;
+          updatedComm.viceName = targetMember.fullName;
+        } else if (c.headId === memberId) {
+          updatedComm.headId = '';
+          updatedComm.headName = 'لم يحدد';
+        } else if (c.viceId === memberId) {
+          updatedComm.viceId = '';
+          updatedComm.viceName = 'لم يحدد';
+        }
+      }
+
+      return updatedComm;
+    }));
+
+    addAuditLog('نقل وتسكين عضو بين اللجان والإدارة العليا', targetMember.fullName, `تم النقل إلى ${targetComm.name} - المنصب: ${assignedPosition} - السبب: ${reason}`);
+    showNotification('success', `تم نقل وتسكين ${targetMember.fullName} في ${targetComm.name} (${assignedPosition}) بنجاح ✓`);
+  };
+
+  // Dedicated Quick Placement Helpers from Org Chart & Committees
+  const assignCommitteeHead = (committeeId: string, memberId: string) => {
+    const comm = committees.find(c => c.id === committeeId);
+    if (!comm) return;
+    transferMemberCommittee(memberId, committeeId, 'تعيين رسمي كرئيس للجنة من الهيكل الإداري', 'head', `رئيس ${comm.name}`);
+  };
+
+  const assignCommitteeViceHead = (committeeId: string, memberId: string) => {
+    const comm = committees.find(c => c.id === committeeId);
+    if (!comm) return;
+    transferMemberCommittee(memberId, committeeId, 'تعيين رسمي كنائب رئيس للجنة من الهيكل الإداري', 'vice_head', `نائب رئيس ${comm.name}`);
+  };
+
+  const removeCommitteeHead = (committeeId: string, memberId: string) => {
+    const comm = committees.find(c => c.id === committeeId);
+    if (!comm) return;
+    transferMemberCommittee(memberId, committeeId, 'إعفاء من منصب قيادة اللجنة والتحويل لعضو متطوع', 'member', `عضو متطوع بـ ${comm.name}`);
+  };
+
+  const removeCommitteeViceHead = (committeeId: string, memberId: string) => {
+    const comm = committees.find(c => c.id === committeeId);
+    if (!comm) return;
+    transferMemberCommittee(memberId, committeeId, 'إعفاء من منصب نائب رئيس اللجنة والتحويل لعضو متطوع', 'member', `عضو متطوع بـ ${comm.name}`);
   };
 
   // Reveal National ID
@@ -3161,6 +3251,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteMember,
         archiveMember,
         transferMemberCommittee,
+        assignCommitteeHead,
+        assignCommitteeViceHead,
+        removeCommitteeHead,
+        removeCommitteeViceHead,
         revealNationalId,
         createCommittee,
         updateCommittee,
