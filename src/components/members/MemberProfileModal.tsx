@@ -650,6 +650,24 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                       )}
                     </div>
 
+                    {/* Time & GPS Details */}
+                    <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400 border-t border-slate-900 pt-1.5 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span>دخول: <strong className="text-emerald-400 font-mono">{att.checkInTime || '—'}</strong></span>
+                        <span>انصراف: <strong className="text-sky-400 font-mono">{att.checkOutTime || 'متواجد'}</strong></span>
+                      </div>
+                      {att.gpsLocation && (
+                        <a
+                          href={att.gpsLocation.mapsUrl || `https://www.google.com/maps?q=${att.gpsLocation.latitude},${att.gpsLocation.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-400 hover:underline flex items-center gap-1 font-mono text-[10px]"
+                        >
+                          <span>📍 GPS موقع مؤكد ({att.gpsLocation.accuracy ? `±${att.gpsLocation.accuracy}m` : 'ميداني'})</span>
+                        </a>
+                      )}
+                    </div>
+
                     {/* Criteria score chips if evaluated */}
                     {ev && (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
@@ -669,6 +687,14 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                           <span>المبادرة والشغف:</span>
                           <span className="font-bold text-purple-400 font-mono">{c4}/15</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Bonus Badge & Reason */}
+                    {ev && Boolean(ev.bonusPoints) && (
+                      <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-[10px] text-amber-300">
+                        <span className="font-bold">⭐ نقاط بونص إضافية: +{ev.bonusPoints} نقطة</span>
+                        {ev.bonusReason && <span className="text-slate-300">السبب: {ev.bonusReason}</span>}
                       </div>
                     )}
 

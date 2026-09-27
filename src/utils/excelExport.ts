@@ -407,11 +407,15 @@ export const exportAttendanceAndEvaluationMasterExcel = (
     'ساعات العمل الميداني',
     'حالة الحضور',
     'الموقع الجغرافي GPS',
+    'دقة الموقع (GPS Accuracy)',
+    'رابط خرائط جوجل (Google Maps)',
     'الالتزام والحضور (25)',
     'جودة الأداء وإتقان المهام (35)',
     'العمل الجماعي والتواصل (25)',
     'المبادرة والشغف (15)',
-    'درجة اليوم الإجمالية (100)',
+    'درجات البونص الإضافية',
+    'سبب البونص',
+    'درجة اليوم الإجمالية (100 + بونص)',
     'النسبة المئوية (%)',
     'التقدير العام (Grade)',
     'نقاط الـ XP الممنوحة',
@@ -429,9 +433,15 @@ export const exportAttendanceAndEvaluationMasterExcel = (
     const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
     const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
     const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
-    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 : '—');
-    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${total}%` : '—');
+    const bonusPts = ev?.bonusPoints ?? 0;
+    const bonusReason = ev?.bonusReason || '—';
+    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 + bonusPts : '—');
+    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${Math.min(100, total)}%` : '—');
     const grade = ev?.overallGrade || (typeof total === 'number' ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
+
+    const gpsCoordsText = gps ? (gps.lat && gps.lng ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}` : gps.address || 'ميداني') : 'ميداني موثق';
+    const gpsAccText = gps?.accuracy ? `±${gps.accuracy} متر` : 'دقة عادية';
+    const mapsLink = gps?.mapsUrl || (gps?.lat && gps?.lng ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : '—');
 
     return [
       idx + 1,
@@ -449,11 +459,15 @@ export const exportAttendanceAndEvaluationMasterExcel = (
       r.checkOutTime || '—',
       r.durationFormatted || (r.durationMinutes ? `${(r.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
       r.status === 'Present' ? 'حاضر ✓' : r.status === 'Late' ? 'متأخر' : r.status === 'Excused' ? 'معتذر' : 'غائب',
-      gps?.address || 'ميداني موثق',
+      gpsCoordsText,
+      gpsAccText,
+      mapsLink,
       c1,
       c2,
       c3,
       c4,
+      bonusPts,
+      bonusReason,
       total,
       pct,
       grade,
@@ -500,12 +514,16 @@ export const exportSingleMemberEvaluationHistoryToExcel = (
     'وقت تسجيل الحضور (Check-in)',
     'وقت تسجيل الانصراف (Check-out)',
     'ساعات العمل الميداني',
+    'الموقع الجغرافي GPS',
+    'رابط خرائط جوجل',
     'حالة الحضور',
     'الالتزام والحضور (25)',
     'جودة الأداء وإتقان المهام (35)',
     'العمل الجماعي والتواصل (25)',
     'المبادرة والشغف (15)',
-    'إجمالي نتيجة اليوم (100)',
+    'درجات البونص',
+    'سبب البونص',
+    'إجمالي نتيجة اليوم (100 + بونص)',
     'النسبة المئوية (%)',
     'التقدير العام (Grade)',
     'نقاط التميز (Bonus XP)',
@@ -516,13 +534,19 @@ export const exportSingleMemberEvaluationHistoryToExcel = (
 
   const rows = userRecords.map((r, idx) => {
     const ev = r.dailyEvaluation;
+    const gps = r.gpsLocation;
     const c1 = ev?.attendanceCommitment ?? ev?.attendanceScore ?? '—';
     const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
     const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
     const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
-    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 : '—');
-    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${total}%` : '—');
+    const bonusPts = ev?.bonusPoints ?? 0;
+    const bonusReason = ev?.bonusReason || '—';
+    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 + bonusPts : '—');
+    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${Math.min(100, total)}%` : '—');
     const grade = ev?.overallGrade || (typeof total === 'number' ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
+
+    const gpsCoordsText = gps ? (gps.lat && gps.lng ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}` : gps.address || 'ميداني') : 'ميداني موثق';
+    const mapsLink = gps?.mapsUrl || (gps?.lat && gps?.lng ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : '—');
 
     return [
       idx + 1,
@@ -535,11 +559,15 @@ export const exportSingleMemberEvaluationHistoryToExcel = (
       r.checkInTime || '—',
       r.checkOutTime || '—',
       r.durationFormatted || (r.durationMinutes ? `${(r.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
+      gpsCoordsText,
+      mapsLink,
       r.status === 'Present' ? 'حاضر ✓' : r.status === 'Late' ? 'متأخر' : r.status === 'Excused' ? 'معتذر' : 'غائب',
       c1,
       c2,
       c3,
       c4,
+      bonusPts,
+      bonusReason,
       total,
       pct,
       grade,

@@ -305,7 +305,10 @@ export interface GPSLocation {
   latitude?: number;
   longitude?: number;
   address?: string;
-  accuracy?: number;
+  accuracy?: number; // In meters e.g. ±12m
+  mapsUrl?: string; // https://www.google.com/maps?q=lat,lng
+  capturedAt?: string; // Live capture timestamp
+  isLiveVerified?: boolean;
 }
 
 export interface DailySessionEvaluation {
@@ -317,14 +320,15 @@ export interface DailySessionEvaluation {
   participationScore?: number; // 35 (legacy compat)
   commitmentScore?: number; // 25 (legacy compat)
   taskExecutionScore?: number; // 15 (legacy compat)
+  bonusPoints?: number; // درجات البونص الإضافية
+  bonusReason?: string; // سبب البونص
   criteriaScores?: { [criterionName: string]: number };
   criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
   criteriaNotes?: { [criterionName: string]: string };
-  totalDailyScore?: number; // sum out of 100
+  totalDailyScore?: number; // sum out of 100 + bonus
   percentage?: number; // e.g. 95%
   overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
   bonusXP?: number;
-  bonusPoints?: number;
   notes?: string;
   evaluatedBy?: string;
   evaluatorName?: string;
@@ -538,6 +542,8 @@ export interface MemberEvaluationRecord {
   scores: { [criterionId: string]: number }; // points earned per criterion (e.g. 25, 35, 25, 15)
   criteriaGrades?: { [criterionId: string]: 'A' | 'B' | 'C' | 'Custom' };
   criteriaNotes?: { [criterionId: string]: string };
+  bonusPoints?: number;
+  bonusReason?: string;
   totalScore: number; // out of 100
   maxTotalScore: number; // 100
   percentage: number;
@@ -568,6 +574,8 @@ export interface HeadEvaluationRecord {
   scores: { [criterionId: string]: number };
   criteriaGrades?: { [criterionId: string]: 'A' | 'B' | 'C' | 'Custom' };
   criteriaNotes?: { [criterionId: string]: string };
+  bonusPoints?: number;
+  bonusReason?: string;
   totalScore: number;
   maxTotalScore: number;
   percentage: number;

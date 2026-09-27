@@ -167,6 +167,8 @@ interface AppContextType {
     participationScore?: number;
     commitmentScore?: number;
     taskExecutionScore?: number;
+    bonusPoints?: number;
+    bonusReason?: string;
     criteriaScores?: { [criterionName: string]: number };
     criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
     criteriaNotes?: { [criterionName: string]: string };
@@ -3504,6 +3506,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     participationScore?: number;
     commitmentScore?: number;
     taskExecutionScore?: number;
+    bonusPoints?: number;
+    bonusReason?: string;
     criteriaScores?: { [criterionName: string]: number };
     criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
     criteriaNotes?: { [criterionName: string]: string };
@@ -3522,9 +3526,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const c2 = Number(evalData.taskQuality ?? evalData.participationScore ?? 35);
     const c3 = Number(evalData.teamworkCommunication ?? evalData.commitmentScore ?? 25);
     const c4 = Number(evalData.initiativePassion ?? evalData.taskExecutionScore ?? 15);
+    const bonusPts = Number(evalData.bonusPoints) || 0;
+    const bonusReasonStr = evalData.bonusReason?.trim() || '';
 
-    const totalDaily = Math.min(100, Math.max(0, Math.round(c1 + c2 + c3 + c4)));
-    const percentage = totalDaily; // Out of 100
+    const totalDaily = Math.min(120, Math.max(0, Math.round(c1 + c2 + c3 + c4 + bonusPts)));
+    const percentage = Math.min(100, Math.round(totalDaily)); // Out of 100
 
     const overallGrade: 'A+' | 'A' | 'B' | 'C' | 'D' = 
       totalDaily >= 95 ? 'A+' :
@@ -3532,7 +3538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalDaily >= 70 ? 'B' :
       totalDaily >= 50 ? 'C' : 'D';
 
-    const awardedXP = (Number(evalData.bonusXP) || 15) + (totalDaily >= 90 ? 30 : totalDaily >= 75 ? 20 : 10);
+    const awardedXP = (Number(evalData.bonusXP) || 15) + (totalDaily >= 90 ? 30 : totalDaily >= 75 ? 20 : 10) + (bonusPts * 2);
     const todayStr = new Date().toISOString().split('T')[0];
     const nowTimeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
@@ -3562,6 +3568,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               participationScore: c2,
               commitmentScore: c3,
               taskExecutionScore: c4,
+              bonusPoints: bonusPts,
+              bonusReason: bonusReasonStr,
               criteriaScores: criteriaScoresBreakdown,
               criteriaGrades: evalData.criteriaGrades || {},
               criteriaNotes: evalData.criteriaNotes || {},
@@ -3613,6 +3621,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             participationScore: c2,
             commitmentScore: c3,
             taskExecutionScore: c4,
+            bonusPoints: bonusPts,
+            bonusReason: bonusReasonStr,
             criteriaScores: criteriaScoresBreakdown,
             criteriaGrades: evalData.criteriaGrades || {},
             criteriaNotes: evalData.criteriaNotes || {},
@@ -3654,11 +3664,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         evaluatorName: currentUser.fullName,
         evaluatorRole: currentUser.role,
         evaluationDate: evalDateStr,
+        eventId: updatedRecord?.eventId || recFound?.eventId,
+        eventName: eventNameStr,
+        checkInTime: updatedRecord?.checkInTime || recFound?.checkInTime,
+        checkOutTime: updatedRecord?.checkOutTime || recFound?.checkOutTime,
+        durationFormatted: updatedRecord?.durationFormatted || recFound?.durationFormatted,
+        gpsLocation: updatedRecord?.gpsLocation || recFound?.gpsLocation,
         scores: criteriaScoresBreakdown,
+        criteriaGrades: evalData.criteriaGrades || {},
+        criteriaNotes: evalData.criteriaNotes || {},
+        bonusPoints: bonusPts,
+        bonusReason: bonusReasonStr,
         totalScore: totalDaily,
         maxTotalScore: 100,
         percentage: percentage,
-        feedback: evalData.notes ? `${evalData.notes} [التقدير: ${overallGrade}] (+${awardedXP} XP)` : `تقييم جلسة: ${eventNameStr} [التقدير: ${overallGrade}] (+${awardedXP} XP)`,
+        overallGrade: overallGrade,
+        feedback: evalData.notes ? `${evalData.notes} [التقدير: ${overallGrade}] (+${awardedXP} XP)${bonusPts > 0 ? ` (بونص +${bonusPts}: ${bonusReasonStr})` : ''}` : `تقييم جلسة: ${eventNameStr} [التقدير: ${overallGrade}] (+${awardedXP} XP)${bonusPts > 0 ? ` (بونص +${bonusPts})` : ''}`,
         evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
       };
 
@@ -3681,12 +3702,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           evaluatorName: currentUser.fullName,
           evaluatorRole: currentUser.role,
           evaluationDate: evalDateStr,
+          eventId: updatedRecord?.eventId || recFound?.eventId,
+          eventName: eventNameStr,
+          checkInTime: updatedRecord?.checkInTime || recFound?.checkInTime,
+          checkOutTime: updatedRecord?.checkOutTime || recFound?.checkOutTime,
+          durationFormatted: updatedRecord?.durationFormatted || recFound?.durationFormatted,
+          gpsLocation: updatedRecord?.gpsLocation || recFound?.gpsLocation,
           scores: criteriaScoresBreakdown,
+          criteriaGrades: evalData.criteriaGrades || {},
+          criteriaNotes: evalData.criteriaNotes || {},
+          bonusPoints: bonusPts,
+          bonusReason: bonusReasonStr,
           totalScore: totalDaily,
           maxTotalScore: 100,
           percentage: percentage,
-          leadershipRating: Number((totalDaily / 20).toFixed(1)),
-          feedback: evalData.notes || `أداء قيادي وانضباط ميداني متميز [التقدير: ${overallGrade}]`,
+          leadershipRating: Number((Math.min(100, totalDaily) / 20).toFixed(1)),
+          overallGrade: overallGrade,
+          feedback: evalData.notes || `أداء قيادي وانضباط ميداني متميز [التقدير: ${overallGrade}]${bonusPts > 0 ? ` (بونص: +${bonusPts})` : ''}`,
           evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
         };
         setHeadEvaluations(prev => [headEvalObj, ...prev.filter(h => h.id !== headEvalObj.id)]);
@@ -3721,10 +3753,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
 
       // 4. Send targeted personal notification to the volunteer with breakdown
+      const bonusText = bonusPts > 0 ? ` | بونص إضافي: +${bonusPts} (${bonusReasonStr || 'مبادرة استثنائية'})` : '';
       const evalNotif: SystemNotification = {
         id: `notif-daily-eval-${Date.now()}`,
         title: `🌟 تقييم اليوم الميداني: ${totalDaily}/100 (${overallGrade})`,
-        message: `أهلاً يا ${targetMember.fullName.split(' ')[0]}، تم اعتماد تقييمك لجلسة (${eventNameStr}) بواسطة ${currentUser.fullName}: النتيجة ${totalDaily}/100 [تقدير: ${overallGrade}]. (حضور: ${c1}/25 | أداء: ${c2}/35 | عمل جماعي: ${c3}/25 | مبادرة: ${c4}/15). ${evalData.notes ? `ملاحظات: "${evalData.notes}"` : ''}`,
+        message: `أهلاً يا ${targetMember.fullName.split(' ')[0]}، تم اعتماد تقييمك لجلسة (${eventNameStr}) بواسطة ${currentUser.fullName}: النتيجة ${totalDaily}/100 [تقدير: ${overallGrade}]. (حضور: ${c1}/25 | أداء: ${c2}/35 | عمل جماعي: ${c3}/25 | مبادرة: ${c4}/15${bonusText}). ${evalData.notes ? `ملاحظات: "${evalData.notes}"` : ''}`,
         type: 'eval',
         targetMemberIds: [targetMember.id],
         senderName: currentUser.fullName,
@@ -3746,7 +3779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     playSound('task');
     triggerGamificationCelebration(`🌟 تم اعتماد تقييم ${targetMember?.fullName.split(' ')[0] || 'المتطوع'} بنجاح! (${totalDaily}/100 - تقدير ${overallGrade})`, awardedXP);
-    addAuditLog('تسجيل تقييم اليوم الميداني', targetMember?.fullName || `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/100 (${overallGrade}) - XP: +${awardedXP} - المقيم: ${currentUser.fullName}`);
+    addAuditLog('تسجيل تقييم اليوم الميداني', targetMember?.fullName || `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/100 (${overallGrade}) - XP: +${awardedXP} - المقيم: ${currentUser.fullName}${bonusPts > 0 ? ` - بونص: +${bonusPts}` : ''}`);
     showNotification('success', `تم حفظ تقييم اليوم للمتطوع بنتيجة ${totalDaily}/100 (${overallGrade}) وإرسال الإشعار بنجاح!`);
   };
 

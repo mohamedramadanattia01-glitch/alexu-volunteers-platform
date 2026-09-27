@@ -302,6 +302,60 @@ CREATE TABLE IF NOT EXISTS public.head_evaluations (
     evaluated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 8.1 DAILY ATTENDANCE EVALUATIONS TABLE (4-CRITERIA RUBRIC + BONUS)
+CREATE TABLE IF NOT EXISTS public.daily_attendance_evaluations (
+    id TEXT PRIMARY KEY,
+    attendance_record_id TEXT,
+    member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
+    member_name TEXT NOT NULL,
+    member_volunteer_id TEXT,
+    committee_name TEXT,
+    event_id TEXT,
+    event_name TEXT,
+    attendance_date DATE,
+    evaluator_id TEXT,
+    evaluator_name TEXT,
+    evaluator_role TEXT,
+    
+    -- 4 Standards / Criteria
+    attendance_commitment NUMERIC DEFAULT 25,
+    task_quality NUMERIC DEFAULT 35,
+    teamwork_communication NUMERIC DEFAULT 25,
+    initiative_passion NUMERIC DEFAULT 15,
+    
+    -- Bonus Points & Reason
+    bonus_points NUMERIC DEFAULT 0,
+    bonus_reason TEXT,
+    
+    -- Quick letter grades & criteria notes
+    criterion_grades JSONB DEFAULT '{}'::jsonb,
+    criterion_notes JSONB DEFAULT '{}'::jsonb,
+    
+    total_score NUMERIC DEFAULT 100,
+    percentage NUMERIC DEFAULT 100,
+    overall_grade TEXT DEFAULT 'A',
+    feedback TEXT,
+    evaluated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure all columns on member_evaluations and head_evaluations
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS evaluation_date DATE;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS event_id TEXT;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS event_name TEXT;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS bonus_points NUMERIC DEFAULT 0;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS bonus_reason TEXT;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS criterion_grades JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.member_evaluations ADD COLUMN IF NOT EXISTS criterion_notes JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS evaluation_date DATE;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS event_id TEXT;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS event_name TEXT;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS bonus_points NUMERIC DEFAULT 0;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS bonus_reason TEXT;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS criterion_grades JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.head_evaluations ADD COLUMN IF NOT EXISTS criterion_notes JSONB DEFAULT '{}'::jsonb;
+
 -- Ensure cascading deletes for member references across tables
 DO $$
 BEGIN
@@ -511,6 +565,7 @@ ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.head_evaluations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_attendance_evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
@@ -520,6 +575,9 @@ ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_voice_orders ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all for daily_attendance_evaluations" ON public.daily_attendance_evaluations;
+CREATE POLICY "Enable all for daily_attendance_evaluations" ON public.daily_attendance_evaluations FOR ALL USING (true);
 
 DROP POLICY IF EXISTS "Enable all for banned_users" ON public.banned_users;
 CREATE POLICY "Enable all for banned_users" ON public.banned_users FOR ALL USING (true);

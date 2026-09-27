@@ -116,6 +116,10 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
     initiativePassion: ''
   });
 
+  // Extra Bonus Points & Reason
+  const [bonusPoints, setBonusPoints] = useState<number>(0);
+  const [bonusReason, setBonusReason] = useState<string>('');
+
   const [bonusXP, setBonusXP] = useState<number>(15);
   const [generalNotes, setGeneralNotes] = useState<string>('أداء وانضباط ميداني متميز طوال فترة الفعالية');
 
@@ -128,7 +132,7 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   const scannedAttendanceRecords = useMemo(() => {
     return attendanceRecords.filter(r => {
       // Must be an active role
-      const mem = members.find(m => m.id === r.memberId);
+      const mem = members.find(m => m.id === r.memberId || m.volunteerId === r.memberVolunteerId);
       if (mem && mem.role !== 'member' && mem.role !== 'head' && mem.role !== 'vice_head') {
         return false;
       }
@@ -211,6 +215,8 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
         initiativePassion: ''
       });
 
+      setBonusPoints(ev.bonusPoints ?? 0);
+      setBonusReason(ev.bonusReason ?? '');
       setBonusXP(ev.bonusXP ?? 15);
       setGeneralNotes(ev.notes || '');
     } else {
@@ -233,6 +239,8 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
         teamworkCommunication: '',
         initiativePassion: ''
       });
+      setBonusPoints(0);
+      setBonusReason('');
       setBonusXP(15);
       setGeneralNotes('أداء وانضباط ممتاز ومميز خلال الفعالية');
     }
@@ -282,16 +290,17 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
     }
   };
 
-  // Calculate live total score (out of 100)
+  // Calculate live total score (out of 100 + bonus)
   const totalPoints = useMemo(() => {
     const sum = (scores.attendanceCommitment || 0) + 
                 (scores.taskQuality || 0) + 
                 (scores.teamworkCommunication || 0) + 
-                (scores.initiativePassion || 0);
-    return Math.min(100, Math.max(0, Math.round(sum * 10) / 10));
-  }, [scores]);
+                (scores.initiativePassion || 0) + 
+                (Number(bonusPoints) || 0);
+    return Math.min(120, Math.max(0, Math.round(sum * 10) / 10));
+  }, [scores, bonusPoints]);
 
-  const percentage = Math.round(totalPoints);
+  const percentage = Math.min(100, Math.round(totalPoints));
 
   const overallGrade = useMemo(() => {
     if (totalPoints >= 95) return 'A+';
@@ -313,6 +322,8 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
       taskQuality: scores.taskQuality,
       teamworkCommunication: scores.teamworkCommunication,
       initiativePassion: scores.initiativePassion,
+      bonusPoints: Number(bonusPoints) || 0,
+      bonusReason: bonusReason.trim() || undefined,
       criteriaGrades: grades,
       criteriaNotes: criteriaNotes,
       totalDailyScore: totalPoints,
@@ -626,23 +637,23 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                 
                 {/* Volunteer Quick Info Banner */}
                 <div className="p-3.5 bg-gradient-to-r from-slate-900 via-amber-950/30 to-slate-900 rounded-xl border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={currentSelectedRecord.memberAvatar || currentMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'}
                       alt={currentSelectedRecord.memberName}
-                      className="w-12 h-12 rounded-xl object-cover border-2 border-amber-400/50 shadow-md shrink-0"
+                      className="w-13 h-13 rounded-xl object-cover border-2 border-amber-400/50 shadow-md shrink-0"
                     />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">{currentSelectedRecord.memberName}</h4>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-white truncate">{currentSelectedRecord.memberName}</h4>
                         <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
                           {currentMember?.position || currentMember?.role || 'عضو متطوع'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 mt-0.5">
+                      <p className="text-xs text-slate-300 mt-0.5 truncate">
                         الرقم القومي: <span className="font-mono text-amber-300 font-bold">{currentMember?.nationalId || 'ميداني موثق'}</span> | الكود: <span className="font-mono text-cyan-300">{currentSelectedRecord.memberVolunteerId || currentMember?.volunteerId}</span>
                       </p>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                      <div className="flex items-center gap-2.5 text-[11px] text-slate-400 mt-1 flex-wrap">
                         <span>اللجنة: <strong className="text-white">{currentSelectedRecord.committeeName}</strong></span>
                         <span>•</span>
                         <span>الحضور: <strong className="text-emerald-400 font-mono">{currentSelectedRecord.checkInTime || '—'}</strong></span>
@@ -655,11 +666,31 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                         <span>•</span>
                         <span>المدة: <strong className="text-purple-300 font-mono">{currentSelectedRecord.durationFormatted || 'حاضر'}</strong></span>
                       </div>
+
+                      {/* GPS Location & Map verification */}
+                      {currentSelectedRecord.gpsLocation && (
+                        <div className="flex items-center gap-2 text-[10px] text-emerald-300 mt-1">
+                          <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span className="font-mono">
+                            {currentSelectedRecord.gpsLocation.address || `GPS: ${currentSelectedRecord.gpsLocation.lat.toFixed(4)}, ${currentSelectedRecord.gpsLocation.lng.toFixed(4)}`}
+                          </span>
+                          {currentSelectedRecord.gpsLocation.mapsUrl && (
+                            <a
+                              href={currentSelectedRecord.gpsLocation.mapsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-400 hover:text-sky-300 underline font-bold"
+                            >
+                              (خرائط Google ↗)
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Quick Preset Buttons */}
-                  <div className="flex items-center gap-1.5 self-end sm:self-center bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                  <div className="flex items-center gap-1.5 self-end sm:self-center bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shrink-0">
                     <span className="text-[10px] text-slate-400 font-bold ml-1">تطبيق سريع:</span>
                     <button
                       type="button"
@@ -756,6 +787,56 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                   })}
                 </div>
 
+                {/* Extra Bonus Points Card (+بونص مع ذكر السبب) */}
+                <div className="p-3 bg-slate-900/90 rounded-xl border border-purple-500/30 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-white block">إضافة بونص ودرجات إضافية للمتطوع (اختياري):</span>
+                        <span className="text-[10px] text-slate-400">تمنح للمبادرات الاستثنائية والمساعدة في التنظيم خارج نطاق المهام</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Bonus Chips */}
+                    <div className="flex items-center gap-1">
+                      {[0, 3, 5, 10, 15].map(bVal => (
+                        <button
+                          key={bVal}
+                          type="button"
+                          onClick={() => setBonusPoints(bVal)}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all cursor-pointer ${
+                            bonusPoints === bVal 
+                              ? 'bg-purple-600 text-white border-purple-400 shadow-md' 
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          +{bVal}
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={bonusPoints}
+                        onChange={e => setBonusPoints(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-12 bg-slate-950 border border-purple-500/40 rounded-md px-1 py-0.5 text-center text-xs font-mono font-bold text-purple-300 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bonus Reason Input */}
+                  <input
+                    type="text"
+                    value={bonusReason}
+                    onChange={e => setBonusReason(e.target.value)}
+                    placeholder="سبب منح البونص (مثال: مبادرة تطوعية، تنظيم القاعة، إنجاز مهام إضافية...)"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-purple-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
                 {/* Score Summary & General Notes Banner */}
                 <div className="p-3 bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/40 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                   
@@ -794,7 +875,9 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
 
                   {/* Total Live Points & Grade (3 cols) */}
                   <div className="sm:col-span-3 bg-slate-950 p-2.5 rounded-xl border border-amber-500/30 text-center flex flex-col justify-center items-center">
-                    <div className="text-[10px] text-slate-400 font-bold">النتيجة الإجمالية لليوم</div>
+                    <div className="text-[10px] text-slate-400 font-bold">
+                      النتيجة الإجمالية لليوم {bonusPoints > 0 && <span className="text-purple-400 font-mono">(+{bonusPoints} بونص)</span>}
+                    </div>
                     <div className="flex items-center gap-1.5 my-0.5">
                       <span className="text-xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-300">
                         {totalPoints}

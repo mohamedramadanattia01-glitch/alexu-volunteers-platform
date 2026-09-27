@@ -7,7 +7,7 @@ import {
   Shield, Check, User, MapPin, Award, Trash2, Sparkles, Star,
   Settings, Sliders, FileSpreadsheet, Save, X, Layers
 } from 'lucide-react';
-import { exportAttendanceToExcel, exportPostEventDailyReportToExcel } from '../../utils/excelExport';
+import { exportAttendanceToExcel, exportPostEventDailyReportToExcel, exportAttendanceAndEvaluationMasterExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
 
 interface AttendanceViewProps {
@@ -193,11 +193,22 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
 
           {canManage && (
             <button
+              onClick={() => exportAttendanceAndEvaluationMasterExcel(attendanceRecords, members, 'all', 'الشيت_الميداني_المجمع')}
+              className="px-3 py-2 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-teal-500/30 shadow-sm"
+              title="تصدير شيت الحضور والتقييمات الميدانية الشامل لجميع الأعضاء والهيدات معاً"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-teal-400" />
+              <span>شيت التقييم والحضور الشامل (Excel) 📑</span>
+            </button>
+          )}
+
+          {canManage && (
+            <button
               onClick={handleExportExcel}
               className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              <span>تصدير Excel</span>
+              <span>تصدير الحضور (Excel)</span>
             </button>
           )}
 
