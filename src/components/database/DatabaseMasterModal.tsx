@@ -30,6 +30,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
   const [selectedCommitteeFilter, setSelectedCommitteeFilter] = useState<string>('all');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
@@ -462,14 +463,25 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                         </span>
                       </td>
                       <td className="p-3 text-center">
-                        <button
-                          onClick={() => handleOpenEdit(m)}
-                          className="px-2.5 py-1 text-[11px] font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/40 rounded-lg transition-all cursor-pointer flex items-center gap-1 mx-auto shadow-xs"
-                          title="تعديل وتسكين كامل في قاعدة البيانات وتعديل النقاط"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>تعديل السجل</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEdit(m)}
+                            className="px-2 py-1 text-[11px] font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/40 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            title="تعديل وتسكين كامل في قاعدة البيانات وتعديل النقاط"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>تعديل</span>
+                          </button>
+                          {isHighLeadership && m.id !== currentUser.id && (
+                            <button
+                              onClick={() => setMemberToDelete(m)}
+                              className="p-1 text-[11px] font-bold bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 hover:text-white border border-rose-500/40 rounded-lg transition-all cursor-pointer flex items-center justify-center shadow-xs"
+                              title="حذف نهائي للعضو من قاعدة البيانات والسحابة"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -841,23 +853,89 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingMember(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>حفظ وتحديث في قاعدة البيانات فوراً</span>
-                  </button>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                  {isHighLeadership && editingMember.id !== currentUser.id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = editingMember;
+                        setEditingMember(null);
+                        setMemberToDelete(target);
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-700/50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>حذف العضو نهائياً</span>
+                    </button>
+                  ) : <div />}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>حفظ وتحديث في قاعدة البيانات فوراً</span>
+                    </button>
+                  </div>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Member Confirmation Modal */}
+        {memberToDelete && (
+          <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in text-right">
+            <div className="relative w-full max-w-md bg-slate-950 rounded-2xl shadow-2xl border border-rose-600/60 p-6 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">حذف نهائي من قاعدة البيانات والسحابة</h3>
+                  <p className="text-[11px] text-slate-400">حذف فوري وشامل لكافة سجلات وبيانات المتطوع</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 leading-relaxed space-y-1">
+                <p>
+                  هل أنت متأكد من رغبتك في حذف العضو <strong className="text-white font-bold">{memberToDelete.fullName}</strong> ({memberToDelete.volunteerId})؟
+                </p>
+                <p className="text-[11px] text-rose-300 font-semibold">
+                  ⚠️ سيتم حذف المتطوع نهائياً من قاعدة البيانات السحابية Supabase ومسح كافة تقييماته وسجلات حضوره وإزالته من اللجان والمهام.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setMemberToDelete(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteMember(memberToDelete.id, false);
+                    setMemberToDelete(null);
+                    setSaveSuccessNotice(`تم حذف العضو "${memberToDelete.fullName}" نهائياً من قاعدة البيانات والسحابة ✓`);
+                    setTimeout(() => setSaveSuccessNotice(null), 4000);
+                  }}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>تأكيد الحذف النهائي</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

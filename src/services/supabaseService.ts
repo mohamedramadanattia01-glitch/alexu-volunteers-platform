@@ -544,8 +544,20 @@ export class SupabaseService {
   static async deleteMember(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
+      // 1. Clean up attendance records & evaluations for this member
+      await supabase.from('attendance_records').delete().eq('member_id', id);
+      await supabase.from('member_evaluations').delete().eq('member_id', id);
+      await supabase.from('head_evaluations').delete().eq('head_id', id);
+
+      // 2. Clear committee leadership if this member was head/vice
+      await supabase.from('committees').update({ head_id: null, head_name: 'لم يحدد' }).eq('head_id', id);
+      await supabase.from('committees').update({ vice_id: null, vice_name: 'لم يحدد' }).eq('vice_id', id);
+
+      // 3. Delete from members table
       const { error } = await supabase.from('members').delete().eq('id', id);
-      if (error) console.error('deleteMember error:', error);
+      if (error) {
+        console.error('deleteMember Supabase error:', error);
+      }
     } catch (e) {
       console.error('deleteMember failed:', e);
     }

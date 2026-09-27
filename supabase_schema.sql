@@ -302,6 +302,28 @@ CREATE TABLE IF NOT EXISTS public.head_evaluations (
     evaluated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure cascading deletes for member references across tables
+DO $$
+BEGIN
+    ALTER TABLE public.attendance_records DROP CONSTRAINT IF EXISTS attendance_records_member_id_fkey;
+    BEGIN
+        ALTER TABLE public.attendance_records ADD CONSTRAINT attendance_records_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(id) ON DELETE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    ALTER TABLE public.member_evaluations DROP CONSTRAINT IF EXISTS member_evaluations_member_id_fkey;
+    BEGIN
+        ALTER TABLE public.member_evaluations ADD CONSTRAINT member_evaluations_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(id) ON DELETE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    ALTER TABLE public.head_evaluations DROP CONSTRAINT IF EXISTS head_evaluations_head_id_fkey;
+    BEGIN
+        ALTER TABLE public.head_evaluations ADD CONSTRAINT head_evaluations_head_id_fkey FOREIGN KEY (head_id) REFERENCES public.members(id) ON DELETE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+END $$;
+
 -- 9. COMPLAINTS & FEEDBACK TABLE
 CREATE TABLE IF NOT EXISTS public.complaints (
     id TEXT PRIMARY KEY,

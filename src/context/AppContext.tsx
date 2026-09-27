@@ -308,17 +308,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return list;
   });
 
+  const [deletedMemberIds, setDeletedMemberIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(deletedMemberIds));
+  }, [deletedMemberIds]);
+
   const [members, setMembers] = useState<Member[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_MEMBERS`);
+    const deletedSet = new Set(JSON.parse(localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`) || '[]'));
     let list: Member[] = saved ? JSON.parse(saved) : initialMembers;
 
-    // Ensure all mandatory core leadership accounts exist if not in list
-    initialMembers.forEach(coreMember => {
-      const idx = list.findIndex(m => m.id === coreMember.id);
-      if (idx === -1) {
-        list.push(coreMember);
-      }
-    });
+    // Filter out any explicitly deleted members
+    list = list.filter(m => !deletedSet.has(m.id));
 
     // Zero points for leadership & heads
     list = list.map(m => {
@@ -679,14 +684,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const cloudData = await SupabaseService.loadAllData();
       if (cloudData) {
-        // Smart Merge Members: never delete or revert local members
+        // Smart Merge Members: sync from cloud and exclude any deleted members
         if (cloudData.members && cloudData.members.length > 0) {
+          const currentDeleted = new Set(JSON.parse(localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`) || '[]'));
+
           setMembers(prev => {
-            const cloudMap = new Map(cloudData.members!.map(m => [m.id, m]));
-            const localMap = new Map(prev.map(m => [m.id, m]));
+            const localMap = new Map(prev.filter(m => !currentDeleted.has(m.id)).map(m => [m.id, m]));
             const merged: Member[] = [];
 
             cloudData.members!.forEach(cloudM => {
+              if (currentDeleted.has(cloudM.id)) return;
               const localM = localMap.get(cloudM.id);
               if (localM) {
                 merged.push({
@@ -706,14 +713,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 });
               } else {
                 merged.push(cloudM);
-              }
-            });
-
-            // Add any local-only members not yet in cloud and upload them
-            prev.forEach(localM => {
-              if (!cloudMap.has(localM.id)) {
-                merged.push(localM);
-                SupabaseService.upsertMember(localM).catch(err => console.warn('Sync push local member warning:', err));
               }
             });
 
@@ -2272,30 +2271,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return memberBanned;
   };
 
-  // Delete Member (with automatic permanent ban & access revocation)
-  const deleteMember = (id: string, alsoBanEmail: boolean = true, banReason: string = '') => {
+  // Delete Member (with automatic permanent ban & access revocation & cloud cascade)
+  const deleteMember = (id: string, alsoBanEmail: boolean = false, banReason: string = '') => {
     const target = members.find(m => m.id === id);
     if (!target) return;
 
-    const reason = banReason.trim() || 'تم حذف واستبعاد العضو نهائياً مع حظر الدخول';
-    const bannedRecord: BannedUserRecord = {
-      id: target.id,
-      email: target.universityEmail,
-      fullName: target.fullName,
-      nationalId: target.nationalId,
-      reason,
-      bannedAt: new Date().toISOString(),
-      bannedBy: currentUser.fullName
-    };
-
-    setBannedList(prev => {
-      const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id);
-      return [bannedRecord, ...filtered];
+    // 1. Record ID in deletedMemberIds to prevent any sync re-upload or resurrection
+    setDeletedMemberIds(prev => {
+      const next = Array.from(new Set([...prev, id]));
+      localStorage.setItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(next));
+      return next;
     });
 
-    setMembers(prev => prev.filter(m => m.id !== id));
-    setCommittees(prev => prev.map(c => c.id === target.currentCommitteeId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c));
+    // 2. If also banning, add to bannedList
+    let bannedRecord: BannedUserRecord | null = null;
+    if (alsoBanEmail) {
+      const reason = banReason.trim() || 'تم حذف واستبعاد العضو نهائياً مع حظر الدخول';
+      bannedRecord = {
+        id: target.id,
+        email: target.universityEmail,
+        fullName: target.fullName,
+        nationalId: target.nationalId,
+        reason,
+        bannedAt: new Date().toISOString(),
+        bannedBy: currentUser.fullName
+      };
 
+      setBannedList(prev => {
+        const filtered = prev.filter(b => b.email.toLowerCase() !== target.universityEmail.toLowerCase() && b.id !== target.id);
+        return [bannedRecord!, ...filtered];
+      });
+      SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase ban record error:', e));
+    }
+
+    // 3. Remove from members state
+    setMembers(prev => prev.filter(m => m.id !== id));
+
+    // 4. Update committee count & clear leadership if assigned
+    setCommittees(prev => prev.map(c => {
+      if (c.id === target.currentCommitteeId) {
+        return {
+          ...c,
+          memberCount: Math.max(0, c.memberCount - 1),
+          headId: c.headId === id ? '' : c.headId,
+          headName: c.headId === id ? 'لم يحدد' : c.headName,
+          viceId: c.viceId === id ? '' : c.viceId,
+          viceName: c.viceId === id ? 'لم يحدد' : c.viceName
+        };
+      }
+      return c;
+    }));
+
+    // 5. Clean up from tasks
+    setTasks(prev => prev.map(t => {
+      if (t.assignedToMemberIds && t.assignedToMemberIds.includes(id)) {
+        const remainingIds = t.assignedToMemberIds.filter(mId => mId !== id);
+        const remainingNames = t.assignedToMemberNames.filter((_, idx) => t.assignedToMemberIds[idx] !== id);
+        return {
+          ...t,
+          assignedToMemberIds: remainingIds,
+          assignedToMemberNames: remainingNames
+        };
+      }
+      return t;
+    }));
+
+    // 6. Clean up attendance & evaluations
+    setAttendanceRecords(prev => prev.filter(a => a.memberId !== id));
+    setMemberEvaluations(prev => prev.filter(e => e.memberId !== id));
+    setHeadEvaluations(prev => prev.filter(e => e.headId !== id));
+
+    // 7. If active user, log out
     if (currentUserId === id) {
       setIsAuthenticated(false);
       setCurrentUserId('');
@@ -2303,10 +2349,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
-    addAuditLog('حذف واستبعاد عضو من الفريق', target.fullName, `تم حذف العضو وحظره من الدخول بواسطة ${currentUser.fullName}. السبب: ${reason}`);
-    playSound('task');
+    addAuditLog('حذف سجل عضو نهائياً من قاعدة البيانات', target.fullName, `تم الحذف النهائي بواسطة ${currentUser.fullName}.`);
+    playSound('alert');
+    showNotification('success', `تم حذف العضو "${target.fullName}" نهائياً من قاعدة البيانات والسحابة ✓`);
+
+    // 8. Delete from Supabase
     SupabaseService.deleteMember(id).catch(e => console.warn('Supabase delete member error:', e));
-    SupabaseService.upsertBannedUser(bannedRecord).catch(e => console.warn('Supabase ban record error:', e));
   };
 
 
