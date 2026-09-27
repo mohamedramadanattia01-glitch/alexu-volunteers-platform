@@ -41,7 +41,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const filteredTasks = tasks.filter(task => {
     // For regular members, apply member filter scope
     if (currentUser.role === 'member') {
-      const isAssigned = (task.assignedToMemberIds || []).includes(currentUser.id);
+      const isAssigned = (task.assignedToMemberIds || []).includes(currentUser.id) ||
+                         (currentUser.volunteerId && (task.assignedToMemberIds || []).includes(currentUser.volunteerId)) ||
+                         (currentUser.fullName && (task.assignedToMemberNames || []).some(n => n.includes(currentUser.fullName.split(' ')[0]) || currentUser.fullName.includes(n)));
       const isMyComm = task.committeeId === currentUser.currentCommitteeId;
       if (memberFilterScope === 'my_assigned' && !isAssigned) return false;
       if (memberFilterScope === 'my_committee' && !isMyComm) return false;
@@ -138,7 +140,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             <User className="w-3.5 h-3.5" />
             <span>مهامي المسندة لي مباشرة</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
-              {tasks.filter(t => (t.assignedToMemberIds || []).includes(currentUser.id)).length}
+              {tasks.filter(t => (t.assignedToMemberIds || []).includes(currentUser.id) || (currentUser.volunteerId && (t.assignedToMemberIds || []).includes(currentUser.volunteerId)) || (currentUser.fullName && (t.assignedToMemberNames || []).some(n => n.includes(currentUser.fullName.split(' ')[0]) || currentUser.fullName.includes(n)))).length}
             </span>
           </button>
 
