@@ -164,6 +164,12 @@ interface AppContextType {
     commitmentScore: number;
     bonusXP?: number;
     notes?: string;
+    memberId?: string;
+    eventId?: string;
+    eventName?: string;
+    sessionId?: string;
+    sessionTitle?: string;
+    date?: string;
   }) => void;
   deleteAttendanceRecord: (recordId: string) => void;
   manualRecordAttendance: (recordData: Partial<AttendanceRecord>) => void;
@@ -3494,6 +3500,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     commitmentScore: number;
     bonusXP?: number;
     notes?: string;
+    memberId?: string;
+    eventId?: string;
+    eventName?: string;
+    sessionId?: string;
+    sessionTitle?: string;
+    date?: string;
   }) => {
     const totalDaily = (Number(evalData.attendanceScore) || 0) + (Number(evalData.participationScore) || 0) + (Number(evalData.commitmentScore) || 0);
     const awardedXP = (Number(evalData.bonusXP) || 0) + (totalDaily >= 25 ? 30 : totalDaily >= 20 ? 20 : 10);
@@ -3501,14 +3513,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const todayStr = new Date().toISOString().split('T')[0];
     const nowTimeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-    let targetMemberId = '';
+    let targetMemberId = evalData.memberId || '';
     let updatedRecord: AttendanceRecord | null = null;
+    let recFound = attendanceRecords.find(r => r.id === recordId);
 
-    setAttendanceRecords(prev => prev.map(rec => {
-      if (rec.id === recordId) {
-        targetMemberId = rec.memberId;
-        updatedRecord = {
-          ...rec,
+    if (recFound) {
+      targetMemberId = recFound.memberId;
+      setAttendanceRecords(prev => prev.map(rec => {
+        if (rec.id === recordId) {
+          updatedRecord = {
+            ...rec,
+            dailyEvaluation: {
+              attendanceScore: evalData.attendanceScore,
+              participationScore: evalData.participationScore,
+              commitmentScore: evalData.commitmentScore,
+              totalDailyScore: totalDaily,
+              bonusXP: awardedXP,
+              notes: evalData.notes || '',
+              evaluatedBy: currentUser.fullName,
+              evaluatedAt: nowTimeStr
+            }
+          };
+          return updatedRecord;
+        }
+        return rec;
+      }));
+    } else {
+      // Direct member evaluation fallback: auto-create attendance record
+      const targetM = members.find(m => m.id === recordId || m.id === evalData.memberId || m.volunteerId === recordId);
+      if (targetM) {
+        targetMemberId = targetM.id;
+        const newAttRec: AttendanceRecord = {
+          id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          memberId: targetM.id,
+          memberName: targetM.fullName,
+          memberAvatar: targetM.avatarUrl,
+          memberVolunteerId: targetM.volunteerId,
+          committeeId: targetM.currentCommitteeId,
+          committeeName: targetM.currentCommitteeName,
+          eventId: evalData.eventId || 'event-live',
+          eventName: evalData.eventName || 'جلسة عمل ميدانية',
+          sessionId: evalData.sessionId,
+          sessionTitle: evalData.sessionTitle,
+          date: evalData.date || todayStr,
+          checkInTime: nowTimeStr,
+          checkInTimestamp: Date.now(),
+          durationMinutes: 180,
+          durationFormatted: 'حاضر ومعتمد',
+          status: 'Present',
+          qrHashToken: `DIRECT_EVAL_${Date.now()}`,
           dailyEvaluation: {
             attendanceScore: evalData.attendanceScore,
             participationScore: evalData.participationScore,
@@ -3520,20 +3573,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             evaluatedAt: nowTimeStr
           }
         };
-        return updatedRecord;
+        updatedRecord = newAttRec;
+        recFound = newAttRec;
+        setAttendanceRecords(prev => [newAttRec, ...prev]);
       }
-      return rec;
-    }));
+    }
 
     if (updatedRecord) {
       SupabaseService.insertAttendanceRecord(updatedRecord).catch(e => console.warn('Supabase attendance record error:', e));
     }
 
     const targetMember = members.find(m => m.id === targetMemberId || (updatedRecord && m.id === updatedRecord.memberId));
-
-    const recFound = attendanceRecords.find(r => r.id === recordId);
-    const eventNameStr = recFound?.eventName || recFound?.sessionTitle || 'حضور ميداني';
-    const evalDateStr = recFound?.date || todayStr;
+    const eventNameStr = updatedRecord?.eventName || recFound?.eventName || recFound?.sessionTitle || 'حضور ميداني';
+    const evalDateStr = updatedRecord?.date || recFound?.date || todayStr;
 
     if (targetMember) {
       // 1. Create an official MemberEvaluationRecord in memberEvaluations
