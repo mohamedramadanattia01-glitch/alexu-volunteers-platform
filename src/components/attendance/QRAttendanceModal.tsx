@@ -146,6 +146,11 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
   // Handle member scan action
   const handleMemberScan = useCallback((actionType: 'check-in' | 'check-out' | 'auto', customToken?: string) => {
+    if (!customToken || !customToken.trim()) {
+      showNotification('warning', '⚠️ لا يمكن تسجيل الحضور بدون مسح كود الـ QR المعروض لدى المشرف بواسطة الكاميرا أو إدخال رمز الجلسة!');
+      return;
+    }
+
     const loc: GPSLocation = gpsData || {
       lat: 31.2001,
       lng: 29.9187,
@@ -1292,34 +1297,15 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                     )}
                   </div>
 
-                  {/* Direct One-Click Smart Attendance Buttons */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleMemberScan('auto')}
-                      className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <Zap className="w-4 h-4 text-amber-300" />
-                      <span>⚡ مسح ذكي (Auto)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleMemberScan('check-in')}
-                      className="py-2.5 px-3 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold text-xs border border-emerald-500/40 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <LogIn className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>🟢 تسجيل حضور</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleMemberScan('check-out')}
-                      className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <LogOut className="w-3.5 h-3.5 text-rose-300" />
-                      <span>🔴 تسجيل انصراف</span>
-                    </button>
+                  {/* Secure QR Verification Notice */}
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-xs text-slate-400">
+                    <div className="flex items-center justify-center gap-1.5 font-bold text-sky-300 mb-1">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>نظام التوثيق الميداني المعتمد (QR Scanner)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      يتم توثيق الحضور والانصراف حصرياً عبر قراءة كود الـ QR بالكاميرا أو إدخال الرمز السري للجلسة للتحقق من التواجد الفعلي والـ GPS.
+                    </p>
                   </div>
                 </div>
 

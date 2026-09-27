@@ -56,13 +56,14 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
   const canManage = canCreateAttendanceSession || isHighLeadership || isHead;
 
   // Filtered records
-  const allFilteredRecords = attendanceRecords.filter(r => {
+  const allFilteredRecords = (attendanceRecords || []).filter(r => {
     const mem = members.find(m => m.id === r.memberId);
-    const volId = mem?.volunteerId || '';
+    const volId = mem?.volunteerId || r.memberVolunteerId || '';
+    const q = searchQuery.toLowerCase();
     const matchesQuery = 
-      r.memberName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      r.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      volId.toLowerCase().includes(searchQuery.toLowerCase());
+      (r.memberName || '').toLowerCase().includes(q) || 
+      (r.eventName || '').toLowerCase().includes(q) ||
+      volId.toLowerCase().includes(q);
     
     const matchesComm = selectedCommittee === 'all' || r.committeeId === selectedCommittee;
     const matchesEvt = selectedEvent === 'all' || r.eventId === selectedEvent;
@@ -71,7 +72,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ onOpenQRModal })
   });
 
   const filteredRecords = isMember
-    ? allFilteredRecords.filter(r => r.memberId === currentUser.id)
+    ? allFilteredRecords.filter(r => r.memberId === currentUser?.id)
     : allFilteredRecords;
 
   const handleExportExcel = () => {

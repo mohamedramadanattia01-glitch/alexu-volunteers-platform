@@ -47,13 +47,19 @@ export const EvaluationsView: React.FC = () => {
   // Permission check: High Leadership and Committee Heads can edit/delete daily evaluations
   const canManageEvaluations = isHighLeadership || ['head', 'vice_head', 'hr_admin'].includes(currentUser.role);
 
-  // Member rubric metrics
-  const totalMaxScore = evaluationRubric.criteria.reduce((a, b) => a + (Number(b.maxPoints) || 0), 0);
+  // Member rubric metrics with null-safety
+  const memberCriteria = evaluationRubric?.criteria || [];
+  const totalMaxScore = memberCriteria.length > 0 
+    ? memberCriteria.reduce((a, b) => a + (Number(b.maxPoints) || 0), 0) 
+    : 100;
   const currentTotalEarned = Object.values(evalScores).reduce((a, b) => a + (Number(b) || 0), 0);
   const currentPercentage = totalMaxScore > 0 ? Math.round((currentTotalEarned / totalMaxScore) * 100) : 0;
 
-  // Head rubric metrics
-  const headTotalMaxScore = headEvaluationRubric.criteria.reduce((a, b) => a + (Number(b.maxPoints) || 0), 0);
+  // Head rubric metrics with null-safety
+  const headCriteria = headEvaluationRubric?.criteria || [];
+  const headTotalMaxScore = headCriteria.length > 0 
+    ? headCriteria.reduce((a, b) => a + (Number(b.maxPoints) || 0), 0) 
+    : 100;
   const headCurrentTotalEarned = Object.values(headEvalScores).reduce((a, b) => a + (Number(b) || 0), 0);
   const headCurrentPercentage = headTotalMaxScore > 0 ? Math.round((headCurrentTotalEarned / headTotalMaxScore) * 100) : 0;
 
@@ -82,8 +88,8 @@ export const EvaluationsView: React.FC = () => {
     setSelectedMember(member);
     setEvalDate(todayStr);
     const initialScores: { [critId: string]: number } = {};
-    evaluationRubric.criteria.forEach(crit => {
-      initialScores[crit.id] = Math.round(crit.maxPoints * 0.9);
+    (evaluationRubric?.criteria || []).forEach(crit => {
+      initialScores[crit.id] = Math.round((crit.maxPoints || 25) * 0.9);
     });
     setEvalScores(initialScores);
     setEvalFeedback('');
@@ -113,8 +119,8 @@ export const EvaluationsView: React.FC = () => {
     setHeadEvalDate(todayStr);
     setHeadEventId('');
     const initialScores: { [critId: string]: number } = {};
-    headEvaluationRubric.criteria.forEach(crit => {
-      initialScores[crit.id] = Math.round(crit.maxPoints * 0.9);
+    (headEvaluationRubric?.criteria || []).forEach(crit => {
+      initialScores[crit.id] = Math.round((crit.maxPoints || 25) * 0.9);
     });
     setHeadEvalScores(initialScores);
     setHeadEvalFeedback('');
@@ -321,7 +327,7 @@ export const EvaluationsView: React.FC = () => {
 
             {/* Criteria Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-              {evaluationRubric.criteria.map((crit, index) => (
+              {(evaluationRubric?.criteria || []).map((crit, index) => (
                 <div key={crit.id} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -520,7 +526,7 @@ export const EvaluationsView: React.FC = () => {
 
             {/* Criteria Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-              {headEvaluationRubric.criteria.map((crit, index) => (
+              {(headEvaluationRubric?.criteria || []).map((crit, index) => (
                 <div key={crit.id} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -785,7 +791,7 @@ export const EvaluationsView: React.FC = () => {
                   <span>تحديد النقاط لكل بند من المعايير المعتمدة:</span>
                 </span>
 
-                {evaluationRubric.criteria.map((crit, idx) => {
+                {(evaluationRubric?.criteria || []).map((crit, idx) => {
                   const score = evalScores[crit.id] || 0;
 
                   return (
@@ -965,7 +971,7 @@ export const EvaluationsView: React.FC = () => {
                   <span>معايير التقييم القيادي والإشرافي (الإدارة العليا):</span>
                 </span>
 
-                {headEvaluationRubric.criteria.map((crit, idx) => {
+                {(headEvaluationRubric?.criteria || []).map((crit, idx) => {
                   const score = headEvalScores[crit.id] || 0;
 
                   return (

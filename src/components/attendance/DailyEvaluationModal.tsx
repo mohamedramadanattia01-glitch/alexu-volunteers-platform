@@ -148,11 +148,12 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
 
   // Filtered displayed attendee records
   const displayRecords = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return scannedAttendanceRecords.filter(r => {
       const matchesSearch = 
-        r.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.memberVolunteerId && r.memberVolunteerId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (r.committeeName && r.committeeName.toLowerCase().includes(searchQuery.toLowerCase()));
+        (r.memberName || '').toLowerCase().includes(q) ||
+        (r.memberVolunteerId || '').toLowerCase().includes(q) ||
+        (r.committeeName || '').toLowerCase().includes(q);
 
       const matchesComm = committeeFilter === 'all' || r.committeeId === committeeFilter;
       const isEvaluated = Boolean(r.dailyEvaluation);
@@ -386,12 +387,13 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   // Candidates for manual addition
   const candidateMembers = useMemo(() => {
     const alreadyAttendingIds = new Set(scannedAttendanceRecords.map(r => r.memberId));
+    const q = memberPickerSearch.toLowerCase();
     return members.filter(m => {
       if (m.status !== 'Active') return false;
       if (alreadyAttendingIds.has(m.id)) return false;
       const matchesSearch = 
-        m.fullName.toLowerCase().includes(memberPickerSearch.toLowerCase()) ||
-        (m.volunteerId && m.volunteerId.toLowerCase().includes(memberPickerSearch.toLowerCase())) ||
+        (m.fullName || '').toLowerCase().includes(q) ||
+        (m.volunteerId && m.volunteerId.toLowerCase().includes(q)) ||
         (m.nationalId && m.nationalId.includes(memberPickerSearch));
       const matchesComm = memberPickerCommFilter === 'all' || m.currentCommitteeId === memberPickerCommFilter;
       return matchesSearch && matchesComm;

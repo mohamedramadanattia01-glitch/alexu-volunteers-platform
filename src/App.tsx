@@ -47,6 +47,7 @@ import { PendingApprovalsModal } from './components/members/PendingApprovalsModa
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 import { PushNotificationBanner } from './components/common/PushNotificationBanner';
 import { SplashScreen } from './components/common/SplashScreen';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Member, Task, EventEntity } from './types';
 
 const MainAppContent: React.FC = () => {
@@ -136,8 +137,9 @@ const MainAppContent: React.FC = () => {
 
         {/* Main Content Area with Animated Page Transitions */}
         <main className="flex-1 p-3 sm:p-5 max-w-full overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
+          <ErrorBoundary fallbackTitle="تنبيه عرض الصفحة" fallbackMessage="حدث تنبيه أثناء تحميل هذا القسم. يمكنك الضغط على إعادة المحاولة للمتابعة.">
+            <AnimatePresence mode="wait">
+              <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 8, scale: 0.995 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -268,6 +270,7 @@ const MainAppContent: React.FC = () => {
               )}
             </motion.div>
           </AnimatePresence>
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -365,16 +368,18 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
   return (
-    <AppProvider>
-      <AnimatePresence mode="wait">
-        {showSplash && (
-          <SplashScreen 
-            onFinish={() => setShowSplash(false)} 
-            durationMs={1300} 
-          />
-        )}
-      </AnimatePresence>
-      <MainAppContent />
-    </AppProvider>
+    <ErrorBoundary fallbackTitle="منصة متطوعين جامعة الإسكندرية" fallbackMessage="حدث تنبيه أثناء تحميل التطبيق. تم تأمين جلسة العمل بنجاح.">
+      <AppProvider>
+        <AnimatePresence mode="wait">
+          {showSplash && (
+            <SplashScreen 
+              onFinish={() => setShowSplash(false)} 
+              durationMs={1300} 
+            />
+          )}
+        </AnimatePresence>
+        <MainAppContent />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
