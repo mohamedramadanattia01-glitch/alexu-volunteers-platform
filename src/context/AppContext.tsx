@@ -324,6 +324,34 @@ function safeJsonParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
+function safeSetItem(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    if (err && (err.name === 'QuotaExceededError' || err.code === 22 || err.number === -2147024882 || String(err).toLowerCase().includes('quota') || String(err).toLowerCase().includes('exceeded'))) {
+      console.warn(`LocalStorage quota reached when saving "${key}". Auto-cleaning bulky local cache.`);
+      try {
+        // Clear bulky, non-critical historical caches to free immediate browser storage
+        localStorage.removeItem(`${STORAGE_KEY}_AUDIT`);
+        localStorage.removeItem(`${STORAGE_KEY}_DOCUMENTS`);
+        localStorage.removeItem(`${STORAGE_KEY}_NOTIFS`);
+        localStorage.removeItem(`${STORAGE_KEY}_ATTENDANCE`);
+        localStorage.removeItem(`${STORAGE_KEY}_MEMBER_EVALS`);
+        localStorage.removeItem(`${STORAGE_KEY}_HEAD_EVALS`);
+        localStorage.removeItem(`${STORAGE_KEY}_COMPLAINTS`);
+        localStorage.removeItem(`${STORAGE_KEY}_SOS`);
+        // Retry saving essential data
+        localStorage.setItem(key, value);
+      } catch (retryErr) {
+        // Gracefully ignore local storage write failures - Supabase Cloud Database is our primary persistent store!
+        console.warn(`Could not cache "${key}" locally. Relying safely on Supabase Cloud.`, retryErr);
+      }
+    } else {
+      console.warn(`LocalStorage setItem warning on "${key}":`, err);
+    }
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [seasons, setSeasons] = useState<Season[]>(() => {
     return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_SEASONS`), initialSeasons);
@@ -348,7 +376,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(deletedMemberIds));
+    safeSetItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(deletedMemberIds));
   }, [deletedMemberIds]);
 
   const [members, setMembers] = useState<Member[]>(() => {
@@ -410,7 +438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_BANNED`, JSON.stringify(bannedList));
+    safeSetItem(`${STORAGE_KEY}_BANNED`, JSON.stringify(bannedList));
   }, [bannedList]);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -423,11 +451,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(isAuthenticated));
+    safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(isAuthenticated));
   }, [isAuthenticated]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_AUTH_USER_ID`, currentUserId);
+    safeSetItem(`${STORAGE_KEY}_AUTH_USER_ID`, currentUserId);
   }, [currentUserId]);
 
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -541,71 +569,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`, JSON.stringify(attendancePointsConfig));
+    safeSetItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`, JSON.stringify(attendancePointsConfig));
   }, [attendancePointsConfig]);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [celebrationData, setCelebrationData] = useState<{ active: boolean; badgeTitle: string; points: number } | null>(null);
 
-  // Sync to LocalStorage
+  // Sync to LocalStorage (using safeSetItem with bounded slices to guarantee zero QuotaExceeded errors)
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_MEMBERS`, JSON.stringify(members));
+    safeSetItem(`${STORAGE_KEY}_MEMBERS`, JSON.stringify(members));
   }, [members]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_TASKS`, JSON.stringify(tasks));
+    safeSetItem(`${STORAGE_KEY}_TASKS`, JSON.stringify(tasks));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_EVENTS`, JSON.stringify(events));
+    safeSetItem(`${STORAGE_KEY}_EVENTS`, JSON.stringify(events));
   }, [events]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_ATTENDANCE`, JSON.stringify(attendanceRecords));
+    // Keep local offline cache lightweight (latest 50 records) while Supabase retains 100% cloud history
+    const lean = Array.isArray(attendanceRecords) ? attendanceRecords.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_ATTENDANCE`, JSON.stringify(lean));
   }, [attendanceRecords]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_SOS`, JSON.stringify(sosAlerts));
+    const lean = Array.isArray(sosAlerts) ? sosAlerts.slice(0, 30) : [];
+    safeSetItem(`${STORAGE_KEY}_SOS`, JSON.stringify(lean));
   }, [sosAlerts]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_DOCUMENTS`, JSON.stringify(documents));
+    const lean = Array.isArray(documents) ? documents.slice(0, 30) : [];
+    safeSetItem(`${STORAGE_KEY}_DOCUMENTS`, JSON.stringify(lean));
   }, [documents]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_TRAININGS`, JSON.stringify(trainings));
+    safeSetItem(`${STORAGE_KEY}_TRAININGS`, JSON.stringify(trainings));
   }, [trainings]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_BADGES`, JSON.stringify(badges));
+    safeSetItem(`${STORAGE_KEY}_BADGES`, JSON.stringify(badges));
   }, [badges]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_ANNOUNCEMENTS`, JSON.stringify(announcements));
+    safeSetItem(`${STORAGE_KEY}_ANNOUNCEMENTS`, JSON.stringify(announcements));
   }, [announcements]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_AUDIT`, JSON.stringify(auditLogs));
+    const lean = Array.isArray(auditLogs) ? auditLogs.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_AUDIT`, JSON.stringify(lean));
   }, [auditLogs]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_COMPLAINTS`, JSON.stringify(complaints));
+    const lean = Array.isArray(complaints) ? complaints.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_COMPLAINTS`, JSON.stringify(lean));
   }, [complaints]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_SOUND_SETTINGS`, JSON.stringify(soundSettings));
+    safeSetItem(`${STORAGE_KEY}_SOUND_SETTINGS`, JSON.stringify(soundSettings));
   }, [soundSettings]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_BRANDING`, JSON.stringify(branding));
+    safeSetItem(`${STORAGE_KEY}_BRANDING`, JSON.stringify(branding));
   }, [branding]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_HEAD_EVALS`, JSON.stringify(headEvaluations));
+    const lean = Array.isArray(headEvaluations) ? headEvaluations.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_HEAD_EVALS`, JSON.stringify(lean));
   }, [headEvaluations]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_HEAD_EVAL_RUBRIC`, JSON.stringify(headEvaluationRubric));
+    safeSetItem(`${STORAGE_KEY}_HEAD_EVAL_RUBRIC`, JSON.stringify(headEvaluationRubric));
   }, [headEvaluationRubric]);
 
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => {
@@ -613,43 +648,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_ATT_SESSIONS`, JSON.stringify(attendanceSessions));
+    const lean = Array.isArray(attendanceSessions) ? attendanceSessions.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_ATT_SESSIONS`, JSON.stringify(lean));
   }, [attendanceSessions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_ROLE_PERMS`, JSON.stringify(rolePermissions));
+    safeSetItem(`${STORAGE_KEY}_ROLE_PERMS`, JSON.stringify(rolePermissions));
   }, [rolePermissions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_MEMBER_EVALS`, JSON.stringify(memberEvaluations));
+    const lean = Array.isArray(memberEvaluations) ? memberEvaluations.slice(0, 50) : [];
+    safeSetItem(`${STORAGE_KEY}_MEMBER_EVALS`, JSON.stringify(lean));
   }, [memberEvaluations]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_COMMITTEES`, JSON.stringify(committees));
+    safeSetItem(`${STORAGE_KEY}_COMMITTEES`, JSON.stringify(committees));
   }, [committees]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_SEASONS`, JSON.stringify(seasons));
+    safeSetItem(`${STORAGE_KEY}_SEASONS`, JSON.stringify(seasons));
   }, [seasons]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_NOTIFS`, JSON.stringify(notifications));
+    const lean = Array.isArray(notifications) ? notifications.slice(0, 40) : [];
+    safeSetItem(`${STORAGE_KEY}_NOTIFS`, JSON.stringify(lean));
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_CANDIDATES`, JSON.stringify(candidates));
+    safeSetItem(`${STORAGE_KEY}_CANDIDATES`, JSON.stringify(candidates));
   }, [candidates]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_PERMISSIONS`, JSON.stringify(permissions));
+    safeSetItem(`${STORAGE_KEY}_PERMISSIONS`, JSON.stringify(permissions));
   }, [permissions]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_EVAL_TMPL`, JSON.stringify(evaluationTemplate));
+    safeSetItem(`${STORAGE_KEY}_EVAL_TMPL`, JSON.stringify(evaluationTemplate));
   }, [evaluationTemplate]);
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_EVAL_RUBRIC`, JSON.stringify(evaluationRubric));
+    safeSetItem(`${STORAGE_KEY}_EVAL_RUBRIC`, JSON.stringify(evaluationRubric));
   }, [evaluationRubric]);
 
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(() => isSupabaseConfigured());
@@ -1578,7 +1616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!activeMember || activeMember.status === 'Banned' || activeMember.status === 'Inactive' || isBanned) {
         setIsAuthenticated(false);
         setCurrentUserId('');
-        localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+        safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
         localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
       }
     }
@@ -2353,7 +2391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUserId === id) {
       setIsAuthenticated(false);
       setCurrentUserId('');
-      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
@@ -2404,7 +2442,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUserId === id) {
       setIsAuthenticated(false);
       setCurrentUserId('');
-      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
@@ -2465,7 +2503,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Record ID in deletedMemberIds to prevent any sync re-upload or resurrection
     setDeletedMemberIds(prev => {
       const next = Array.from(new Set([...prev, id]));
-      localStorage.setItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(next));
+      safeSetItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`, JSON.stringify(next));
       return next;
     });
 
@@ -2531,7 +2569,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUserId === id) {
       setIsAuthenticated(false);
       setCurrentUserId('');
-      localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+      safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
       localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     }
 
@@ -4614,15 +4652,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCurrentUserId(found.id);
     setIsAuthenticated(true);
-    localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(true));
-    localStorage.setItem(`${STORAGE_KEY}_AUTH_USER_ID`, found.id);
+    safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(true));
+    safeSetItem(`${STORAGE_KEY}_AUTH_USER_ID`, found.id);
     playSound('normal');
 
     const todayDate = new Date().toISOString().split('T')[0];
     const lastWelcomeDate = localStorage.getItem(`${STORAGE_KEY}_LAST_WELCOME_DATE`);
     if (lastWelcomeDate !== todayDate) {
       showNotification('success', `مرحباً بعودتك يا ${found.fullName}! ✨`);
-      localStorage.setItem(`${STORAGE_KEY}_LAST_WELCOME_DATE`, todayDate);
+      safeSetItem(`${STORAGE_KEY}_LAST_WELCOME_DATE`, todayDate);
     }
     
     addAuditLog('تسجيل دخول', found.fullName, 'تسجيل دخول ناجح للمنصة');
@@ -4861,7 +4899,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentUserId('');
-    localStorage.setItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
+    safeSetItem(`${STORAGE_KEY}_AUTH_STATUS`, JSON.stringify(false));
     localStorage.removeItem(`${STORAGE_KEY}_AUTH_USER_ID`);
     showNotification('info', 'تم تسجيل الخروج بنجاح.');
   };

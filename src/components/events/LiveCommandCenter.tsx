@@ -58,12 +58,20 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
 
   // Voice Orders
   const [voiceOrders, setVoiceOrders] = useState<LiveVoiceOrder[]>(() => {
-    const saved = localStorage.getItem(STORAGE_VOICE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem(STORAGE_VOICE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_VOICE_KEY, JSON.stringify(voiceOrders));
+    try {
+      localStorage.setItem(STORAGE_VOICE_KEY, JSON.stringify((voiceOrders || []).slice(0, 30)));
+    } catch (e) {
+      console.warn('Voice orders local cache warning:', e);
+    }
   }, [voiceOrders]);
 
   // Load Cloud Voice Orders
@@ -84,12 +92,20 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
 
   // Tactical Sectors
   const [sectors, setSectors] = useState<SectorStatus[]>(() => {
-    const saved = localStorage.getItem(STORAGE_SECTORS_KEY);
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem(STORAGE_SECTORS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_SECTORS_KEY, JSON.stringify(sectors));
+    try {
+      localStorage.setItem(STORAGE_SECTORS_KEY, JSON.stringify((sectors || []).slice(0, 30)));
+    } catch (e) {
+      console.warn('Sectors local cache warning:', e);
+    }
   }, [sectors]);
 
   const [showVoiceOrderModal, setShowVoiceOrderModal] = useState<boolean>(false);
