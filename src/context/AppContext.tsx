@@ -3497,6 +3497,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const totalDaily = (Number(evalData.attendanceScore) || 0) + (Number(evalData.participationScore) || 0) + (Number(evalData.commitmentScore) || 0);
     const awardedXP = (Number(evalData.bonusXP) || 0) + (totalDaily >= 25 ? 30 : totalDaily >= 20 ? 20 : 10);
+    const percentage = Math.round((totalDaily / 30) * 100);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nowTimeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
     let targetMemberId = '';
     let updatedRecord: AttendanceRecord | null = null;
@@ -3514,7 +3517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             bonusXP: awardedXP,
             notes: evalData.notes || '',
             evaluatedBy: currentUser.fullName,
-            evaluatedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            evaluatedAt: nowTimeStr
           }
         };
         return updatedRecord;
@@ -3523,20 +3526,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     if (updatedRecord) {
-      SupabaseService.insertAttendanceRecord(updatedRecord).catch(e => console.warn(e));
+      SupabaseService.insertAttendanceRecord(updatedRecord).catch(e => console.warn('Supabase attendance record error:', e));
     }
 
-    if (targetMemberId) {
+    const targetMember = members.find(m => m.id === targetMemberId || (updatedRecord && m.id === updatedRecord.memberId));
+
+    const recFound = attendanceRecords.find(r => r.id === recordId);
+    const eventNameStr = recFound?.eventName || recFound?.sessionTitle || 'حضور ميداني';
+    const evalDateStr = recFound?.date || todayStr;
+
+    if (targetMember) {
+      // 1. Create an official MemberEvaluationRecord in memberEvaluations
+      const evalRecordId = `eval-daily-${recordId}-${Date.now()}`;
+      const memberEvalObj: MemberEvaluationRecord = {
+        id: evalRecordId,
+        memberId: targetMember.id,
+        memberName: targetMember.fullName,
+        memberVolunteerId: targetMember.volunteerId,
+        committeeName: targetMember.currentCommitteeName,
+        evaluatorId: currentUser.id,
+        evaluatorName: currentUser.fullName,
+        evaluatorRole: currentUser.role,
+        evaluationDate: evalDateStr,
+        scores: {
+          'الحضور والانضباط': evalData.attendanceScore,
+          'التفاعل والمبادرة': evalData.participationScore,
+          'جودة الأداء الميداني': evalData.commitmentScore
+        },
+        totalScore: totalDaily,
+        maxTotalScore: 30,
+        percentage: percentage,
+        feedback: evalData.notes ? `${evalData.notes} (مكافأة: +${awardedXP} XP)` : `تقييم جلسة: ${eventNameStr} (+${awardedXP} XP)`,
+        evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+      };
+
+      setMemberEvaluations(prev => {
+        const filtered = prev.filter(e => e.id !== evalRecordId && !(e.memberId === targetMember.id && e.evaluationDate === memberEvalObj.evaluationDate && e.evaluatorId === currentUser.id));
+        return [memberEvalObj, ...filtered];
+      });
+      SupabaseService.upsertMemberEvaluation(memberEvalObj).catch(e => console.warn('Supabase upsertMemberEvaluation error:', e));
+
+      // 2. If evaluated member is a Head or Vice Head, also log HeadEvaluationRecord
+      if (targetMember.role === 'head' || targetMember.role === 'vice_head') {
+        const headEvalObj: HeadEvaluationRecord = {
+          id: `head-eval-${recordId}-${Date.now()}`,
+          headId: targetMember.id,
+          headName: targetMember.fullName,
+          headVolunteerId: targetMember.volunteerId,
+          headPosition: targetMember.position || (targetMember.role === 'head' ? 'رئيس لجنة' : 'نائب رئيس لجنة'),
+          committeeName: targetMember.currentCommitteeName,
+          evaluatorId: currentUser.id,
+          evaluatorName: currentUser.fullName,
+          evaluatorRole: currentUser.role,
+          evaluationDate: evalDateStr,
+          scores: {
+            'الحضور والانضباط القيادي': evalData.attendanceScore,
+            'إدارة وتفاعل الفريق': evalData.participationScore,
+            'تنفيذ المهام الميدانية': evalData.commitmentScore
+          },
+          totalScore: totalDaily,
+          maxTotalScore: 30,
+          percentage: percentage,
+          leadershipRating: Number((totalDaily / 6).toFixed(1)),
+          feedback: evalData.notes || 'أداء والتزام ميداني ممتاز',
+          evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        };
+        setHeadEvaluations(prev => [headEvalObj, ...prev.filter(h => h.id !== headEvalObj.id)]);
+        SupabaseService.upsertHeadEvaluation(headEvalObj).catch(e => console.warn('Supabase upsertHeadEvaluation error:', e));
+      }
+
+      // 3. Update member's XP points, level, and performance metrics
       setMembers(prev => prev.map(m => {
-        if (m.id === targetMemberId) {
-          const newXP = m.points + awardedXP;
+        if (m.id === targetMember.id) {
+          const newXP = (m.points || 0) + awardedXP;
+          const prevCount = m.performance?.evaluationsCount || 0;
+          const currentOverall = m.performance?.overallScore || 90;
+          const newOverall = Math.min(100, Math.round(((currentOverall * prevCount) + percentage) / (prevCount + 1)));
+
           const updatedM = {
             ...m,
             points: newXP,
             level: Math.floor(newXP / 150) + 1,
             performance: {
               ...m.performance,
-              overallScore: Math.min(100, Math.round((m.performance.overallScore + totalDaily * 3.3) / 2))
+              overallScore: newOverall,
+              evaluationsCount: prevCount + 1,
+              commitment: Math.min(100, (m.performance?.commitment || 90) + 1)
             }
           };
           SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
@@ -3544,11 +3619,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return m;
       }));
+
+      // 4. Send targeted personal notification to the volunteer
+      const evalNotif: SystemNotification = {
+        id: `notif-daily-eval-${Date.now()}`,
+        title: `🌟 تقييم اليوم الميداني (+${awardedXP} XP)`,
+        message: `أهلاً يا ${targetMember.fullName.split(' ')[0]}، تم اعتماد تقييمك لجلسة (${eventNameStr}) بواسطة ${currentUser.fullName}: النتيجة ${totalDaily}/30 (${percentage}%). ${evalData.notes ? `ملاحظات: "${evalData.notes}"` : ''}`,
+        type: 'eval',
+        targetMemberIds: [targetMember.id],
+        senderName: currentUser.fullName,
+        read: false,
+        createdAt: 'الآن',
+        linkTab: 'evaluations'
+      };
+      setNotifications(prev => [evalNotif, ...prev]);
+      SupabaseService.upsertNotification(evalNotif).catch(e => console.warn(e));
+
+      // 5. Send Web Push Notification to user's device
+      sendSystemPushNotification({
+        title: `🌟 تقييم اليوم الميداني (+${awardedXP} XP)`,
+        body: `تم اعتماد تقييمك لجلسة ${eventNameStr}: ${totalDaily}/30 (${percentage}%). استمر في التميز!`,
+        type: 'achievement',
+        data: { url: '/?tab=evaluations' }
+      });
     }
 
     playSound('task');
-    addAuditLog('تسجيل تقييم اليوم الميداني', `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/30 - XP: +${awardedXP}`);
-    showNotification('success', `تم حفظ تقييم اليوم للمتطوع وإضافة +${awardedXP} XP بنجاح!`);
+    triggerGamificationCelebration(`🌟 تم اعتماد تقييم ${targetMember?.fullName.split(' ')[0] || 'المتطوع'} بنجاح! (+${awardedXP} XP)`, awardedXP);
+    addAuditLog('تسجيل تقييم اليوم الميداني', targetMember?.fullName || `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/30 (${percentage}%) - XP: +${awardedXP} - المقيم: ${currentUser.fullName}`);
+    showNotification('success', `تم حفظ تقييم اليوم للمتطوع وإرسال الإشعار وإضافة +${awardedXP} XP بنجاح!`);
   };
 
   // Delete Attendance Record

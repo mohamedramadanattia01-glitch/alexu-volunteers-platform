@@ -130,11 +130,38 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
       address: 'جامعة الإسكندرية (الموقع الفعلي)'
     };
 
+    let targetSessionId = currentSession?.id;
+    let targetEventId = currentSession?.eventId || currentEvent?.id;
+    let effectiveAction = actionType;
+
+    if (customToken && customToken.includes('?')) {
+      try {
+        const urlStr = customToken.startsWith('http') ? customToken : `https://volunteers.alexu.edu.eg/${customToken}`;
+        const parsedUrl = new URL(urlStr);
+        const qSession = parsedUrl.searchParams.get('session');
+        const qEvent = parsedUrl.searchParams.get('event');
+        const qAction = parsedUrl.searchParams.get('action');
+
+        if (qSession && qSession !== 'live') targetSessionId = qSession;
+        if (qEvent && qEvent.trim()) targetEventId = qEvent;
+        if (qAction === 'check-in' || qAction === 'check-out') effectiveAction = qAction;
+      } catch (e) {
+        const queryPart = customToken.split('?')[1] || '';
+        const params = new URLSearchParams(queryPart);
+        const qSession = params.get('session');
+        const qEvent = params.get('event');
+        const qAction = params.get('action');
+        if (qSession && qSession !== 'live') targetSessionId = qSession;
+        if (qEvent && qEvent.trim()) targetEventId = qEvent;
+        if (qAction === 'check-in' || qAction === 'check-out') effectiveAction = qAction;
+      }
+    }
+
     const res = recordAttendanceWithGPS({
       memberId: currentUser.id,
-      sessionId: currentSession?.id,
-      eventId: currentEvent?.id,
-      actionType,
+      sessionId: targetSessionId,
+      eventId: targetEventId,
+      actionType: effectiveAction,
       gpsLocation: loc,
       qrToken: customToken || qrToken
     });
@@ -143,7 +170,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
     if (res.success) {
       if (res.actionDone === 'check-out') {
-        showNotification('success', `🏁 تم تسجيل الانصراف بنجاح يا ${currentUser.fullName.split(' ')[0]}!`);
+        showNotification('success', `🏁 تم تسجيل الانصراف بنجاح يا ${currentUser.fullName.split(' ')[0]}! (${res.record?.durationFormatted || ''})`);
       } else {
         showNotification('success', `🎯 تم تسجيل حضورك بنجاح يا ${currentUser.fullName.split(' ')[0]}!`);
       }
@@ -152,7 +179,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     } else {
       showNotification('error', res.message);
     }
-  }, [gpsData, recordAttendanceWithGPS, currentUser, currentSession?.id, currentEvent?.id, qrToken, showNotification]);
+  }, [gpsData, recordAttendanceWithGPS, currentUser, currentSession?.id, currentSession?.eventId, currentEvent?.id, qrToken, showNotification]);
 
   // Frame scanning engine using jsQR - Single Scan Freeze
   const scanQRFromCamera = useCallback(() => {
