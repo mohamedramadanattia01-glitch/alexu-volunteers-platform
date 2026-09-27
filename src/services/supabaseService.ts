@@ -423,7 +423,7 @@ export class SupabaseService {
   static async upsertMember(member: Member) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('members').upsert({
+      const { error } = await supabase.from('members').upsert({
         id: member.id,
         volunteer_id: member.volunteerId,
         full_name: member.fullName,
@@ -462,7 +462,10 @@ export class SupabaseService {
         instagram_url: member.instagramUrl,
         linkedin_url: member.linkedinUrl,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
+      if (error) {
+        console.error('upsertMember Supabase error:', error);
+      }
     } catch (e) {
       console.error('upsertMember failed:', e);
     }
@@ -471,7 +474,8 @@ export class SupabaseService {
   static async deleteMember(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('members').delete().eq('id', id);
+      const { error } = await supabase.from('members').delete().eq('id', id);
+      if (error) console.error('deleteMember error:', error);
     } catch (e) {
       console.error('deleteMember failed:', e);
     }
@@ -480,7 +484,7 @@ export class SupabaseService {
   static async upsertCommittee(committee: Committee) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('committees').upsert({
+      const { error } = await supabase.from('committees').upsert({
         id: committee.id,
         name: committee.name,
         code: committee.code,
@@ -500,7 +504,8 @@ export class SupabaseService {
         color: committee.color,
         icon: committee.icon,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertCommittee error:', error);
     } catch (e) {
       console.error('upsertCommittee failed:', e);
     }
@@ -509,7 +514,8 @@ export class SupabaseService {
   static async deleteCommittee(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('committees').delete().eq('id', id);
+      const { error } = await supabase.from('committees').delete().eq('id', id);
+      if (error) console.error('deleteCommittee error:', error);
     } catch (e) {
       console.error('deleteCommittee failed:', e);
     }
@@ -518,7 +524,7 @@ export class SupabaseService {
   static async upsertSeason(season: Season) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('seasons').upsert({
+      const { error } = await supabase.from('seasons').upsert({
         id: season.id,
         name: season.name,
         is_current: season.isCurrent,
@@ -528,9 +534,127 @@ export class SupabaseService {
         total_events: season.totalEvents,
         total_tasks: season.totalTasks,
         archived: season.archived
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertSeason error:', error);
     } catch (e) {
       console.error('upsertSeason failed:', e);
+    }
+  }
+
+  /**
+   * Bulk push all local application state to Supabase Cloud
+   */
+  static async saveAllDataToCloud(data: {
+    members?: Member[];
+    committees?: Committee[];
+    seasons?: Season[];
+    tasks?: Task[];
+    events?: EventEntity[];
+    attendanceRecords?: AttendanceRecord[];
+    attendanceSessions?: AttendanceSession[];
+    memberEvaluations?: MemberEvaluationRecord[];
+    headEvaluations?: HeadEvaluationRecord[];
+    complaints?: Complaint[];
+    documents?: DocumentItem[];
+    announcements?: Announcement[];
+    auditLogs?: AuditLogItem[];
+    notifications?: SystemNotification[];
+    bannedUsers?: BannedUserRecord[];
+  }): Promise<{ success: boolean; message: string; error?: any }> {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      // 1. Seasons
+      if (data.seasons && data.seasons.length > 0) {
+        for (const s of data.seasons) {
+          await this.upsertSeason(s);
+        }
+      }
+
+      // 2. Committees
+      if (data.committees && data.committees.length > 0) {
+        for (const c of data.committees) {
+          await this.upsertCommittee(c);
+        }
+      }
+
+      // 3. Members
+      if (data.members && data.members.length > 0) {
+        for (const m of data.members) {
+          await this.upsertMember(m);
+        }
+      }
+
+      // 4. Tasks
+      if (data.tasks && data.tasks.length > 0) {
+        for (const t of data.tasks) {
+          await this.upsertTask(t);
+        }
+      }
+
+      // 5. Events
+      if (data.events && data.events.length > 0) {
+        for (const ev of data.events) {
+          await this.upsertEvent(ev);
+        }
+      }
+
+      // 6. Attendance Sessions & Records
+      if (data.attendanceSessions && data.attendanceSessions.length > 0) {
+        for (const s of data.attendanceSessions) {
+          await this.upsertAttendanceSession(s);
+        }
+      }
+      if (data.attendanceRecords && data.attendanceRecords.length > 0) {
+        for (const r of data.attendanceRecords) {
+          await this.insertAttendanceRecord(r);
+        }
+      }
+
+      // 7. Evaluations
+      if (data.memberEvaluations && data.memberEvaluations.length > 0) {
+        for (const me of data.memberEvaluations) {
+          await this.upsertMemberEvaluation(me);
+        }
+      }
+      if (data.headEvaluations && data.headEvaluations.length > 0) {
+        for (const he of data.headEvaluations) {
+          await this.upsertHeadEvaluation(he);
+        }
+      }
+
+      // 8. Complaints
+      if (data.complaints && data.complaints.length > 0) {
+        for (const comp of data.complaints) {
+          await this.upsertComplaint(comp);
+        }
+      }
+
+      // 9. Documents & Announcements
+      if (data.documents && data.documents.length > 0) {
+        for (const doc of data.documents) {
+          await this.upsertDocument(doc);
+        }
+      }
+      if (data.announcements && data.announcements.length > 0) {
+        for (const ann of data.announcements) {
+          await this.upsertAnnouncement(ann);
+        }
+      }
+
+      // 10. Banned users
+      if (data.bannedUsers && data.bannedUsers.length > 0) {
+        for (const b of data.bannedUsers) {
+          await this.upsertBannedUser(b);
+        }
+      }
+
+      return { success: true, message: 'تم حفظ ورفع كافة البيانات إلى السحابة بنجاح ☁️' };
+    } catch (err: any) {
+      console.error('saveAllDataToCloud error:', err);
+      return { success: false, message: 'حدث خطأ أثناء الرفع إلى السحابة', error: err };
     }
   }
 

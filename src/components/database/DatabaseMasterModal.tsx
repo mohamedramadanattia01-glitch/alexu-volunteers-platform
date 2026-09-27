@@ -22,7 +22,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
   const { 
     members, committees, updateMember, deleteMember, addMember, 
     changeVolunteerId, isVolunteerIdAvailable,
-    syncWithCloud, isSupabaseConnected, currentUser, isHighLeadership,
+    syncWithCloud, saveAllToCloud, isSupabaseConnected, currentUser, isHighLeadership,
     memberEvaluations, headEvaluations, attendanceRecords, tasks
   } = useApp();
 
@@ -31,6 +31,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
 
   // Form State for editing
@@ -227,11 +228,23 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     }));
   };
 
+  const handlePushAllToCloud = async () => {
+    setIsPushing(true);
+    const res = await saveAllToCloud();
+    setIsPushing(false);
+    if (res.success) {
+      setSaveSuccessNotice('تم رفع وحفظ كافة بيانات المتطوعين واللجان والتقييمات إلى قاعدة بيانات Supabase السحابية بنجاح ☁️✓');
+    } else {
+      setSaveSuccessNotice(res.message);
+    }
+    setTimeout(() => setSaveSuccessNotice(null), 5000);
+  };
+
   const handleSyncCloud = async () => {
     setIsSyncing(true);
-    await syncWithCloud();
+    await syncWithCloud({ forcePush: true });
     setIsSyncing(false);
-    setSaveSuccessNotice('تمت المزامنة الكاملة مع قاعدة بيانات Supabase السحابية بنجاح ☁️');
+    setSaveSuccessNotice('تمت المزامنة الكاملة والتبادل اللحظي مع قاعدة بيانات Supabase بنجاح ☁️🔄');
     setTimeout(() => setSaveSuccessNotice(null), 4000);
   };
 
@@ -285,15 +298,26 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
               <span>سحب الشيت الشامل والتقييمات (.xlsx) 📊</span>
             </button>
 
+            {/* Push to Cloud Button */}
+            <button
+              onClick={handlePushAllToCloud}
+              disabled={isPushing}
+              className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/30 disabled:opacity-50"
+              title="رفع وحفظ كافة البيانات الحالية إلى قاعدة بيانات Supabase السحابية"
+            >
+              <Cloud className={`w-4 h-4 ${isPushing ? 'animate-bounce' : ''}`} />
+              <span>{isPushing ? 'جارِ الحفظ والرفع...' : 'حفظ ورفع للسحابة ☁️⬆️'}</span>
+            </button>
+
             {/* Cloud Sync Button */}
             <button
               onClick={handleSyncCloud}
               disabled={isSyncing}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-600/30 disabled:opacity-50"
-              title="مزامنة فورية مع السحابة"
+              className="px-3 py-1.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              title="مزامنة فورية وتحديث البيانات من السحابة"
             >
-              <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'جارِ المزامنة...' : 'مزامنة السحابة'}</span>
+              <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-spin text-indigo-400' : 'text-indigo-400'}`} />
+              <span>{isSyncing ? 'جارِ المزامنة...' : 'مزامنة السحابة 🔄'}</span>
             </button>
 
             <button

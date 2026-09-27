@@ -280,7 +280,8 @@ interface AppContextType {
   setFontSizeMode: (mode: 'compact' | 'normal' | 'large') => void;
   hasPermission: (permCode: string) => boolean;
   isSupabaseConnected: boolean;
-  syncWithCloud: () => Promise<void>;
+  syncWithCloud: (options?: { forcePush?: boolean; silent?: boolean }) => Promise<void>;
+  saveAllToCloud: () => Promise<{ success: boolean; message: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -627,12 +628,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(() => isSupabaseConfigured());
 
-  const syncWithCloud = async () => {
+  const saveAllToCloud = async (): Promise<{ success: boolean; message: string }> => {
+    if (!isSupabaseConfigured()) {
+      return { success: false, message: 'Supabase غير مهيأ' };
+    }
+    const res = await SupabaseService.saveAllDataToCloud({
+      members,
+      committees,
+      seasons,
+      tasks,
+      events,
+      attendanceRecords,
+      attendanceSessions,
+      memberEvaluations,
+      headEvaluations,
+      complaints,
+      documents,
+      announcements,
+      bannedUsers: bannedList
+    });
+    if (res.success) {
+      setIsSupabaseConnected(true);
+      showNotification('success', res.message);
+    } else {
+      showNotification('error', res.message);
+    }
+    return res;
+  };
+
+  const syncWithCloud = async (options?: { forcePush?: boolean; silent?: boolean }) => {
     if (!isSupabaseConfigured()) return;
     try {
+      if (options?.forcePush) {
+        await SupabaseService.saveAllDataToCloud({
+          members,
+          committees,
+          seasons,
+          tasks,
+          events,
+          attendanceRecords,
+          attendanceSessions,
+          memberEvaluations,
+          headEvaluations,
+          complaints,
+          documents,
+          announcements,
+          bannedUsers: bannedList
+        });
+      }
+
       const cloudData = await SupabaseService.loadAllData();
       if (cloudData) {
-        if (cloudData.members && cloudData.members.length > 0) setMembers(cloudData.members);
+        if (cloudData.members && cloudData.members.length > 0) {
+          setMembers(prev => {
+            const cloudMap = new Map(cloudData.members!.map(m => [m.id, m]));
+            const merged = cloudData.members!.slice();
+            // Preserve any local members not yet in cloud and push them up
+            prev.forEach(localM => {
+              if (!cloudMap.has(localM.id)) {
+                merged.push(localM);
+                SupabaseService.upsertMember(localM).catch(err => console.warn('Sync push local member warning:', err));
+              }
+            });
+            return merged;
+          });
+        }
         if (cloudData.committees && cloudData.committees.length > 0) setCommittees(cloudData.committees);
         if (cloudData.seasons && cloudData.seasons.length > 0) setSeasons(cloudData.seasons);
         if (cloudData.tasks) setTasks(cloudData.tasks);
@@ -4216,7 +4276,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFontSizeMode,
         hasPermission,
         isSupabaseConnected,
-        syncWithCloud
+        syncWithCloud,
+        saveAllToCloud
       }}
     >
       {children}
