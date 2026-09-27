@@ -1339,7 +1339,8 @@ export class SupabaseService {
     if (!isSupabaseConfigured() || !supabase) return null;
 
     try {
-      const channel = supabase.channel('realtime_all_tables')
+      const channelName = `realtime_${Date.now()}`;
+      const channel = supabase.channel(channelName)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public' },
@@ -1347,12 +1348,29 @@ export class SupabaseService {
             onDataChange(payload.table, payload.eventType, payload.new, payload.old);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('🟢 Supabase Realtime connected successfully');
+          }
+        });
 
       return channel;
     } catch (err) {
       console.error('Supabase Realtime subscription error:', err);
       return null;
+    }
+  }
+
+  /**
+   * Cleanly unsubscribe and remove realtime channel
+   */
+  static unsubscribeChannel(channel: any) {
+    if (channel && supabase) {
+      try {
+        supabase.removeChannel(channel);
+      } catch (err) {
+        console.warn('Channel unsubscribe warning:', err);
+      }
     }
   }
 }

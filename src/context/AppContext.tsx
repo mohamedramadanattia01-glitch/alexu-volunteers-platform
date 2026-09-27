@@ -1562,7 +1562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
       if (channel) {
-        channel.unsubscribe();
+        SupabaseService.unsubscribeChannel(channel);
       }
     };
   }, [currentUserId]);
