@@ -191,16 +191,17 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-sky-400" />
-                        <span>دخول: {record.checkInTime}</span>
-                      </span>
-                      {record.gpsLocation && (
-                        <span className="flex items-center gap-1 text-emerald-400">
-                          <MapPin className="w-3 h-3" />
-                          <span>GPS مؤكد ✓</span>
-                        </span>
+                    <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 gap-1">
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span className="text-emerald-400">🟢 {record.checkInTime}</span>
+                        {record.checkOutTime ? (
+                          <span className="text-purple-400">➔ 🔴 {record.checkOutTime}</span>
+                        ) : (
+                          <span className="text-amber-400 text-[9px]">⏳ بالميدان</span>
+                        )}
+                      </div>
+                      {record.durationFormatted && record.checkOutTime && (
+                        <span className="text-sky-300 font-medium">⏱️ {record.durationFormatted}</span>
                       )}
                     </div>
                   </div>
@@ -215,12 +216,12 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
               <form onSubmit={handleSaveEvaluation} className="space-y-4">
                 
                 {/* Active Member Header Card */}
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/30 flex items-center justify-between">
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-3">
                     <img
                       src={activeRecord.memberAvatar}
                       alt=""
-                      className="w-12 h-12 rounded-xl object-cover border-2 border-amber-500/40"
+                      className="w-12 h-12 rounded-xl object-cover border-2 border-amber-500/40 shrink-0"
                     />
                     <div>
                       <div className="flex items-center gap-2">
@@ -232,14 +233,20 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                       <p className="text-xs text-slate-400 mt-0.5">
                         {activeRecord.committeeName} • جلسة: {activeRecord.eventName}
                       </p>
+                      <div className="flex items-center gap-2 mt-1 text-[11px] font-mono">
+                        <span className="text-emerald-400">دخول: {activeRecord.checkInTime}</span>
+                        {activeRecord.checkOutTime && (
+                          <span className="text-purple-400">| انصراف: {activeRecord.checkOutTime} ({activeRecord.durationFormatted})</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {activeRecord.gpsLocation && (
-                    <div className="text-left text-[10px] bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30 text-emerald-300">
+                    <div className="text-right sm:text-left text-[10px] bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30 text-emerald-300 shrink-0">
                       <div className="font-bold flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        <span>موقع الـ GPS:</span>
+                        <span>الموقع الميداني (GPS):</span>
                       </div>
                       <span className="font-mono text-[9px] text-slate-300">
                         {activeRecord.gpsLocation.lat.toFixed(4)}, {activeRecord.gpsLocation.lng.toFixed(4)}

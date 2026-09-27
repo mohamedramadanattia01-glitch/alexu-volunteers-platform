@@ -316,7 +316,7 @@ export const exportAttendanceToExcel = (records: AttendanceRecord[], customTitle
     const ev = record.dailyEvaluation;
 
     return [
-      (record as any).volunteerId || record.memberId,
+      record.memberVolunteerId || (record as any).volunteerId || record.memberId,
       record.memberName,
       record.committeeName,
       record.eventName,

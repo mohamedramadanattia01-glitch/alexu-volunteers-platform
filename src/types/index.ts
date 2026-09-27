@@ -359,6 +359,8 @@ export interface AttendanceRecord {
   date: string;
   checkInTime: string;
   checkOutTime?: string;
+  checkInTimestamp?: number;
+  checkOutTimestamp?: number;
   durationMinutes: number;
   durationFormatted: string;
   status: 'Present' | 'Late' | 'Absent' | 'Excused';

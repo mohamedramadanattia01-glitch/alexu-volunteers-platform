@@ -146,10 +146,16 @@ interface AppContextType {
     memberId: string; 
     eventId?: string; 
     sessionId?: string; 
-    actionType: 'check-in' | 'check-out'; 
+    actionType: 'check-in' | 'check-out' | 'auto'; 
     gpsLocation?: GPSLocation;
     qrToken?: string;
-  }) => { success: boolean; message: string; record?: AttendanceRecord };
+  }) => { 
+    success: boolean; 
+    message: string; 
+    record?: AttendanceRecord; 
+    actionDone?: 'check-in' | 'check-out'; 
+    isCompleted?: boolean;
+  };
   createAttendanceSession: (sessionData: Partial<AttendanceSession>) => AttendanceSession;
   closeAttendanceSession: (sessionId: string) => void;
   submitDailyAttendanceEvaluation: (recordId: string, evalData: {
@@ -3296,38 +3302,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showNotification('info', 'تم إغلاق جلسة الحضور');
   };
 
-  // Record Attendance with Real GPS Location
+  // Record Attendance with Real GPS Location & Smart 2-Phase Check-In/Check-Out
   const recordAttendanceWithGPS = (params: { 
     memberId: string; 
     eventId?: string; 
     sessionId?: string; 
-    actionType: 'check-in' | 'check-out'; 
+    actionType: 'check-in' | 'check-out' | 'auto'; 
     gpsLocation?: GPSLocation;
     qrToken?: string;
-  }) => {
-    const targetMember = members.find(m => m.id === params.memberId);
-    if (!targetMember) return { success: false, message: 'بيانات المتطوع غير موجودة' };
+  }): { success: boolean; message: string; record?: AttendanceRecord; actionDone?: 'check-in' | 'check-out'; isCompleted?: boolean } => {
+    const targetMember = members.find(m => m.id === params.memberId || m.volunteerId === params.memberId || m.universityEmail === params.memberId);
+    if (!targetMember) return { success: false, message: 'بيانات المتطوع غير مسجلة بالنظام' };
 
     const session = attendanceSessions.find(s => s.id === params.sessionId) || activeAttendanceSession;
     const targetEvent = events.find(e => e.id === (params.eventId || session?.eventId)) || events[0];
 
     const linkedEventId = params.eventId || session?.eventId || targetEvent?.id || 'event-live';
     const linkedEventName = session?.eventName || targetEvent?.name || session?.title || 'جلسة عمل ميدانية';
+    const todayDateStr = new Date().toISOString().split('T')[0];
 
+    // Find existing attendance record for today / this session / event
     const existing = attendanceRecords.find(a => 
-      a.memberId === params.memberId && 
-      (params.sessionId ? a.sessionId === params.sessionId : a.eventId === linkedEventId)
+      (a.memberId === targetMember.id || (a.memberVolunteerId && a.memberVolunteerId === targetMember.volunteerId)) && 
+      (params.sessionId ? a.sessionId === params.sessionId : (a.eventId === linkedEventId || a.date === todayDateStr))
     );
 
-    const timeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const memberFirstName = targetMember.fullName.split(' ')[0] || targetMember.fullName;
 
-    if (params.actionType === 'check-in') {
+    // Determine effective action (auto resolves check-in vs check-out)
+    let effectiveAction: 'check-in' | 'check-out' = 'check-in';
+    if (params.actionType === 'auto') {
+      if (!existing) {
+        effectiveAction = 'check-in';
+      } else if (!existing.checkOutTime) {
+        effectiveAction = 'check-out';
+      } else {
+        // Already completed both check-in and check-out
+        return {
+          success: false,
+          isCompleted: true,
+          record: existing,
+          message: `أهلاً يا ${memberFirstName}، لقد أتممت تسجيل الحضور والانصراف مسبقاً لهذه الجلسة بنجاح! (المدة المسجلة: ${existing.durationFormatted || `${existing.durationMinutes} دقيقة`})`
+        };
+      }
+    } else {
+      effectiveAction = params.actionType;
+    }
+
+    if (effectiveAction === 'check-in') {
       if (existing) {
-        return { success: false, message: `عفواً يا ${targetMember.fullName.split(' ')[0]}، لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة!` };
+        return { 
+          success: false, 
+          record: existing,
+          message: `عفواً يا ${memberFirstName}، لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة عند الساعة (${existing.checkInTime})!` 
+        };
       }
 
       const newRec: AttendanceRecord = {
-        id: `att-${Date.now()}`,
+        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         memberId: targetMember.id,
         memberName: targetMember.fullName,
         memberAvatar: targetMember.avatarUrl,
@@ -3338,29 +3372,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         eventName: linkedEventName,
         sessionId: session?.id,
         sessionTitle: session?.title,
-        date: new Date().toISOString().split('T')[0],
+        date: todayDateStr,
         checkInTime: timeStr,
-        durationMinutes: 300,
-        durationFormatted: '5 ساعات',
+        checkInTimestamp: Date.now(),
+        durationMinutes: 0,
+        durationFormatted: 'متواجد حالياً بالميدان ⏳',
         status: 'Present',
         qrHashToken: params.qrToken || `ALEXU_QR_${Date.now()}`,
         gpsLocation: params.gpsLocation
       };
 
-      setAttendanceRecords(prev => [newRec, ...prev]);
+      setAttendanceRecords(prev => [newRec, ...prev.filter(a => a.id !== newRec.id)]);
       SupabaseService.insertAttendanceRecord(newRec).catch(e => console.warn('Supabase attendance record error:', e));
 
       // Award XP to member (+25 XP for presence)
       setMembers(prev => prev.map(m => {
         if (m.id === targetMember.id) {
-          const updatedXP = m.points + 25;
+          const updatedXP = (m.points || 0) + 25;
           const updatedM = {
             ...m,
             points: updatedXP,
             level: Math.floor(updatedXP / 150) + 1,
             performance: {
               ...m.performance,
-              attendanceRate: Math.min(100, m.performance.attendanceRate + 1)
+              attendanceRate: Math.min(100, (m.performance?.attendanceRate || 90) + 1)
             }
           };
           SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
@@ -3370,41 +3405,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
 
       playSound('task');
-      triggerGamificationCelebration('📍 تم تسجيل الحضور وتأكيد موقع الـ GPS!', 25);
-      addAuditLog('تسجيل حضور QR مع GPS', targetMember.fullName, `الجلسة: ${session?.title || targetEvent?.name} - الإحداثيات: ${params.gpsLocation ? `${params.gpsLocation.lat.toFixed(4)}, ${params.gpsLocation.lng.toFixed(4)}` : 'تم تحديد الموقع'}`);
+      triggerGamificationCelebration(`🟢 تم تسجيل حضور ${memberFirstName} بنجاح!`, 25);
+      addAuditLog('تسجيل حضور QR مع GPS', targetMember.fullName, `الجلسة: ${session?.title || targetEvent?.name} - وقت الحضور: ${timeStr} - الإحداثيات: ${params.gpsLocation ? `${params.gpsLocation.lat.toFixed(4)}, ${params.gpsLocation.lng.toFixed(4)}` : 'تم تحديد الموقع'}`);
 
       return {
         success: true,
-        message: `تم تسجيل حضورك بنجاح يا ${targetMember.fullName.split(' ')[0]}! (${timeStr})`,
+        actionDone: 'check-in',
+        message: `تم تسجيل حضورك بنجاح يا ${memberFirstName}! (${timeStr})`,
         record: newRec
       };
     } else {
+      // Check-out branch
       if (!existing) {
-        return { success: false, message: 'لم يتم العثور على تسجيل حضور سابق لتسجيل الانصراف' };
+        return { 
+          success: false, 
+          message: `عفواً يا ${memberFirstName}، لم يتم العثور على تسجيل حضور سابق لك في هذه الجلسة لتسجيل الانصراف!` 
+        };
       }
 
-      let updatedRec: AttendanceRecord | null = null;
-      setAttendanceRecords(prev => prev.map(a => {
-        if (a.id === existing.id) {
-          updatedRec = {
-            ...a,
-            checkOutTime: timeStr,
-            gpsLocation: params.gpsLocation || a.gpsLocation
+      if (existing.checkOutTime) {
+        return {
+          success: false,
+          isCompleted: true,
+          record: existing,
+          message: `لقد قمت بتسجيل الانصراف مسبقاً عند الساعة (${existing.checkOutTime})، إجمالي المدة: ${existing.durationFormatted}`
+        };
+      }
+
+      // Calculate elapsed minutes and formatted duration
+      const checkInTs = existing.checkInTimestamp || (existing.date ? new Date(`${existing.date}T${existing.checkInTime || '09:00:00'}`).getTime() : Date.now() - 3600000);
+      const diffMs = Math.max(0, Date.now() - checkInTs);
+      const diffMinutes = Math.max(1, Math.round(diffMs / (1000 * 60)));
+      const hours = Math.floor(diffMinutes / 60);
+      const mins = diffMinutes % 60;
+      let durationFormatted = '';
+      if (hours > 0 && mins > 0) {
+        durationFormatted = `${hours} ساعة و ${mins} دقيقة`;
+      } else if (hours > 0) {
+        durationFormatted = `${hours} ${hours === 1 ? 'ساعة' : hours === 2 ? 'ساعتان' : hours <= 10 ? 'ساعات' : 'ساعة'}`;
+      } else {
+        durationFormatted = `${mins} دقيقة`;
+      }
+
+      let updatedRec: AttendanceRecord = {
+        ...existing,
+        checkOutTime: timeStr,
+        checkOutTimestamp: Date.now(),
+        durationMinutes: diffMinutes,
+        durationFormatted: durationFormatted,
+        gpsLocation: params.gpsLocation || existing.gpsLocation
+      };
+
+      setAttendanceRecords(prev => prev.map(a => a.id === existing.id ? updatedRec : a));
+      SupabaseService.insertAttendanceRecord(updatedRec).catch(e => console.warn('Supabase attendance checkout error:', e));
+
+      // Award XP for completing field hours (+15 XP)
+      setMembers(prev => prev.map(m => {
+        if (m.id === targetMember.id) {
+          const updatedXP = (m.points || 0) + 15;
+          const updatedM = {
+            ...m,
+            points: updatedXP,
+            level: Math.floor(updatedXP / 150) + 1
           };
-          return updatedRec;
+          SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+          return updatedM;
         }
-        return a;
+        return m;
       }));
 
-      if (updatedRec) {
-        SupabaseService.insertAttendanceRecord(updatedRec).catch(e => console.warn(e));
-      }
-
       playSound('task');
-      addAuditLog('تسجيل انصراف QR مع GPS', targetMember.fullName, `الجلسة: ${session?.title || targetEvent?.name}`);
+      triggerGamificationCelebration(`🔴 تم تسجيل انصراف ${memberFirstName}! المدة: ${durationFormatted}`, 15);
+      addAuditLog('تسجيل انصراف QR مع GPS', targetMember.fullName, `الجلسة: ${session?.title || targetEvent?.name} - وقت الانصراف: ${timeStr} - المدة: ${durationFormatted}`);
+
       return {
         success: true,
-        message: `شكراً لعطائك المتميز يا ${targetMember.fullName.split(' ')[0]}! تم تسجيل الانصراف.`
+        actionDone: 'check-out',
+        message: `شكراً لعطائك المتميز يا ${memberFirstName}! تم تسجيل الانصراف بنجاح. المدة الميدانية: ${durationFormatted}`,
+        record: updatedRec
       };
     }
   };

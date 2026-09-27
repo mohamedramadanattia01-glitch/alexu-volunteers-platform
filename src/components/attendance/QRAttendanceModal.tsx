@@ -5,12 +5,13 @@ import jsQR from 'jsqr';
 import { 
   QrCode, X, RefreshCw, CheckCircle2, Clock, 
   MapPin, ShieldCheck, UserCheck, AlertCircle, Plus, 
-  Layers, Download, Award, Sparkles, Navigation, Check, Camera,
-  FlipHorizontal, Upload, Image as ImageIcon, Zap, Calendar, FileSpreadsheet
+  Download, Award, Sparkles, Navigation, Camera,
+  FlipHorizontal, Zap, Calendar, FileSpreadsheet,
+  LogIn, LogOut, Check
 } from 'lucide-react';
 import { exportAttendanceToExcel, exportDailySessionAttendanceToExcel } from '../../utils/excelExport';
 import { DailyEvaluationModal } from './DailyEvaluationModal';
-import { GPSLocation } from '../../types';
+import { GPSLocation, AttendanceRecord } from '../../types';
 
 interface QRAttendanceModalProps {
   isOpen: boolean;
@@ -40,6 +41,9 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     isHostRole ? 'host_qr' : 'member_scan'
   );
 
+  // Host QR Scan Mode (Smart Unified vs Check-in Only vs Check-out Only)
+  const [hostQRAction, setHostQRAction] = useState<'smart' | 'check-in' | 'check-out'>('smart');
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todayEvent = events.find(e => e.date === todayStr || e.status === 'Live') || liveEvent;
 
@@ -59,12 +63,19 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const [isGettingGPS, setIsGettingGPS] = useState(false);
   const [gpsData, setGpsData] = useState<GPSLocation | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  // Scan result state with rich confirmation
+  const [scanResult, setScanResult] = useState<{ 
+    success: boolean; 
+    message: string; 
+    record?: AttendanceRecord;
+    actionDone?: 'check-in' | 'check-out';
+    isCompleted?: boolean;
+  } | null>(null);
 
   const [manualCodeInput, setManualCodeInput] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
-  const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
   const [isProcessingScan, setIsProcessingScan] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isTorchOn, setIsTorchOn] = useState(false);
@@ -73,7 +84,6 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Evaluation Modal Trigger
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
@@ -82,8 +92,9 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   const currentSession = activeAttendanceSession || attendanceSessions[0];
   const currentEvent = liveEvent || events[0];
 
+  // Token countdown timer for Host anti-cheat
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || mode !== 'host_qr') return;
 
     const timer = setInterval(() => {
       setCountdown(prev => {
@@ -96,9 +107,23 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen]);
+  }, [isOpen, mode]);
 
-  const handleMemberScan = useCallback((actionType: 'check-in' | 'check-out', customToken?: string) => {
+  // Stop camera function
+  const stopCamera = useCallback(() => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  }, []);
+
+  // Handle member scan action
+  const handleMemberScan = useCallback((actionType: 'check-in' | 'check-out' | 'auto', customToken?: string) => {
     const loc = gpsData || {
       lat: 31.2001,
       lng: 29.9187,
@@ -115,9 +140,21 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     });
 
     setScanResult(res);
-  }, [gpsData, recordAttendanceWithGPS, currentUser.id, currentSession?.id, currentEvent?.id, qrToken]);
 
-  // Frame scanning engine using jsQR
+    if (res.success) {
+      if (res.actionDone === 'check-out') {
+        showNotification('success', `🏁 تم تسجيل الانصراف بنجاح يا ${currentUser.fullName.split(' ')[0]}!`);
+      } else {
+        showNotification('success', `🎯 تم تسجيل حضورك بنجاح يا ${currentUser.fullName.split(' ')[0]}!`);
+      }
+    } else if (res.isCompleted) {
+      showNotification('info', res.message);
+    } else {
+      showNotification('error', res.message);
+    }
+  }, [gpsData, recordAttendanceWithGPS, currentUser, currentSession?.id, currentEvent?.id, qrToken, showNotification]);
+
+  // Frame scanning engine using jsQR - Single Scan Freeze
   const scanQRFromCamera = useCallback(() => {
     if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
       animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
@@ -144,37 +181,44 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
       if (code && code.data && !isProcessingScan) {
         const payload = code.data;
-        if (payload !== lastScannedPayload) {
-          setIsProcessingScan(true);
-          setLastScannedPayload(payload);
-          
-          // Trigger Attendance Check-In automatically on valid QR
-          handleMemberScan('check-in', payload);
-          showNotification('success', '🎯 تم مسح رمز الحضور بالكاميرا بنجاح وتوثيق الحضور!');
+        
+        // 1. Immediately freeze/stop camera on valid scan to prevent infinite loop
+        stopCamera();
+        setIsProcessingScan(true);
 
-          setTimeout(() => {
-            setIsProcessingScan(false);
-          }, 3000);
+        // 2. Parse mode if encoded in QR URL
+        let actionToUse: 'auto' | 'check-in' | 'check-out' = 'auto';
+        if (payload.includes('action=check-in')) {
+          actionToUse = 'check-in';
+        } else if (payload.includes('action=check-out')) {
+          actionToUse = 'check-out';
+        } else {
+          actionToUse = 'auto';
         }
+
+        // 3. Process Attendance Record
+        handleMemberScan(actionToUse, payload);
+        setIsProcessingScan(false);
+        return; // Halt RAF loop
       }
     }
 
     animationFrameIdRef.current = requestAnimationFrame(scanQRFromCamera);
-  }, [handleMemberScan, isProcessingScan, lastScannedPayload, showNotification]);
+  }, [handleMemberScan, isProcessingScan, stopCamera]);
 
   // Handle Camera lifecycle with robust multi-tier fallback
   const startCamera = async (targetFacingMode = facingMode) => {
     setCameraPermissionError(null);
+    setScanResult(null);
     stopCamera();
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraPermissionError('المتصفح الحالي لا يدعم فتح الكاميرا مباشرة. يمكنك استخدام المسح من صورة أو التسجيل اليدوي أدناه.');
+      setCameraPermissionError('المتصفح الحالي لا يدعم فتح الكاميرا مباشرة. يمكنك استخدام التسجيل المباشر بالأزرار أدناه.');
       return;
     }
 
     let stream: MediaStream | null = null;
 
-    // Tier 1: Try ideal facingMode and resolution
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { 
@@ -185,16 +229,12 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
       });
     } catch (tier1Err) {
       console.warn('Tier 1 camera constraints failed, attempting Tier 2:', tier1Err);
-      
-      // Tier 2: Try basic facingMode
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: targetFacingMode }
         });
       } catch (tier2Err) {
         console.warn('Tier 2 camera constraints failed, attempting Tier 3 generic video:', tier2Err);
-        
-        // Tier 3: Try any generic video device
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: true
@@ -203,7 +243,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
           console.error('All camera initialization tiers failed:', tier3Err);
           let errorMsg = 'تعذر تشغيل الكاميرا. ';
           if (tier3Err.name === 'NotAllowedError' || tier3Err.name === 'PermissionDeniedError') {
-            errorMsg += 'يرجى السماح بصلاحية الكاميرا من إعدادات المتصفح (Permission Allowed).';
+            errorMsg += 'يرجى السماح بصلاحية الكاميرا من إعدادات المتصفح.';
           } else if (tier3Err.name === 'NotFoundError' || tier3Err.name === 'DevicesNotFoundError') {
             errorMsg += 'لم يتم العثور على كاميرا متصلة بالجهاز.';
           } else if (tier3Err.name === 'NotReadableError' || tier3Err.name === 'TrackStartError') {
@@ -247,7 +287,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     return () => {
       stopCamera();
     };
-  }, [isOpen]);
+  }, [isOpen, stopCamera]);
 
   const handleToggleFacingMode = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -269,48 +309,6 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
         console.warn('Torch constraint error:', err);
       }
     }
-  };
-
-  // Decode QR from uploaded image file
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code && code.data) {
-            handleMemberScan('check-in', code.data);
-            showNotification('success', '🎯 تم مسح رمز الـ QR من الصورة بنجاح وتسجيل الحضور!');
-          } else {
-            showNotification('info', 'لم يتم العثور على رمز QR واضح في الصورة المرفوعة.');
-          }
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const stopCamera = () => {
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setIsCameraActive(false);
   };
 
   // Request Real Geolocation
@@ -346,6 +344,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   useEffect(() => {
     if (mode === 'member_scan' && isOpen) {
       requestRealGPS();
+      // Start camera automatically when member opens scan tab
       startCamera();
     } else {
       stopCamera();
@@ -377,14 +376,6 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
     setMode('host_qr');
   };
 
-  const handleExportSessionExcel = () => {
-    const sessionRecords = attendanceRecords.filter(r => 
-      currentSession ? r.sessionId === currentSession.id : true
-    );
-    exportAttendanceToExcel(sessionRecords, currentSession?.title || 'جلسة_الحضور');
-    showNotification('success', 'تم تصدير سجل حضور الجلسة إلى Excel بنجاح');
-  };
-
   const handleExportDailySessionSheet = () => {
     const sessionRecords = attendanceRecords.filter(r => 
       currentSession ? r.sessionId === currentSession.id : true
@@ -400,12 +391,15 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
   );
 
   const myRecordInSession = attendanceRecords.find(a => 
-    a.memberId === currentUser.id && 
-    (currentSession ? a.sessionId === currentSession.id : a.eventId === currentEvent?.id)
+    (a.memberId === currentUser.id || (a.memberVolunteerId && a.memberVolunteerId === currentUser.volunteerId)) && 
+    (currentSession ? a.sessionId === currentSession.id : (a.eventId === currentEvent?.id || a.date === todayStr))
   );
 
   // Active Linked Event for Current Session
   const activeLinkedEvent = events.find(e => e.id === currentSession?.eventId) || (currentSession?.eventId ? { id: currentSession.eventId, name: currentSession.eventName, date: currentSession.eventDate } : todayEvent);
+
+  // Build the live QR value based on host mode
+  const qrCodeUrl = `https://volunteers.alexu.edu.eg/verify-attendance?session=${currentSession?.id || 'live'}&token=${qrToken}&comm=${currentSession?.committeeId || 'all'}&type=${currentSession?.sessionType || 'members'}&event=${currentSession?.eventId || selectedEventId || ''}&action=${hostQRAction}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
@@ -420,7 +414,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-white">
-                  نظام الحضور الذكي المتجدد والـ GPS
+                  منظومة مسح الـ QR والتحقق والـ GPS
                 </h3>
                 <span className="px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
                   Live Sync 🟢
@@ -451,7 +445,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 }`}
               >
                 <QrCode className="w-4 h-4" />
-                <span>شاشة توليد QR الجلسة</span>
+                <span>شاشة كود الـ QR للمشرف</span>
               </button>
 
               <button
@@ -461,7 +455,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 }`}
               >
                 <Plus className="w-4 h-4" />
-                <span>إنشاء كود جلسة جديدة</span>
+                <span>إنشاء جلسة جديدة</span>
               </button>
             </>
           )}
@@ -473,7 +467,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
             }`}
           >
             <Navigation className="w-4 h-4 text-emerald-400" />
-            <span>مسح وتسجيل حضور المتطوع (Scan)</span>
+            <span>مسح كود الحضور والانصراف (Scan)</span>
           </button>
         </div>
 
@@ -529,11 +523,76 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
               </div>
             </div>
 
+            {/* Mode Selector for Host QR Code (Smart Auto vs Checkin vs Checkout) */}
+            <div className="space-y-1.5 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+              <label className="block text-xs font-semibold text-slate-300">
+                نوع عملية المسح المطلوبة من المتطوعين عبر هذا الكود:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHostQRAction('smart')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    hostQRAction === 'smart'
+                      ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>⚡ المسح الذكي الموحد</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHostQRAction('check-in')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    hostQRAction === 'check-in'
+                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-500/20'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>🟢 تسجيل الحضور فقط</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHostQRAction('check-out')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    hostQRAction === 'check-out'
+                      ? 'bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-500/20'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-300" />
+                  <span>🔴 تسجيل الانصراف فقط</span>
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-400 pt-1">
+                {hostQRAction === 'smart' && (
+                  <span className="text-blue-300 font-medium">
+                    💡 <strong>المسح الذكي (موصى به):</strong> يسجل الحضور تلقائياً للمتطوع عند أول مسح، وعندما يمسح نفس الكود في نهاية اليوم يسجل الانصراف ويحسب ساعات التطوع فوراً بدون أي التباس!
+                  </span>
+                )}
+                {hostQRAction === 'check-in' && (
+                  <span className="text-emerald-300 font-medium">
+                    🟢 <strong>كود الحضور:</strong> مخصص لتسجيل دخول المتطوعين في بداية الفعالية وتوثيق وقت الوصول.
+                  </span>
+                )}
+                {hostQRAction === 'check-out' && (
+                  <span className="text-rose-300 font-medium">
+                    🔴 <strong>كود الانصراف:</strong> مخصص لتسجيل انصراف المتطوعين وحساب المدة الإجمالية والساعات الميدانية.
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* QR Card with countdown */}
             <div className="flex flex-col items-center justify-center p-6 bg-slate-900/60 rounded-2xl border border-blue-500/30 text-center space-y-3">
               <div className="p-4 rounded-2xl bg-white shadow-2xl border-4 border-blue-500/40 relative">
                 <QRCodeSVG 
-                  value={`https://volunteers.alexu.edu.eg/verify-attendance?session=${currentSession?.id || 'live'}&token=${qrToken}&comm=${currentSession?.committeeId || 'all'}&type=${currentSession?.sessionType || 'members'}&event=${currentSession?.eventId || selectedEventId || ''}`}
+                  value={qrCodeUrl}
                   size={210}
                   level="H"
                   includeMargin={true}
@@ -585,16 +644,24 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 </div>
               </div>
 
-              {/* Recent 4 Attendees Badges */}
+              {/* Recent Attendees Badges with Check-In & Check-Out status */}
               <div className="flex flex-wrap gap-2 pt-1">
                 {attendeesInThisSession.length === 0 ? (
                   <span className="text-[11px] text-slate-500">في انتظار قيام الأعضاء بالمسح...</span>
                 ) : (
-                  attendeesInThisSession.slice(0, 6).map(att => (
-                    <div key={att.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white">
+                  attendeesInThisSession.slice(0, 8).map(att => (
+                    <div key={att.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white">
                       <img src={att.memberAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                      <span>{att.memberName.split(' ')[0]}</span>
-                      <span className="text-[9px] font-mono text-emerald-400">{att.checkInTime}</span>
+                      <span className="font-semibold">{att.memberName.split(' ')[0]}</span>
+                      {att.checkOutTime ? (
+                        <span className="text-[10px] font-mono text-purple-400 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-500/30">
+                          انصرف: {att.checkOutTime} ({att.durationFormatted})
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                          حاضر: {att.checkInTime}
+                        </span>
+                      )}
                     </div>
                   ))
                 )}
@@ -647,7 +714,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
               </div>
             )}
 
-            {/* Event Linking Selection (Special for Heads and Supreme Leadership) */}
+            {/* Event Linking Selection */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 ربط جلسة الحضور بفعالية معينة (ربط تلقائي لبيانات اليوم والشيت) 🎯
@@ -760,7 +827,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* 3. Member Scan Mode (Real GPS & Live Camera) */}
+        {/* 3. Member Scan Mode (Real GPS & Single-Scan Freeze Camera) */}
         {/* ------------------------------------------------------------- */}
         {mode === 'member_scan' && (
           <div className="space-y-4">
@@ -783,6 +850,9 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                   <p className="text-xs text-slate-400 mt-0.5">
                     {currentUser.currentCommitteeName} • كلية {currentUser.college}
                   </p>
+                  <p className="text-[11px] text-sky-400 font-mono">
+                    {currentUser.universityEmail}
+                  </p>
                 </div>
               </div>
 
@@ -790,10 +860,11 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                 <div className="text-left bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-xl border border-emerald-500/40 text-xs font-bold">
                   <div className="flex items-center gap-1">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>تم تسجيل الحضور ✓</span>
+                    <span>{myRecordInSession.checkOutTime ? 'حضور وانصراف مكتمل ✓' : 'تم تسجيل الحضور ✓'}</span>
                   </div>
                   <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
                     {myRecordInSession.checkInTime}
+                    {myRecordInSession.checkOutTime && ` ➔ ${myRecordInSession.checkOutTime}`}
                   </div>
                 </div>
               ) : (
@@ -862,202 +933,259 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
               </div>
             )}
 
-            {/* Live Camera Scanner Viewport or Visual Scanner Frame */}
-            <div className="relative rounded-2xl overflow-hidden border-2 border-dashed border-sky-500/40 bg-slate-950 p-4 flex flex-col items-center justify-center text-center min-h-[260px]">
-              
-              {isCameraActive ? (
-                <div className="relative w-full max-w-sm rounded-2xl overflow-hidden border-2 border-sky-400 shadow-2xl bg-black aspect-square flex items-center justify-center">
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className="w-full h-full object-cover"
-                  />
-
-                  {/* Darkened overlay mask with center cut-out viewfinder */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    {/* Viewfinder Target Box with size matching real QR codes */}
-                    <div className="relative w-56 h-56 rounded-2xl border-2 border-sky-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] overflow-hidden">
-                      
-                      {/* Corner Targeting Accents */}
-                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
-                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
-                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
-                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
-
-                      {/* Continuous Laser Scanning Beam */}
-                      <div className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-qr-laser" />
-
-                      {/* Center Crosshair indicator */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-30">
-                        <div className="w-8 h-[1px] bg-white" />
-                        <div className="h-8 w-[1px] bg-white" />
-                      </div>
+            {/* Scan Success Confirmation View (When Scan is Complete) */}
+            {scanResult && scanResult.success && (
+              <div className="p-5 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500/60 text-white space-y-4 shadow-2xl animate-in zoom-in-95 duration-300">
+                <div className="flex items-center justify-between border-b border-emerald-500/30 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-emerald-500/40">
+                      <Check className="w-6 h-6 stroke-[3]" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-emerald-300">
+                        {scanResult.actionDone === 'check-out' ? 'تم تسجيل الانصراف بنجاح! 🏁' : 'تم توثيق وتسجيل الحضور بنجاح! 🎯'}
+                      </h4>
+                      <p className="text-[11px] text-emerald-200/80">
+                        تم ربط البيانات بحسابك وإيميلك الجامعي وحفظها فورياً بقاعدة البيانات وشيت التقييم
+                      </p>
                     </div>
                   </div>
-                  
-                  {/* Top Controls Overlay */}
-                  <div className="absolute top-3 inset-x-3 flex items-center justify-between px-2 z-10">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleToggleFacingMode}
-                        className="px-2.5 py-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold flex items-center gap-1.5 hover:bg-black/90 cursor-pointer shadow-lg"
-                      >
-                        <FlipHorizontal className="w-3.5 h-3.5 text-sky-400" />
-                        <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
-                      </button>
 
-                      <button
-                        type="button"
-                        onClick={toggleTorch}
-                        className={`p-1.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-lg ${
-                          isTorchOn 
-                            ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-amber-500/30' 
-                            : 'bg-black/75 backdrop-blur-md border-white/20 text-slate-300 hover:text-white'
-                        }`}
-                        title="تشغيل/إيقاف الفلاش"
-                      >
-                        <Zap className={`w-3.5 h-3.5 ${isTorchOn ? 'text-slate-950 fill-current' : 'text-amber-400'}`} />
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="p-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-rose-400 hover:text-rose-300 cursor-pointer shadow-lg"
-                      title="إيقاف الكاميرا"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Bottom Status Pill */}
-                  <div className="absolute bottom-3 inset-x-3 py-1.5 px-3 rounded-xl bg-slate-950/85 backdrop-blur-md text-center text-[11px] font-bold border border-slate-800 shadow-xl z-10">
-                    {isProcessingScan ? (
-                      <span className="text-amber-400 animate-pulse">⏳ جاري التحقق وتوثيق الحضور والـ GPS...</span>
-                    ) : (
-                      <span className="text-emerald-300 flex items-center justify-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                        <span>الكاميرا تعمل: وجه المربع نحو كود المشرف وسيلتقطه فورياً</span>
-                      </span>
-                    )}
-                  </div>
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-mono font-bold border border-emerald-500/40">
+                    {scanResult.actionDone === 'check-out' ? '+15 XP' : '+25 XP'} 🎉
+                  </span>
                 </div>
-              ) : (
-                <>
-                  {/* Visual Scanner Frame */}
-                  <div className="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mb-3 shadow-lg">
-                    <QrCode className="w-8 h-8 animate-pulse" />
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">المتطوع:</span>
+                    <strong className="text-white">{currentUser.fullName}</strong>
                   </div>
 
-                  <h4 className="text-sm font-bold text-white mb-1">
-                    مسح كود الحضور بالكاميرا المباشرة
-                  </h4>
-                  <p className="text-xs text-slate-400 max-w-sm mb-3">
-                    اضغط تشغيل الكاميرا لتوجيهها نحو كود المشرف وسيقوم النظام بفك التشفير وتوثيق الحضور والـ GPS تلقائياً
-                  </p>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => startCamera()}
-                      className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-blue-600/30"
-                    >
-                      <Camera className="w-4 h-4" />
-                      <span>تشغيل كاميرا المسح الآن 📷</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="btn-secondary text-xs py-2 px-3.5 flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white border-slate-700"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-sky-400" />
-                      <span>مسح كود QR من صورة 📁</span>
-                    </button>
+                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">وقت الحضور:</span>
+                    <strong className="text-emerald-400 font-mono">
+                      {scanResult.record?.checkInTime || 'تم التسجيل'}
+                    </strong>
                   </div>
-                </>
-              )}
 
-              {/* Hidden File Input for Image QR Decoding */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-
-              {/* Manual Backup Input & Action Buttons */}
-              <div className="space-y-3 mt-4 pt-3 z-10 border-t border-slate-800/80 w-full">
-                {/* Manual Code / Token Direct Entry */}
-                <div className="flex flex-col sm:flex-row items-center gap-2">
-                  <input
-                    type="text"
-                    value={manualCodeInput}
-                    onChange={(e) => setManualCodeInput(e.target.value)}
-                    placeholder="أدخل كود الجلسة أو رمز الـ QR يدوياً إذا تعذرت الكاميرا..."
-                    className="glass-input text-xs w-full py-2"
-                  />
-                  {manualCodeInput.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleMemberScan('check-in', manualCodeInput.trim());
-                        setManualCodeInput('');
-                      }}
-                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-all"
-                    >
-                      تسجيل بالكود
-                    </button>
+                  {scanResult.actionDone === 'check-out' && (
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-slate-400 block text-[10px]">وقت الانصراف والمدة:</span>
+                      <strong className="text-purple-400 font-mono">
+                        {scanResult.record?.checkOutTime} ({scanResult.record?.durationFormatted})
+                      </strong>
+                    </div>
                   )}
+
+                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 col-span-2 sm:col-span-3">
+                    <span className="text-slate-400 block text-[10px]">الموقع الجغرافي الموثق (GPS):</span>
+                    <span className="text-slate-200 font-mono text-[11px]">
+                      📍 {scanResult.record?.gpsLocation?.address || gpsData?.address || 'جامعة الإسكندرية (الموقع الميداني)'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-3">
+                <div className="flex items-center justify-end gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => handleMemberScan('check-in')}
-                    className="flex-1 min-w-[140px] py-2 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    onClick={() => startCamera()}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>تأكيد الحضور المباشر (Check-In)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleMemberScan('check-out')}
-                    className="flex-1 min-w-[140px] py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Clock className="w-3.5 h-3.5 text-sky-400" />
-                    <span>تسجيل الانصراف (Check-Out)</span>
+                    <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+                    <span>مسح كود آخر 📷</span>
                   </button>
                 </div>
               </div>
+            )}
 
-            </div>
+            {/* Live Camera Scanner Viewport */}
+            {(!scanResult || !scanResult.success) && (
+              <div className="relative rounded-2xl overflow-hidden border-2 border-dashed border-sky-500/40 bg-slate-950 p-4 flex flex-col items-center justify-center text-center min-h-[260px]">
+                
+                {isCameraActive ? (
+                  <div className="relative w-full max-w-sm rounded-2xl overflow-hidden border-2 border-sky-400 shadow-2xl bg-black aspect-square flex items-center justify-center">
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted 
+                      className="w-full h-full object-cover"
+                    />
 
-            {/* Scan Feedback Alert */}
-            {scanResult && (
+                    {/* Darkened overlay mask with center cut-out viewfinder */}
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="relative w-56 h-56 rounded-2xl border-2 border-sky-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] overflow-hidden">
+                        
+                        {/* Corner Targeting Accents */}
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+
+                        {/* Continuous Laser Scanning Beam */}
+                        <div className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-qr-laser" />
+
+                        {/* Center Crosshair indicator */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                          <div className="w-8 h-[1px] bg-white" />
+                          <div className="h-8 w-[1px] bg-white" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Top Controls Overlay */}
+                    <div className="absolute top-3 inset-x-3 flex items-center justify-between px-2 z-10">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleToggleFacingMode}
+                          className="px-2.5 py-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold flex items-center gap-1.5 hover:bg-black/90 cursor-pointer shadow-lg"
+                        >
+                          <FlipHorizontal className="w-3.5 h-3.5 text-sky-400" />
+                          <span>{facingMode === 'environment' ? 'الكاميرا الأمامية' : 'الكاميرا الخلفية'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={toggleTorch}
+                          className={`p-1.5 rounded-xl border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-lg ${
+                            isTorchOn 
+                              ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-amber-500/30' 
+                              : 'bg-black/75 backdrop-blur-md border-white/20 text-slate-300 hover:text-white'
+                          }`}
+                          title="تشغيل/إيقاف الفلاش"
+                        >
+                          <Zap className={`w-3.5 h-3.5 ${isTorchOn ? 'text-slate-950 fill-current' : 'text-amber-400'}`} />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="p-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-rose-400 hover:text-rose-300 cursor-pointer shadow-lg"
+                        title="إيقاف الكاميرا"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Bottom Status Pill */}
+                    <div className="absolute bottom-3 inset-x-3 py-1.5 px-3 rounded-xl bg-slate-950/85 backdrop-blur-md text-center text-[11px] font-bold border border-slate-800 shadow-xl z-10">
+                      {isProcessingScan ? (
+                        <span className="text-amber-400 animate-pulse">⏳ جاري التحقق وتوثيق الحضور والـ GPS...</span>
+                      ) : (
+                        <span className="text-emerald-300 flex items-center justify-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                          <span>الكاميرا تعمل: عند توجيه المربع للكود سيتم المسح مرة واحدة فوراً</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Visual Scanner Frame */}
+                    <div className="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mb-3 shadow-lg">
+                      <QrCode className="w-8 h-8 animate-pulse" />
+                    </div>
+
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      مسح كود الـ QR بالكاميرا المباشرة
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-sm mb-3">
+                      اضغط تشغيل الكاميرا لتوجيهها نحو كود المشرف وسيقوم النظام بالتقاطه وتسجيل الحضور والانصراف مرة واحدة وتوثيق الـ GPS
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startCamera()}
+                        className="btn-primary text-xs py-2 px-5 flex items-center gap-2 cursor-pointer shadow-lg shadow-blue-600/30"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>تشغيل كاميرا المسح الفوري 📷</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Manual Backup Input & Action Buttons */}
+                <div className="space-y-3 mt-4 pt-3 z-10 border-t border-slate-800/80 w-full">
+                  {/* Manual Code / Token Direct Entry */}
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <input
+                      type="text"
+                      value={manualCodeInput}
+                      onChange={(e) => setManualCodeInput(e.target.value)}
+                      placeholder="أدخل كود الجلسة أو رمز الـ QR يدوياً إذا تعذرت الكاميرا..."
+                      className="glass-input text-xs w-full py-2"
+                    />
+                    {manualCodeInput.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleMemberScan('auto', manualCodeInput.trim());
+                          setManualCodeInput('');
+                        }}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-all"
+                      >
+                        تسجيل بالكود
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Direct One-Click Smart Attendance Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleMemberScan('auto')}
+                      className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Zap className="w-4 h-4 text-amber-300" />
+                      <span>⚡ مسح ذكي (Auto)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMemberScan('check-in')}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold text-xs border border-emerald-500/40 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>🟢 تسجيل حضور</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMemberScan('check-out')}
+                      className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-rose-300" />
+                      <span>🔴 تسجيل انصراف</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* Scan Feedback Alert (Error or Info) */}
+            {scanResult && !scanResult.success && (
               <div className={`p-4 rounded-xl border text-xs flex items-center gap-2.5 animate-in slide-in-from-top duration-300 ${
-                scanResult.success 
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
+                scanResult.isCompleted
+                  ? 'bg-blue-500/20 border-blue-500/40 text-blue-300'
                   : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
               }`}>
-                {scanResult.success ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                )}
-                <div>
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <div className="flex-1">
                   <div className="font-bold">{scanResult.message}</div>
-                  {scanResult.success && (
-                    <div className="text-[10px] text-emerald-400 mt-0.5">
-                      تمت إضافة +25 XP إلى ملفك التطوعي ورفع نسبة الحضور! 🎉
-                    </div>
-                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => startCamera()}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-bold"
+                >
+                  مسح مجدداً
+                </button>
               </div>
             )}
 
