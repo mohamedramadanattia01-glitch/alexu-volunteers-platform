@@ -45,6 +45,7 @@ import { CelebrationOverlay } from './components/common/CelebrationOverlay';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PendingApprovalsModal } from './components/members/PendingApprovalsModal';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
+import { PushNotificationBanner } from './components/common/PushNotificationBanner';
 import { SplashScreen } from './components/common/SplashScreen';
 import { Member, Task, EventEntity } from './types';
 
@@ -118,6 +119,11 @@ const MainAppContent: React.FC = () => {
         onOpenComplaintModal={() => setIsComplaintModalOpen(true)}
         onOpenApprovalsModal={() => setIsPendingApprovalsOpen(true)}
       />
+
+      {/* Push Notification Activation Banner */}
+      <div className="max-w-7xl mx-auto w-full">
+        <PushNotificationBanner />
+      </div>
 
       {/* Main Layout Body */}
       <div className="max-w-7xl mx-auto w-full flex flex-1 overflow-x-hidden">

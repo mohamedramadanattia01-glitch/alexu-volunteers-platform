@@ -86,6 +86,7 @@ interface AppContextType {
   notificationPermission: NotificationPermission | 'unsupported';
   requestNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
   dispatchPushNotification: (title: string, message: string, type?: SystemNotification['type']) => Promise<boolean>;
+  testPushNotification: () => Promise<boolean>;
   complaints: Complaint[];
   soundSettings: AppSoundSettings;
   branding: AppBrandingSettings;
@@ -1022,14 +1023,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return [taskObj, ...prev];
             });
 
-            if (taskObj.createdByMemberId !== currentUserId) {
-              const isAssignedToMe = taskObj.assignedToMemberIds.includes(currentUserId);
-              if (isAssignedToMe) {
+            if (eventType === 'INSERT') {
+              if (taskObj.createdByMemberId !== currentUserId) {
+                const isAssignedToMe = taskObj.assignedToMemberIds.includes(currentUserId);
+                if (isAssignedToMe) {
+                  playSound('task');
+                  showNotification('info', `📋 مهمة جديدة مسندة إليك: "${taskObj.title}"`);
+                  sendSystemPushNotification({
+                    title: '📋 تكليف بمهمة جديدة',
+                    body: `تم تكليفك بمهمة "${taskObj.title}" (${taskObj.committeeName}) • +${taskObj.xpReward} XP`,
+                    type: 'task',
+                    data: { url: '/?tab=tasks', taskId: taskObj.id }
+                  });
+                } else if (taskObj.committeeId === currentUser.currentCommitteeId && (currentUser.role === 'head' || currentUser.role === 'vice_head')) {
+                  playSound('task');
+                  showNotification('info', `📋 تم إنشاء مهمة جديدة في لجنتك: "${taskObj.title}"`);
+                  sendSystemPushNotification({
+                    title: '📋 مهمة جديدة في لجنتك',
+                    body: `تم إنشاء مهمة "${taskObj.title}" بواسطة ${taskObj.createdByMemberName}`,
+                    type: 'task',
+                    data: { url: '/?tab=tasks', taskId: taskObj.id }
+                  });
+                }
+              }
+            } else if (eventType === 'UPDATE') {
+              // Check if member submitted task
+              if (taskObj.submission && (taskObj.createdByMemberId === currentUserId || (taskObj.committeeId === currentUser.currentCommitteeId && (currentUser.role === 'head' || currentUser.role === 'vice_head')))) {
                 playSound('task');
-                showNotification('info', `📋 مهمة جديدة مسندة إليك: "${taskObj.title}"`);
-              } else if (taskObj.committeeId === currentUser.currentCommitteeId && (currentUser.role === 'head' || currentUser.role === 'vice_head')) {
-                playSound('task');
-                showNotification('info', `📋 تم إنشاء مهمة جديدة في لجنتك: "${taskObj.title}"`);
+                showNotification('info', `📤 تم تسليم مخرجات المهمة: "${taskObj.title}" للمراجعة`);
+                sendSystemPushNotification({
+                  title: '📤 تسليم مخرجات مهمة',
+                  body: `تم تسليم مخرجات المهمة "${taskObj.title}" للمراجعة والتقييم`,
+                  type: 'task',
+                  data: { url: '/?tab=tasks', taskId: taskObj.id }
+                });
+              }
+              // Check if task approved/evaluated
+              if (taskObj.status === 'Approved' && taskObj.assignedToMemberIds.includes(currentUserId)) {
+                playSound('achievement');
+                showNotification('success', `🎉 تم اعتماد وتقييم مهمتك: "${taskObj.title}" (+${taskObj.awardedPoints || taskObj.xpReward} XP)`);
+                sendSystemPushNotification({
+                  title: '🎉 اعتماد وتقييم المهمة بنجاح',
+                  body: `تم اعتماد مهمتك "${taskObj.title}" وحصلت على ${taskObj.awardedPoints || taskObj.xpReward} XP!`,
+                  type: 'achievement',
+                  data: { url: '/?tab=tasks', taskId: taskObj.id }
+                });
               }
             }
           } else if (eventType === 'DELETE') {
@@ -1071,6 +1109,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (eventType === 'INSERT' && eventObj.eventManagerId !== currentUserId) {
               playSound('announcement');
               showNotification('info', `📅 فعالية جديدة: "${eventObj.name}" بتاريخ ${eventObj.date} في ${eventObj.location}`);
+              sendSystemPushNotification({
+                title: `📅 فعالية جديدة: ${eventObj.name}`,
+                body: `بتاريخ ${eventObj.date} في ${eventObj.location} (${eventObj.startTime} - ${eventObj.endTime}) - يرجى تسجيل تأكيد الحضور (RSVP)`,
+                type: 'event',
+                data: { url: '/?tab=events', eventId: eventObj.id }
+              });
+            } else if (eventType === 'UPDATE') {
+              if ((eventObj.status === 'Live' || eventObj.liveDashboardActive) && eventObj.eventManagerId !== currentUserId) {
+                playSound('alert');
+                showNotification('warning', `🔴 انطلاق غرفة العمليات الميدانية لفعالية: "${eventObj.name}"`);
+                sendSystemPushNotification({
+                  title: `🔴 انطلاق غرفة العمليات الميدانية`,
+                  body: `بدأت الآن التغطية الحية لفعالية "${eventObj.name}" في ${eventObj.location}`,
+                  type: 'sos',
+                  data: { url: '/?tab=events', eventId: eventObj.id }
+                });
+              }
             }
           } else if (eventType === 'DELETE') {
             setEvents(prev => prev.filter(e => e.id !== oldRow.id));
@@ -1098,7 +1153,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (exists) return prev.map(a => a.id === annObj.id ? annObj : a);
               return [annObj, ...prev];
             });
-            playSound('announcement');
+
+            if (eventType === 'INSERT' && annObj.authorName !== currentUser.fullName) {
+              const isTargetMe = annObj.targetType === 'all' || 
+                                 annObj.targetType === 'members' ||
+                                 (annObj.targetType === 'committee' && annObj.targetCommitteeId === currentUser.currentCommitteeId);
+              if (isTargetMe) {
+                playSound('announcement');
+                if (annObj.poll) {
+                  showNotification('info', `📊 استطلاع رأي وتصويت مطلوب: "${annObj.title}"`);
+                  sendSystemPushNotification({
+                    title: '📊 استطلاع رأي وتصويت جديد',
+                    body: `${annObj.title} - شارك برأيك وصوتك الآن في المنظومة`,
+                    type: 'announcement',
+                    data: { url: '/?tab=announcements', annId: annObj.id }
+                  });
+                } else {
+                  showNotification('info', `📢 إعلان وتعميم إداري جديد: "${annObj.title}"`);
+                  sendSystemPushNotification({
+                    title: '📢 تعميم إداري رسمي',
+                    body: `${annObj.title} (من: ${annObj.authorName})`,
+                    type: 'announcement',
+                    data: { url: '/?tab=announcements', annId: annObj.id }
+                  });
+                }
+              }
+            }
           } else if (eventType === 'DELETE') {
             setAnnouncements(prev => prev.filter(a => a.id !== oldRow.id));
           }
@@ -1126,12 +1206,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return [notifObj, ...prev];
             });
 
-            if (notifObj.type === 'sos') {
-              playSound('alert');
-              showNotification('error', `🚨 ${notifObj.title}: ${notifObj.message}`);
+            if (eventType === 'INSERT') {
+              const isForMe = !notifObj.targetMemberIds || notifObj.targetMemberIds.length === 0 || notifObj.targetMemberIds.includes(currentUserId);
+              const isForMyComm = !notifObj.targetCommitteeId || notifObj.targetCommitteeId === 'all' || notifObj.targetCommitteeId === currentUser.currentCommitteeId;
+              
+              if (isForMe && isForMyComm && notifObj.senderName !== currentUser.fullName) {
+                if (notifObj.type === 'sos') {
+                  playSound('alert');
+                  showNotification('error', `🚨 ${notifObj.title}: ${notifObj.message}`);
+                  sendSystemPushNotification({
+                    title: `🚨 ${notifObj.title}`,
+                    body: notifObj.message,
+                    type: 'sos',
+                    data: { url: notifObj.linkTab ? `/?tab=${notifObj.linkTab}` : '/' }
+                  });
+                } else {
+                  playSound(notifObj.type || 'task');
+                  sendSystemPushNotification({
+                    title: notifObj.title,
+                    body: notifObj.message,
+                    type: notifObj.type || 'task',
+                    data: { url: notifObj.linkTab ? `/?tab=${notifObj.linkTab}` : '/' }
+                  });
+                }
+              }
             }
           } else if (eventType === 'DELETE') {
             setNotifications(prev => prev.filter(n => n.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'live_voice_orders') {
+          if (eventType === 'INSERT') {
+            if (newRow && newRow.sender_name !== currentUser.fullName) {
+              const targetComm = newRow.target_committee;
+              if (!targetComm || targetComm === 'all' || targetComm === currentUser.currentCommitteeId) {
+                playSound('alert');
+                showNotification('warning', `🎙️ توجيه صوتي عاجل من القيادة: "${newRow.title}"`);
+                sendSystemPushNotification({
+                  title: '🎙️ توجيه صوتي عاجل من القيادة',
+                  body: `${newRow.title} (صادر من: ${newRow.sender_name}) - انقر للاستماع الآن`,
+                  type: 'voice',
+                  data: { url: '/?tab=events', audioUrl: newRow.audio_url }
+                });
+              }
+            }
+          }
+        }
+
+        if (table === 'attendance_sessions') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const sessObj: AttendanceSession = {
+              id: newRow.id,
+              title: newRow.title,
+              committeeId: newRow.committee_id,
+              committeeName: newRow.committee_name,
+              createdByMemberId: newRow.created_by_id,
+              createdByMemberName: newRow.created_by_name,
+              createdByRole: newRow.created_by_role,
+              createdAt: newRow.created_at,
+              requireGPS: newRow.require_gps,
+              sessionType: newRow.session_type || 'members',
+              eventId: newRow.event_id,
+              eventName: newRow.event_name,
+              eventDate: newRow.event_date,
+              qrToken: newRow.qr_token,
+              isActive: newRow.is_active,
+              notes: newRow.notes
+            };
+            setAttendanceSessions(prev => {
+              const exists = prev.some(s => s.id === sessObj.id);
+              if (exists) return prev.map(s => s.id === sessObj.id ? sessObj : s);
+              return [sessObj, ...prev];
+            });
+
+            if (eventType === 'INSERT' && sessObj.createdByMemberId !== currentUserId) {
+              const isComm = sessObj.committeeId === 'all' || sessObj.committeeId === currentUser.currentCommitteeId;
+              if (isComm) {
+                playSound('task');
+                showNotification('info', `📌 بدأت جلسة تسجيل حضور جديدة: "${sessObj.title}"`);
+                sendSystemPushNotification({
+                  title: '📌 بدء تسجيل الحضور والانصراف',
+                  body: `تم فتح جلسة التحضير "${sessObj.title}" - يرجى تسجيل حضورك الآن بالباركود أو الموقع`,
+                  type: 'task',
+                  data: { url: '/?tab=attendance' }
+                });
+              }
+            }
+          } else if (eventType === 'DELETE') {
+            setAttendanceSessions(prev => prev.filter(s => s.id !== oldRow.id));
           }
         }
 
@@ -1158,6 +1321,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (exists) return prev.map(e => e.id === evalObj.id ? evalObj : e);
               return [evalObj, ...prev];
             });
+
+            if (evalObj.memberId === currentUserId && evalObj.evaluatorId !== currentUserId) {
+              playSound('achievement');
+              showNotification('success', `🌟 تم تسجيل تقييم أداء جديد لك بنسبة ${evalObj.percentage}%`);
+              sendSystemPushNotification({
+                title: '🌟 تقييم أداء جديد معتمد',
+                body: `حصلت على نسبة ${evalObj.percentage}% في تقييم أدائك الأخير من ${evalObj.evaluatorName}`,
+                type: 'achievement',
+                data: { url: '/?tab=evaluations' }
+              });
+            }
           } else if (eventType === 'DELETE') {
             setMemberEvaluations(prev => prev.filter(e => e.id !== oldRow.id));
           }
@@ -1223,6 +1397,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (exists) return prev.map(c => c.id === compObj.id ? compObj : c);
               return [compObj, ...prev];
             });
+
+            if (eventType === 'UPDATE' && compObj.senderId === currentUserId && compObj.respondedBy && compObj.respondedBy !== currentUser.fullName) {
+              playSound('task');
+              showNotification('info', `📬 تم الرد على طلبك/شكواك: "${compObj.title}"`);
+              sendSystemPushNotification({
+                title: '📬 تحديث بخصوص طلبك / شكواك',
+                body: `تم الرد على: "${compObj.title}" بواسطة ${compObj.respondedBy} (${compObj.status})`,
+                type: 'complaint',
+                data: { url: '/?tab=complaints' }
+              });
+            }
           } else if (eventType === 'DELETE') {
             setComplaints(prev => prev.filter(c => c.id !== oldRow.id));
           }
@@ -1323,36 +1508,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           } else if (eventType === 'DELETE') {
             setAttendanceRecords(prev => prev.filter(a => a.id !== oldRow.id));
-          }
-        }
-
-        if (table === 'attendance_sessions') {
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-            const sessObj: AttendanceSession = {
-              id: newRow.id,
-              title: newRow.title,
-              committeeId: newRow.committee_id,
-              committeeName: newRow.committee_name,
-              createdByMemberId: newRow.created_by_id,
-              createdByMemberName: newRow.created_by_name,
-              createdByRole: newRow.created_by_role,
-              createdAt: newRow.created_at,
-              requireGPS: newRow.require_gps,
-              sessionType: newRow.session_type || 'members',
-              eventId: newRow.event_id,
-              eventName: newRow.event_name,
-              eventDate: newRow.event_date,
-              qrToken: newRow.qr_token,
-              isActive: newRow.is_active,
-              notes: newRow.notes
-            };
-            setAttendanceSessions(prev => {
-              const exists = prev.some(s => s.id === sessObj.id);
-              if (exists) return prev.map(s => s.id === sessObj.id ? sessObj : s);
-              return [sessObj, ...prev];
-            });
-          } else if (eventType === 'DELETE') {
-            setAttendanceSessions(prev => prev.filter(s => s.id !== oldRow.id));
           }
         }
 
@@ -1521,9 +1676,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const perm = await reqPushPerm();
     setNotificationPermission(perm);
     if (perm === 'granted') {
-      showNotification('success', 'تم تفعيل إشعارات الهاتف بنجاح! ستصلك التنبيهات الميدانية والمهام دائماً 🔔');
+      showNotification('success', 'تم تفعيل إشعارات الهاتف بنجاح! ستصلك التنبيهات الميدانية والمهام لحظياً 🔔');
+      if (currentUserId) {
+        SupabaseService.savePushSubscription(currentUserId, {
+          status: 'granted',
+          timestamp: new Date().toISOString()
+        }).catch(err => console.warn('Sync push sub error:', err));
+      }
     }
     return perm;
+  };
+
+  // Test Push Notification helper
+  const testPushNotification = async (): Promise<boolean> => {
+    playSound('achievement');
+    return await sendSystemPushNotification({
+      title: '🔔 اختبار وصول الإشعارات الفورية بنجاح',
+      body: 'منظومة متطوعين جامعة الإسكندرية متصلة بجهازك وتستقبل الإشعارات لحظياً خارج التطبيق! 🚀',
+      type: 'achievement',
+      icon: '/logo.png',
+      badge: '/logo.png',
+      tag: `test-push-${Date.now()}`,
+      data: { url: '/' }
+    });
   };
 
   // Dispatch System Push Notification (Mobile Lockscreen / Background & Foreground)
@@ -4514,6 +4689,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notificationPermission,
         requestNotificationPermission,
         dispatchPushNotification,
+        testPushNotification,
         complaints,
         soundSettings,
         branding,

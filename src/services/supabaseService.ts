@@ -1215,6 +1215,103 @@ export class SupabaseService {
     }
   }
 
+  // ==========================================
+  // PUSH SUBSCRIPTIONS (Mobile & Web)
+  // ==========================================
+  static async savePushSubscription(memberId: string, subscription: any) {
+    if (!isSupabaseConfigured() || !supabase || !memberId) return;
+    try {
+      const subId = `sub-${memberId}-${typeof window !== 'undefined' && navigator.userAgent ? btoa(navigator.userAgent).slice(0, 16) : 'device'}`;
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        id: subId,
+        member_id: memberId,
+        subscription: subscription,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+      if (error) console.warn('savePushSubscription note:', error);
+    } catch (e) {
+      console.warn('savePushSubscription failed:', e);
+    }
+  }
+
+  static async deletePushSubscription(memberId: string) {
+    if (!isSupabaseConfigured() || !supabase || !memberId) return;
+    try {
+      await supabase.from('push_subscriptions').delete().eq('member_id', memberId);
+    } catch (e) {
+      console.warn('deletePushSubscription error:', e);
+    }
+  }
+
+  // ==========================================
+  // LIVE VOICE ORDERS & DIRECTIVES
+  // ==========================================
+  static async saveLiveVoiceOrder(order: {
+    id: string;
+    eventId?: string;
+    senderName: string;
+    senderRole?: string;
+    time?: string;
+    title: string;
+    audioUrl?: string;
+    duration?: number;
+    priority?: string;
+    targetCommittee?: string;
+  }) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      const { error } = await supabase.from('live_voice_orders').upsert({
+        id: order.id,
+        event_id: order.eventId || null,
+        sender_name: order.senderName,
+        sender_role: order.senderRole || null,
+        time: order.time || null,
+        title: order.title,
+        audio_url: order.audioUrl || null,
+        duration: order.duration || 0,
+        priority: order.priority || 'urgent',
+        target_committee: order.targetCommittee || null,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+      if (error) console.warn('saveLiveVoiceOrder error:', error);
+    } catch (e) {
+      console.warn('saveLiveVoiceOrder failed:', e);
+    }
+  }
+
+  static async getLiveVoiceOrders(): Promise<any[]> {
+    if (!isSupabaseConfigured() || !supabase) return [];
+    try {
+      const { data, error } = await supabase.from('live_voice_orders').select('*').order('created_at', { ascending: false }).limit(50);
+      if (error) return [];
+      return (data || []).map(r => ({
+        id: r.id,
+        eventId: r.event_id,
+        senderName: r.sender_name,
+        senderRole: r.sender_role,
+        time: r.time,
+        title: r.title,
+        audioUrl: r.audio_url,
+        duration: r.duration,
+        priority: r.priority,
+        targetCommittee: r.target_committee,
+        createdAt: r.created_at
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  static async deleteLiveVoiceOrder(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('live_voice_orders').delete().eq('id', id);
+    } catch (e) {
+      console.warn('deleteLiveVoiceOrder error:', e);
+    }
+  }
+
   /**
    * Subscribe to all postgres_changes in real time
    */

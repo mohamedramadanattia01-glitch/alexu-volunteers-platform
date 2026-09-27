@@ -437,6 +437,31 @@ CREATE TABLE IF NOT EXISTS public.banned_users (
     banned_by TEXT
 );
 
+-- 14. PUSH NOTIFICATION SUBSCRIPTIONS (Mobile PWA & Web Push)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
+    subscription JSONB NOT NULL,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. LIVE VOICE ORDERS & DIRECTIVES (Live Command Center)
+CREATE TABLE IF NOT EXISTS public.live_voice_orders (
+    id TEXT PRIMARY KEY,
+    event_id TEXT REFERENCES public.events(id) ON DELETE CASCADE,
+    sender_name TEXT NOT NULL,
+    sender_role TEXT,
+    time TEXT,
+    title TEXT NOT NULL,
+    audio_url TEXT,
+    duration NUMERIC DEFAULT 0,
+    priority TEXT DEFAULT 'urgent',
+    target_committee TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- STORAGE BUCKETS CONFIGURATION (Public Read Access)
 -- ==============================================================================
@@ -493,9 +518,17 @@ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_voice_orders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable all for banned_users" ON public.banned_users;
 CREATE POLICY "Enable all for banned_users" ON public.banned_users FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for push_subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Enable all for push_subscriptions" ON public.push_subscriptions FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for live_voice_orders" ON public.live_voice_orders;
+CREATE POLICY "Enable all for live_voice_orders" ON public.live_voice_orders FOR ALL USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.members;
 DROP POLICY IF EXISTS "Enable insert for all users" ON public.members;
@@ -643,4 +676,7 @@ BEGIN
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.system_notifications; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.banned_users; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.push_subscriptions; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.live_voice_orders; EXCEPTION WHEN OTHERS THEN NULL; END;
 END $$;
+

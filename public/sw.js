@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alexu-volunteers-v3';
+const CACHE_NAME = 'alexu-volunteers-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -70,8 +70,8 @@ self.addEventListener('message', (event) => {
       body: options?.body || 'إشعار جديد من فريق متطوعين جامعة الإسكندرية',
       icon: options?.icon || '/logo.png',
       badge: options?.badge || '/logo.png',
-      image: options?.image || options?.icon || '/logo.png',
-      vibrate: options?.vibrate || [200, 100, 200, 100, 400],
+      image: options?.image || undefined,
+      vibrate: options?.vibrate || [250, 100, 250, 100, 450],
       tag: options?.tag || `notif-${Date.now()}`,
       requireInteraction: options?.requireInteraction ?? true,
       renotify: options?.renotify ?? true,
@@ -96,12 +96,15 @@ self.addEventListener('push', (event) => {
     title: '👑 إشعار من منظومة متطوعين جامعة الإسكندرية', 
     body: 'تحديث جديد في منظومة متطوعين اتحاد طلاب جامعة الإسكندرية', 
     icon: '/logo.png',
-    type: 'announcement'
+    badge: '/logo.png',
+    type: 'announcement',
+    tag: `push-${Date.now()}`,
+    url: '/'
   };
 
   try {
     if (event.data) {
-      data = event.data.json();
+      data = Object.assign(data, event.data.json());
     }
   } catch (e) {
     if (event.data) {
@@ -109,16 +112,20 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const isSOS = data.type === 'sos' || data.type === 'alert';
   const options = {
     body: data.body,
     icon: data.icon || '/logo.png',
     badge: data.badge || '/logo.png',
-    image: data.image || data.icon || '/logo.png',
-    vibrate: [250, 100, 250, 100, 450],
-    data: data.url || '/',
+    image: data.image || undefined,
+    vibrate: isSOS ? [350, 100, 350, 100, 600, 100, 600] : [250, 100, 250, 100, 450],
+    data: {
+      url: data.url || '/',
+      type: data.type
+    },
     dir: 'rtl',
     lang: 'ar',
-    requireInteraction: true,
+    requireInteraction: isSOS,
     renotify: true,
     tag: data.tag || `push-${Date.now()}`,
     actions: [
@@ -127,10 +134,11 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'فريق متطوعين AU', options)
+    self.registration.showNotification(data.title || 'فريق متطوعين جامعة الإسكندرية', options)
   );
 });
 
+// Notification click handler - navigates to app or focuses window
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const notifData = event.notification.data;
@@ -140,6 +148,9 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (let client of windowClients) {
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
+          if ('navigate' in client && urlToOpen && urlToOpen !== '/') {
+            client.navigate(urlToOpen);
+          }
           return client.focus();
         }
       }

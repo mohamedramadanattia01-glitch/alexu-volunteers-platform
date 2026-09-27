@@ -28,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     currentUser, 
     sosAlerts, notifications, markNotificationRead, 
     markAllNotificationsRead, deleteNotification, clearAllNotifications,
-    notificationPermission, requestNotificationPermission,
+    notificationPermission, requestNotificationPermission, testPushNotification,
     setActiveTab,
     branding, complaints, isHighLeadership, pendingMembers, logout
   } = useApp();
@@ -305,12 +305,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="mb-2.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-[10px] text-emerald-400">
+                  <div className="mb-2.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-2 text-[10px] text-emerald-400">
                     <span className="flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       إشعارات الهاتف بالخلفية مفعلة ونشطة
                     </span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">خارج التطبيق ✓</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        testPushNotification();
+                      }}
+                      className="text-[9px] px-2 py-0.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 transition-all font-bold cursor-pointer"
+                    >
+                      🔔 اختبار الإشعار
+                    </button>
                   </div>
                 )}
 

@@ -10,7 +10,9 @@ import {
 import { VoiceRecorder } from '../common/VoiceRecorder';
 import { VoicePlayer } from '../common/VoicePlayer';
 import { CommitteeBadge } from '../common/CommitteeBadge';
-import { EventEntity } from '../../types';
+import { EventEntity, SystemNotification } from '../../types';
+import { SupabaseService } from '../../services/supabaseService';
+import { sendSystemPushNotification } from '../../utils/pushNotifications';
 
 interface LiveCommandCenterProps {
   onOpenSOSModal: () => void;
@@ -63,6 +65,22 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
   useEffect(() => {
     localStorage.setItem(STORAGE_VOICE_KEY, JSON.stringify(voiceOrders));
   }, [voiceOrders]);
+
+  // Load Cloud Voice Orders
+  useEffect(() => {
+    SupabaseService.getLiveVoiceOrders().then(cloudOrders => {
+      if (cloudOrders && cloudOrders.length > 0) {
+        setVoiceOrders(prev => {
+          const map = new Map(cloudOrders.map(o => [o.id, o]));
+          const merged = [...cloudOrders];
+          prev.forEach(p => {
+            if (!map.has(p.id)) merged.push(p);
+          });
+          return merged;
+        });
+      }
+    }).catch(e => console.warn('Load voice orders note:', e));
+  }, []);
 
   // Tactical Sectors
   const [sectors, setSectors] = useState<SectorStatus[]>(() => {
@@ -127,6 +145,29 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
     };
 
     setVoiceOrders([newOrder, ...voiceOrders]);
+    SupabaseService.saveLiveVoiceOrder(newOrder).catch(err => console.warn('Supabase saveLiveVoiceOrder err:', err));
+
+    // Broadcast system notification
+    const voiceNotif: SystemNotification = {
+      id: `notif-vo-${Date.now()}`,
+      title: `🎙️ توجيه صوتي عاجل: "${newOrder.title}"`,
+      message: `توجيه ميداني صوتي صادر من ${newOrder.senderName} (${newOrder.priority === 'urgent' ? 'أولوية عاجلة' : 'عادي'})`,
+      type: 'sos',
+      targetCommitteeId: newOrder.targetCommittee,
+      senderName: currentUser.fullName,
+      read: false,
+      createdAt: 'الآن',
+      linkTab: 'events'
+    };
+    SupabaseService.upsertNotification(voiceNotif).catch(err => console.warn('Supabase notif error:', err));
+
+    sendSystemPushNotification({
+      title: `🎙️ توجيه صوتي: ${newOrder.title}`,
+      body: `توجيه صوتي صادر من ${currentUser.fullName} - انقر للاستماع فوراً`,
+      type: 'voice',
+      data: { url: '/?tab=events' }
+    });
+
     setOrderTitle('');
     setOrderAudioUrl('');
     setOrderDuration(0);
@@ -185,6 +226,7 @@ export const LiveCommandCenter: React.FC<LiveCommandCenterProps> = ({
 
   const handleDeleteVoiceOrder = (orderId: string) => {
     setVoiceOrders(prev => prev.filter(o => o.id !== orderId));
+    SupabaseService.deleteLiveVoiceOrder(orderId).catch(err => console.warn('deleteLiveVoiceOrder error:', err));
   };
 
   const handleActivateEventLive = (eventId: string) => {
