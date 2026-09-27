@@ -313,17 +313,27 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'ALEXU_VOLUNTEERS_PLATFORM_V2_PROD';
 
+function safeJsonParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed !== undefined && parsed !== null ? parsed : fallback;
+  } catch (err) {
+    console.warn('safeJsonParse fallback used for corrupted storage data:', err);
+    return fallback;
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [seasons, setSeasons] = useState<Season[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_SEASONS`);
-    return saved ? JSON.parse(saved) : initialSeasons;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_SEASONS`), initialSeasons);
   });
 
   const [activeSeasonId, setActiveSeasonId] = useState<string>('season-2026-2027');
 
   const [committees, setCommittees] = useState<Committee[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_COMMITTEES`);
-    let list: Committee[] = saved ? JSON.parse(saved) : initialCommittees;
+    let list: Committee[] = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_COMMITTEES`), initialCommittees);
+    if (!Array.isArray(list)) list = initialCommittees;
     if (!list.some(c => c.id === 'comm-leadership')) {
       const leadershipComm = initialCommittees.find(c => c.id === 'comm-leadership');
       if (leadershipComm) {
@@ -334,8 +344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [deletedMemberIds, setDeletedMemberIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`);
-    return saved ? JSON.parse(saved) : [];
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`), []);
   });
 
   useEffect(() => {
@@ -343,12 +352,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [deletedMemberIds]);
 
   const [members, setMembers] = useState<Member[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_MEMBERS`);
-    const deletedSet = new Set(JSON.parse(localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`) || '[]'));
-    let list: Member[] = saved ? JSON.parse(saved) : initialMembers;
+    const deletedArr = safeJsonParse<string[]>(localStorage.getItem(`${STORAGE_KEY}_DELETED_MEMBER_IDS`), []);
+    const deletedSet = new Set(Array.isArray(deletedArr) ? deletedArr : []);
+    let list: Member[] = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_MEMBERS`), initialMembers);
+    if (!Array.isArray(list) || list.length === 0) list = initialMembers;
 
     // Filter out any explicitly deleted members
-    list = list.filter(m => !deletedSet.has(m.id));
+    list = list.filter(m => m && m.id && !deletedSet.has(m.id));
 
     // Zero points for leadership & heads
     list = list.map(m => {
@@ -359,7 +369,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...m,
         points: cleanPoints,
-        level: cleanLevel
+        level: cleanLevel,
+        badges: m.badges || [],
+        skills: m.skills || {},
+        hobbies: m.hobbies || [],
+        learningAspirations: m.learningAspirations || []
       };
     });
 
@@ -392,8 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [members]);
 
   const [bannedList, setBannedList] = useState<BannedUserRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_BANNED`);
-    return saved ? JSON.parse(saved) : [];
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_BANNED`), []);
   });
 
   useEffect(() => {
@@ -401,8 +414,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [bannedList]);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_AUTH_STATUS`);
-    return saved !== null ? JSON.parse(saved) : false;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_AUTH_STATUS`), false);
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
@@ -419,68 +431,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUserId]);
 
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_TASKS`);
-    return saved ? JSON.parse(saved) : initialTasks;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_TASKS`), initialTasks);
+    return Array.isArray(loaded) ? loaded : initialTasks;
   });
 
   const [events, setEvents] = useState<EventEntity[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_EVENTS`);
-    return saved ? JSON.parse(saved) : initialEvents;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_EVENTS`), initialEvents);
+    return Array.isArray(loaded) ? loaded : initialEvents;
   });
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_ATTENDANCE`);
-    return saved ? JSON.parse(saved) : initialAttendanceRecords;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_ATTENDANCE`), initialAttendanceRecords);
+    return Array.isArray(loaded) ? loaded : initialAttendanceRecords;
   });
 
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_SOS`);
-    return saved ? JSON.parse(saved) : initialSOSAlerts;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_SOS`), initialSOSAlerts);
+    return Array.isArray(loaded) ? loaded : initialSOSAlerts;
   });
 
   const [evaluationTemplate, setEvaluationTemplate] = useState<EvaluationTemplate>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_EVAL_TMPL`);
-    return saved ? JSON.parse(saved) : initialEvaluationTemplate;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_EVAL_TMPL`), initialEvaluationTemplate);
   });
 
   const [trainings, setTrainings] = useState<TrainingCourse[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_TRAININGS`);
-    return saved ? JSON.parse(saved) : initialTrainings;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_TRAININGS`), initialTrainings);
+    return Array.isArray(loaded) ? loaded : initialTrainings;
   });
 
   const [badges, setBadges] = useState<BadgeItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_BADGES`);
-    return saved ? JSON.parse(saved) : initialBadges;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_BADGES`), initialBadges);
+    return Array.isArray(loaded) ? loaded : initialBadges;
   });
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_ANNOUNCEMENTS`);
-    return saved ? JSON.parse(saved) : initialAnnouncements;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_ANNOUNCEMENTS`), initialAnnouncements);
+    return Array.isArray(loaded) ? loaded : initialAnnouncements;
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_AUDIT`);
-    return saved ? JSON.parse(saved) : initialAuditLogs;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_AUDIT`), initialAuditLogs);
+    return Array.isArray(loaded) ? loaded : initialAuditLogs;
   });
 
   const [documents, setDocuments] = useState<DocumentItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_DOCUMENTS`);
-    return saved ? JSON.parse(saved) : initialDocuments;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_DOCUMENTS`), initialDocuments);
+    return Array.isArray(loaded) ? loaded : initialDocuments;
   });
 
   const [candidates, setCandidates] = useState<RecruitmentCandidate[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_CANDIDATES`);
-    return saved ? JSON.parse(saved) : initialCandidates;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_CANDIDATES`), initialCandidates);
+    return Array.isArray(loaded) ? loaded : initialCandidates;
   });
 
   const [permissions, setPermissions] = useState<Permission[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_PERMISSIONS`);
-    return saved ? JSON.parse(saved) : initialPermissions;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_PERMISSIONS`), initialPermissions);
+    return Array.isArray(loaded) ? loaded : initialPermissions;
   });
 
   const [notifications, setNotifications] = useState<SystemNotification[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_NOTIFS`);
-    return saved ? JSON.parse(saved) : initialNotifications;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_NOTIFS`), initialNotifications);
+    return Array.isArray(loaded) ? loaded : initialNotifications;
   });
 
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
@@ -488,59 +499,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [complaints, setComplaints] = useState<Complaint[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_COMPLAINTS`);
-    return saved ? JSON.parse(saved) : initialComplaints;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_COMPLAINTS`), initialComplaints);
+    return Array.isArray(loaded) ? loaded : initialComplaints;
   });
 
   const [soundSettings, setSoundSettings] = useState<AppSoundSettings>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_SOUND_SETTINGS`);
-    return saved ? JSON.parse(saved) : initialSoundSettings;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_SOUND_SETTINGS`), initialSoundSettings);
   });
 
   const [branding, setBranding] = useState<AppBrandingSettings>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_BRANDING`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.logoUrl || parsed.logoUrl.trim() === '') {
-          parsed.logoUrl = '/logo.png';
-        }
-        return parsed;
-      } catch (e) {
-        return initialBrandingSettings;
-      }
+    const parsed = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_BRANDING`), initialBrandingSettings);
+    if (parsed && (!parsed.logoUrl || parsed.logoUrl.trim() === '')) {
+      parsed.logoUrl = '/logo.png';
     }
-    return initialBrandingSettings;
+    return parsed || initialBrandingSettings;
   });
 
   const [rolePermissions, setRolePermissions] = useState<RolePermissionsMap>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_ROLE_PERMS`);
-    return saved ? JSON.parse(saved) : initialRolePermissionsMap;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_ROLE_PERMS`), initialRolePermissionsMap);
   });
 
   const [evaluationRubric, setEvaluationRubric] = useState<EvaluationRubric>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_EVAL_RUBRIC`);
-    return saved ? JSON.parse(saved) : initialEvaluationRubric;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_EVAL_RUBRIC`), initialEvaluationRubric);
   });
 
   const [memberEvaluations, setMemberEvaluations] = useState<MemberEvaluationRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_MEMBER_EVALS`);
-    return saved ? JSON.parse(saved) : [];
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_MEMBER_EVALS`), []);
   });
 
   const [headEvaluations, setHeadEvaluations] = useState<HeadEvaluationRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_HEAD_EVALS`);
-    return saved ? JSON.parse(saved) : initialHeadEvaluations;
+    const loaded = safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_HEAD_EVALS`), initialHeadEvaluations);
+    return Array.isArray(loaded) ? loaded : initialHeadEvaluations;
   });
 
   const [headEvaluationRubric, setHeadEvaluationRubric] = useState<HeadEvaluationRubric>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_HEAD_EVAL_RUBRIC`);
-    return saved ? JSON.parse(saved) : initialHeadEvaluationRubric;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_HEAD_EVAL_RUBRIC`), initialHeadEvaluationRubric);
   });
 
   const [attendancePointsConfig, setAttendancePointsConfig] = useState<AttendancePointsConfig>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`);
-    return saved ? JSON.parse(saved) : initialAttendancePointsConfig;
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`), initialAttendancePointsConfig);
   });
 
   useEffect(() => {
@@ -612,8 +609,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [headEvaluationRubric]);
 
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_ATT_SESSIONS`);
-    return saved ? JSON.parse(saved) : [];
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_ATT_SESSIONS`), []);
   });
 
   useEffect(() => {

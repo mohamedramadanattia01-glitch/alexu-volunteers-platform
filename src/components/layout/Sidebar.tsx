@@ -15,12 +15,12 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenInstallModal }) => {
   const { 
-    activeTab, setActiveTab, tasks, isLiveCommandCenterActive, 
-    sosAlerts, teamHealthScore, currentUser, complaints, isHighLeadership 
+    activeTab, setActiveTab, tasks = [], isLiveCommandCenterActive, 
+    sosAlerts = [], teamHealthScore, currentUser, complaints = [], isHighLeadership 
   } = useApp();
 
-  const activeTasksCount = tasks.filter(t => t.status !== 'Approved' && t.status !== 'Cancelled').length;
-  const openSOSCount = sosAlerts.filter(s => s.status === 'Open').length;
+  const activeTasksCount = (tasks || []).filter(t => t.status !== 'Approved' && t.status !== 'Cancelled').length;
+  const openSOSCount = (sosAlerts || []).filter(s => s.status === 'Open').length;
 
   const allNavItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard, roles: ['*'] },
@@ -28,7 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenIns
       id: 'profile', 
       label: 'الصفحة الشخصية', 
       icon: User,
-      badge: currentUser.volunteerId || undefined,
+      badge: currentUser?.volunteerId || undefined,
       badgeColor: 'bg-blue-600/30 text-blue-200 font-mono text-[9px]',
       roles: ['*']
     },
@@ -81,8 +81,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenIns
       id: 'complaints', 
       label: 'الشكاوى والمقترحات', 
       icon: MessageSquare,
-      badge: complaints.filter(c => c.status === 'New').length > 0 
-        ? `${complaints.filter(c => c.status === 'New').length} جديدة` 
+      badge: (complaints || []).filter(c => c.status === 'New').length > 0 
+        ? `${(complaints || []).filter(c => c.status === 'New').length} جديدة` 
         : undefined,
       badgeColor: 'bg-amber-500/30 text-amber-300',
       roles: ['*']
@@ -98,9 +98,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenIns
     { id: 'reports', label: 'التقارير والتصدير', icon: BarChart3, roles: ['super_admin', 'vice_president', 'advisor', 'general_coordinator', 'operations_manager', 'quality_officer', 'hr_admin', 'head', 'vice_head', 'event_manager'] },
   ];
 
+  const userRole = currentUser?.role || 'member';
   const navItems = allNavItems.filter(item => {
     if (item.roles.includes('*')) return true;
-    return item.roles.includes(currentUser.role);
+    return item.roles.includes(userRole);
   });
 
   return (

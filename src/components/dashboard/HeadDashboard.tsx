@@ -11,24 +11,24 @@ interface HeadDashboardProps {
 }
 
 export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onSelectMember }) => {
-  const { currentUser, committees, members, tasks, attendanceRecords, calculateCommitteeHealth, setActiveTab } = useApp();
+  const { currentUser, committees = [], members = [], tasks = [], attendanceRecords = [], calculateCommitteeHealth, setActiveTab } = useApp();
 
-  const myCommittee = committees.find(c => c.id === currentUser.currentCommitteeId) || 
-    committees.find(c => c.id !== 'comm-leadership') || 
+  const myCommittee = (committees || []).find(c => c.id === currentUser?.currentCommitteeId) || 
+    (committees || []).find(c => c.id !== 'comm-leadership') || 
     committees[0] || 
     { id: 'comm-org', name: 'لجنة التنظيم', description: 'إدارة الفعاليات والتنظيم الميداني', healthScore: 0, attendanceRate: 0 };
 
-  const committeeMembers = members.filter(m => m.currentCommitteeId === myCommittee.id && m.status === 'Active');
-  const committeeTasks = tasks.filter(t => t.committeeId === myCommittee.id);
+  const committeeMembers = (members || []).filter(m => m.currentCommitteeId === myCommittee.id && m.status === 'Active');
+  const committeeTasks = (tasks || []).filter(t => t.committeeId === myCommittee.id);
   const pendingTasks = committeeTasks.filter(t => t.status === 'Submitted' || t.status === 'Under Review');
   const overdueTasks = committeeTasks.filter(t => t.status === 'Overdue');
   const unassignedMembers = committeeMembers.filter(m => m.workloadStatus === 'Underutilized');
 
   const commMemberIds = new Set(committeeMembers.map(m => m.id));
-  const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
+  const commRecords = (attendanceRecords || []).filter(a => commMemberIds.has(a.memberId));
   const presentRecords = commRecords.filter(a => a.status === 'Present').length;
   const realAttendanceRate = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
-  const commHealthScore = calculateCommitteeHealth(myCommittee.id);
+  const commHealthScore = typeof calculateCommitteeHealth === 'function' ? calculateCommitteeHealth(myCommittee.id) : 100;
 
   return (
     <div className="space-y-6">
@@ -41,7 +41,7 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-semibold border border-blue-500/30">
                 لوحة قيادة اللجنة • {myCommittee.name}
               </span>
-              <span className="text-xs text-slate-400">القائد: {currentUser.fullName}</span>
+              <span className="text-xs text-slate-400">القائد: {currentUser?.fullName || 'رئيس اللجنة'}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
               إدارة ومتابعة {myCommittee.name}
@@ -138,13 +138,13 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
               pendingTasks.map(task => (
                 <div key={task.id} className="p-3.5 rounded-xl bg-slate-900/70 border border-amber-500/30">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-white">{task.title}</span>
+                    <span className="text-xs font-bold text-white">{task.title || 'مهمة بدون عنوان'}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">Submitted</span>
                   </div>
-                  <div className="text-[11px] text-slate-300 mb-2">المسند إليه: {task.assignedToMemberNames.join('، ')}</div>
+                  <div className="text-[11px] text-slate-300 mb-2">المسند إليه: {(task.assignedToMemberNames || []).join('، ') || 'تكليف عام'}</div>
                   {task.submission && (
                     <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mb-2">
-                      📝 {task.submission.notes}
+                      📝 {task.submission.notes || 'لا توجد ملاحظات'}
                     </div>
                   )}
                   <button 
@@ -179,10 +179,10 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
                 className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-blue-500/30 flex items-center justify-between transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
-                  <img src={member.avatarUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                  <img src={member.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   <div>
                     <div className="text-xs font-bold text-white">{member.fullName}</div>
-                    <div className="text-[10px] text-slate-400">{member.college} • عبء العمل: {member.activeWorkload} مهام</div>
+                    <div className="text-[10px] text-slate-400">{member.college || 'جامعة الإسكندرية'} • عبء العمل: {member.activeWorkload || 0} مهام</div>
                   </div>
                 </div>
 
@@ -194,7 +194,7 @@ export const HeadDashboard: React.FC<HeadDashboardProps> = ({ onOpenNewTask, onS
                   }`}>
                     {member.workloadStatus === 'Underutilized' ? 'سعة إضافية' : member.workloadStatus === 'Optimal' ? 'مثالي' : 'ممتلئ'}
                   </span>
-                  <div className="text-[10px] text-slate-400 mt-1">أداء {member.performance.overallScore}%</div>
+                  <div className="text-[10px] text-slate-400 mt-1">أداء {member.performance?.overallScore ?? 0}%</div>
                 </div>
               </div>
             ))}

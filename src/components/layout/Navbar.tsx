@@ -534,19 +534,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="الانتقال إلى الملف الشخصي وكارنيه العضوية"
           >
             <img 
-              src={currentUser.avatarUrl} 
-              alt={currentUser.fullName} 
+              src={currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} 
+              alt={currentUser?.fullName || 'المستخدم'} 
               className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-blue-400/40 group-hover:border-blue-400 transition-all"
             />
             <div className="text-right hidden sm:block">
               <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                <span className="truncate max-w-[90px]">{currentUser.fullName.split(' ')[0]}</span>
+                <span className="truncate max-w-[90px]">{currentUser?.fullName ? currentUser.fullName.split(' ')[0] : 'المستخدم'}</span>
                 <span className="text-[9px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
-                  {currentUser.volunteerId || 'AU-001'}
+                  {currentUser?.volunteerId || 'AU-001'}
                 </span>
               </div>
               <div className="text-[10px] text-slate-400 leading-tight truncate max-w-[110px]">
-                {currentUser.position}
+                {currentUser?.position || 'متطوع'}
               </div>
             </div>
           </button>

@@ -75,7 +75,7 @@ export const RecruitmentPipeline: React.FC = () => {
 
                     <p className="text-[11px] text-slate-400">{cand.college} • {cand.academicYear}</p>
                     <div className="text-[10px] text-blue-300 bg-blue-950/60 p-1.5 rounded border border-blue-500/20">
-                      الرغبات: {cand.preferredCommittees.join('، ')}
+                      الرغبات: {(cand.preferredCommittees || []).join('، ') || 'لجان المتطوعين'}
                     </div>
 
                     {cand.interviewScore !== undefined && (

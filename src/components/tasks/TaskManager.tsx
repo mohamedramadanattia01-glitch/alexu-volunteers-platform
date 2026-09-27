@@ -36,23 +36,28 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [editPriority, setEditPriority] = useState<Task['priority']>('Medium');
   const [editDeadline, setEditDeadline] = useState('');
 
-  const canCreateTask = isHighLeadership || ['head', 'vice_head', 'hr_admin', 'event_manager'].includes(currentUser.role);
+  const canCreateTask = isHighLeadership || ['head', 'vice_head', 'hr_admin', 'event_manager'].includes(currentUser?.role || '');
 
-  const filteredTasks = tasks.filter(task => {
+  const filteredTasks = (tasks || []).filter(task => {
+    if (!task) return false;
     // For regular members, apply member filter scope
-    if (currentUser.role === 'member') {
+    if (currentUser?.role === 'member') {
+      const userFirstName = currentUser.fullName ? currentUser.fullName.split(' ')[0] : '';
       const isAssigned = (task.assignedToMemberIds || []).includes(currentUser.id) ||
                          (currentUser.volunteerId && (task.assignedToMemberIds || []).includes(currentUser.volunteerId)) ||
-                         (currentUser.fullName && (task.assignedToMemberNames || []).some(n => n.includes(currentUser.fullName.split(' ')[0]) || currentUser.fullName.includes(n)));
+                         (userFirstName && (task.assignedToMemberNames || []).some(n => n && (n.includes(userFirstName) || (currentUser.fullName && currentUser.fullName.includes(n)))));
       const isMyComm = task.committeeId === currentUser.currentCommitteeId;
       if (memberFilterScope === 'my_assigned' && !isAssigned) return false;
       if (memberFilterScope === 'my_committee' && !isMyComm) return false;
       if (memberFilterScope === 'all' && !isAssigned && !isMyComm) return false;
     }
     const matchesComm = selectedCommittee === 'all' || task.committeeId === selectedCommittee;
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (task.assignedToMemberNames || []).some(n => n.toLowerCase().includes(searchQuery.toLowerCase()));
+    const taskTitle = (task.title || '').toLowerCase();
+    const taskDesc = (task.description || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = taskTitle.includes(query) || 
+                          taskDesc.includes(query) ||
+                          (task.assignedToMemberNames || []).some(n => (n || '').toLowerCase().includes(query));
     return matchesComm && matchesSearch;
   });
 
@@ -127,7 +132,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       </div>
 
       {/* Member Filter Scope Buttons */}
-      {currentUser.role === 'member' && (
+      {currentUser?.role === 'member' && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setMemberFilterScope('my_assigned')}
@@ -140,7 +145,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             <User className="w-3.5 h-3.5" />
             <span>مهامي المسندة لي مباشرة</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
-              {tasks.filter(t => (t.assignedToMemberIds || []).includes(currentUser.id) || (currentUser.volunteerId && (t.assignedToMemberIds || []).includes(currentUser.volunteerId)) || (currentUser.fullName && (t.assignedToMemberNames || []).some(n => n.includes(currentUser.fullName.split(' ')[0]) || currentUser.fullName.includes(n)))).length}
+              {(tasks || []).filter(t => (t.assignedToMemberIds || []).includes(currentUser?.id || '') || (currentUser?.volunteerId && (t.assignedToMemberIds || []).includes(currentUser.volunteerId)) || (currentUser?.fullName && (t.assignedToMemberNames || []).some(n => n && (n.includes(currentUser.fullName.split(' ')[0]) || currentUser.fullName.includes(n))))).length}
             </span>
           </button>
 
@@ -153,9 +158,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>مهام لجنتي ({currentUser.currentCommitteeName})</span>
+            <span>مهام لجنتي ({currentUser?.currentCommitteeName || 'اللجنة'})</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
-              {tasks.filter(t => t.committeeId === currentUser.currentCommitteeId).length}
+              {(tasks || []).filter(t => t.committeeId === currentUser?.currentCommitteeId).length}
             </span>
           </button>
 
@@ -405,13 +410,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                         <div className="text-[10px] text-slate-300 bg-slate-950/60 p-1.5 rounded-lg border border-slate-800/80">
                           <div className="font-semibold text-slate-400 text-[9px] mb-0.5">المسند إليهم:</div>
-                          <div className="text-white truncate">{task.assignedToMemberNames.join('، ')}</div>
+                          <div className="text-white truncate">{(task.assignedToMemberNames || []).join('، ') || 'تكليف عام'}</div>
                         </div>
 
                         <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3 text-slate-500" />
-                            <span>{task.deadline.split(' ')[0]}</span>
+                            <span>{(task.deadline || '').split(' ')[0] || task.deadline || '—'}</span>
                           </span>
                           <CommitteeBadge committeeId={task.committeeId} committeeName={task.committeeName} size="sm" />
                         </div>
@@ -471,9 +476,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {filteredTasks.map(task => (
                   <tr key={task.id} className="hover:bg-slate-800/40 transition-all">
-                    <td className="py-2.5 font-bold text-white max-w-xs truncate">{task.title}</td>
+                    <td className="py-2.5 font-bold text-white max-w-xs truncate">{task.title || 'مهمة بدون عنوان'}</td>
                     <td className="py-2.5 text-slate-300">{task.committeeName}</td>
-                    <td className="py-2.5 text-slate-300">{task.assignedToMemberNames.join('، ')}</td>
+                    <td className="py-2.5 text-slate-300">{(task.assignedToMemberNames || []).join('، ') || 'تكليف عام'}</td>
                     <td className="py-2.5">
                       <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
                         task.priority === 'Critical' ? 'bg-rose-500/20 text-rose-300' :

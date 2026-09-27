@@ -16,9 +16,9 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
 
   if (!isOpen || !member) return null;
 
-  const earnedBadges = badges.filter(b => member.badges.includes(b.id));
-  const memberTasks = tasks.filter(t => t.assignedToMemberIds.includes(member.id) && t.status === 'Approved');
-  const memberAttendance = attendanceRecords.filter(a => a.memberId === member.id);
+  const earnedBadges = (badges || []).filter(b => (member.badges || []).includes(b.id));
+  const memberTasks = (tasks || []).filter(t => (t.assignedToMemberIds || []).includes(member.id) && t.status === 'Approved');
+  const memberAttendance = (attendanceRecords || []).filter(a => a.memberId === member.id);
 
   const totalHours = memberAttendance.reduce((acc, a) => acc + (a.durationMinutes || 300), 0) / 60;
 
@@ -111,7 +111,7 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
               <div><strong>سنة الانضمام:</strong> {member.joinDate}</div>
               <div><strong>البريد الجامعي:</strong> {member.universityEmail}</div>
               <div><strong>إجمالي الساعات:</strong> {Math.round(totalHours)} ساعة تطوعية</div>
-              <div><strong>الأداء المعتمد:</strong> {member.performance.overallScore}%</div>
+              <div><strong>الأداء المعتمد:</strong> {member.performance?.overallScore ?? 0}%</div>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
             <div className="text-[11px] font-bold text-slate-600">أوسمة شرف</div>
           </div>
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
-            <div className="text-lg font-extrabold text-amber-900 font-mono">{member.points}</div>
+            <div className="text-lg font-extrabold text-amber-900 font-mono">{member.points || 0}</div>
             <div className="text-[11px] font-bold text-slate-600">نقاط الإنجاز XP</div>
           </div>
         </div>
@@ -143,23 +143,23 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
             <span>المهارات والكفاءات المعتمدة (Certified Competencies)</span>
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-            {Object.entries(member.skills).map(([skill, score]) => (
+            {Object.entries(member.skills || {}).map(([skill, score]) => (
               <div key={skill} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-xs">
                 <span className="font-semibold text-slate-800">{skill}</span>
-                <span className="font-bold text-amber-600">{'★'.repeat(score)}</span>
+                <span className="font-bold text-amber-600">{'★'.repeat(score || 1)}</span>
               </div>
             ))}
           </div>
 
           {/* Hobbies & Aspirations in CV */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            {member.hobbies && member.hobbies.length > 0 && (
+            {Array.isArray(member.hobbies) && member.hobbies.length > 0 && (
               <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-100">
                 <div className="font-bold text-rose-900 mb-1">الهوايات والمواهب:</div>
                 <div className="text-slate-700 text-[11px]">{member.hobbies.join(' • ')}</div>
               </div>
             )}
-            {member.learningAspirations && member.learningAspirations.length > 0 && (
+            {Array.isArray(member.learningAspirations) && member.learningAspirations.length > 0 && (
               <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
                 <div className="font-bold text-purple-900 mb-1">المجالات المرغوب تعلمها وتطويرها:</div>
                 <div className="text-slate-700 text-[11px]">{member.learningAspirations.join(' • ')}</div>
@@ -175,7 +175,7 @@ export const DigitalPortfolioModal: React.FC<DigitalPortfolioModalProps> = ({ me
             <span>مسيرة التطوع والمسؤوليات (Volunteering Milestones)</span>
           </h3>
           <div className="space-y-2">
-            {member.committeeHistory.map(hist => (
+            {(member.committeeHistory || []).map(hist => (
               <div key={hist.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex justify-between items-center">
                 <div>
                   <span className="font-bold text-slate-900">{hist.committeeName}</span>

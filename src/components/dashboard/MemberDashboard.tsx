@@ -21,15 +21,17 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({
   onOpenEditProfile,
   onOpenComplaintModal
 }) => {
-  const { currentUser, tasks, events, badges, setActiveTab } = useApp();
+  const { currentUser, tasks = [], events = [], badges = [], setActiveTab } = useApp();
 
-  const myTasks = tasks.filter(t => t.assignedToMemberIds.includes(currentUser.id));
+  const myTasks = (tasks || []).filter(t => (t.assignedToMemberIds || []).includes(currentUser?.id || ''));
   const activeMyTasks = myTasks.filter(t => t.status !== 'Approved' && t.status !== 'Cancelled');
-  const myUpcomingEvent = events.find(e => e.status === 'Live' || e.status === 'Upcoming');
+  const myUpcomingEvent = (events || []).find(e => e.status === 'Live' || e.status === 'Upcoming');
 
-  const earnedBadges = badges.filter(b => currentUser.badges.includes(b.id));
-  const nextLevelXP = currentUser.level * 150;
-  const currentLevelXP = currentUser.points % 150;
+  const earnedBadges = (badges || []).filter(b => (currentUser?.badges || []).includes(b.id));
+  const userLevel = currentUser?.level || 1;
+  const userPoints = currentUser?.points || 0;
+  const nextLevelXP = userLevel * 150;
+  const currentLevelXP = userPoints % 150;
   const levelProgress = Math.min(100, Math.round((currentLevelXP / 150) * 100));
 
   return (
@@ -41,25 +43,25 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({
           
           <div className="flex items-center gap-4">
             <img 
-              src={currentUser.avatarUrl} 
+              src={currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} 
               alt="" 
               className="w-16 h-16 rounded-2xl object-cover border-2 border-blue-400/50 shadow-xl"
             />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30">
-                  {currentUser.currentCommitteeName}
+                  {currentUser?.currentCommitteeName || 'لجان المتطوعين'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 fill-amber-400" />
-                  <span>المستوى {currentUser.level}</span>
+                  <span>المستوى {userLevel}</span>
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-                أهلاً بك، {currentUser.fullName.split(' ')[0]} 👋
+                أهلاً بك، {currentUser?.fullName ? currentUser.fullName.split(' ')[0] : 'يا بطل'} 👋
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                {currentUser.position} • كلية {currentUser.college}
+                {currentUser?.position || 'متطوع'} • كلية {currentUser?.college || 'جامعة الإسكندرية'}
               </p>
             </div>
           </div>
@@ -71,7 +73,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({
                 <Trophy className="w-3.5 h-3.5 text-amber-400" />
                 <span>إجمالي النقاط</span>
               </span>
-              <span className="font-extrabold text-amber-400 font-mono text-sm">{currentUser.points} XP</span>
+              <span className="font-extrabold text-amber-400 font-mono text-sm">{userPoints} XP</span>
             </div>
 
             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-1.5">
@@ -82,8 +84,8 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({
             </div>
 
             <div className="flex justify-between items-center text-[10px] text-slate-400">
-              <span>المستوى {currentUser.level}</span>
-              <span>باقي {150 - currentLevelXP} XP للمستوى {currentUser.level + 1}</span>
+              <span>المستوى {userLevel}</span>
+              <span>باقي {150 - currentLevelXP} XP للمستوى {userLevel + 1}</span>
             </div>
           </div>
 
@@ -301,13 +303,18 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({
             </h4>
 
             <div className="grid grid-cols-2 gap-2">
-              {earnedBadges.map(badge => (
-                <div key={badge.id} className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-                  <div className="text-base mb-1">{badge.titleAr.split(' ')[0]}</div>
-                  <div className="text-[10px] font-bold text-white truncate">{badge.titleAr.substring(2)}</div>
-                  <div className="text-[9px] text-amber-400 mt-0.5">+{badge.xpReward} XP</div>
-                </div>
-              ))}
+              {earnedBadges.map(badge => {
+                const badgeTitle = badge?.titleAr || badge?.title || 'وسام';
+                const badgeIcon = badgeTitle.split(' ')[0] || '🏅';
+                const badgeName = badgeTitle.length > badgeIcon.length ? badgeTitle.substring(badgeIcon.length).trim() : badgeTitle;
+                return (
+                  <div key={badge.id} className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+                    <div className="text-base mb-1">{badgeIcon}</div>
+                    <div className="text-[10px] font-bold text-white truncate">{badgeName}</div>
+                    <div className="text-[9px] text-amber-400 mt-0.5">+{badge.xpReward || 0} XP</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

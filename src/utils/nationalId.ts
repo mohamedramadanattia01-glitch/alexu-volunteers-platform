@@ -327,7 +327,7 @@ export function getMemberExactBirthData(member: {
   }
 
   // 2. Fallback to birthDate string if nationalId wasn't valid
-  if (!isValid && member.birthDate && member.birthDate.includes('-')) {
+  if (!isValid && member?.birthDate && typeof member.birthDate === 'string' && member.birthDate.includes('-')) {
     const parts = member.birthDate.split('-');
     if (parts.length >= 3) {
       const y = parseInt(parts[0], 10);

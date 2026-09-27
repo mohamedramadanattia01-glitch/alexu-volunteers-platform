@@ -23,21 +23,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     calculateCommitteeHealth, headEvaluations, memberEvaluations, attendanceRecords
   } = useApp();
 
-  const activeMembers = members.filter(m => m.status === 'Active');
+  const activeMembers = (members || []).filter(m => m.status === 'Active');
   const regularMembers = activeMembers.filter(m => m.role === 'member');
   const committeeHeads = activeMembers.filter(m => m.role === 'head' || m.role === 'vice_head');
 
-  const completedTasks = tasks.filter(t => t.status === 'Approved');
-  const overdueTasks = tasks.filter(t => t.status === 'Overdue');
-  const highRiskMembers = getHighRiskMembers();
+  const completedTasks = (tasks || []).filter(t => t.status === 'Approved');
+  const overdueTasks = (tasks || []).filter(t => t.status === 'Overdue');
+  const highRiskMembers = typeof getHighRiskMembers === 'function' ? getHighRiskMembers() : [];
   
   // Top Regular Members ONLY (Strictly excluding Heads and High Leadership)
   const topRegularMembers = [...regularMembers]
     .map(member => {
-      const evals = memberEvaluations.filter(e => e.memberId === member.id);
+      const evals = (memberEvaluations || []).filter(e => e.memberId === member.id);
       const hasRealEval = evals.length > 0;
       const evalScore = hasRealEval 
-        ? Math.round(evals.reduce((a, b) => a + b.percentage, 0) / evals.length)
+        ? Math.round(evals.reduce((a, b) => a + (b.percentage || 0), 0) / evals.length)
         : 0;
       return { ...member, hasRealEval, dynamicOverallScore: evalScore };
     })
@@ -47,10 +47,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   // Top Heads & Leadership Matrix ONLY (Dynamic from headEvaluations)
   const topHeads = [...committeeHeads]
     .map(head => {
-      const headEvals = headEvaluations.filter(e => e.headId === head.id);
+      const headEvals = (headEvaluations || []).filter(e => e.headId === head.id);
       const hasRealEval = headEvals.length > 0;
       const evalScore = hasRealEval 
-        ? Math.round(headEvals.reduce((a, b) => a + b.percentage, 0) / headEvals.length)
+        ? Math.round(headEvals.reduce((a, b) => a + (b.percentage || 0), 0) / headEvals.length)
         : 0;
       return {
         ...head,
@@ -61,8 +61,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     .sort((a, b) => (b.computedScore - a.computedScore) || ((b.points || 0) - (a.points || 0)))
     .slice(0, 4);
 
-  const openSOS = sosAlerts.filter(s => s.status === 'Open' || s.status === 'Acknowledged');
-  const liveEvents = events.filter(e => e.status === 'Live' || e.liveDashboardActive);
+  const openSOS = (sosAlerts || []).filter(s => s.status === 'Open' || s.status === 'Acknowledged');
+  const liveEvents = (events || []).filter(e => e.status === 'Live' || e.liveDashboardActive);
 
   // Accurate Overall Score (Dynamic from real evaluations or 0)
   const evaluatedRegularMembers = topRegularMembers.filter(m => m.dynamicOverallScore > 0);
@@ -186,7 +186,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                 <ShieldAlert className="w-5 h-5 text-rose-400 animate-pulse" />
                 <div>
                   <div className="text-xs font-bold text-white">🚨 بلاغ طوارئ ميداني نشط ({openSOS.length})</div>
-                  <div className="text-[11px] text-rose-300">{openSOS[0].location}</div>
+                  <div className="text-[11px] text-rose-300">{openSOS[0]?.location || 'موقع غير محدد'}</div>
                 </div>
               </div>
               <ChevronLeft className="w-4 h-4 text-rose-400" />
@@ -318,21 +318,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           </div>
 
           <div className="space-y-3">
-            {committees.map(comm => {
+            {(committees || []).map(comm => {
               const commMembers = regularMembers.filter(m => m.currentCommitteeId === comm.id);
               const commMemberIds = new Set(commMembers.map(m => m.id));
-              const commTasks = tasks.filter(t => t.committeeId === comm.id || t.assignedToMemberIds.some(id => commMemberIds.has(id)));
+              const commTasks = (tasks || []).filter(t => t.committeeId === comm.id || (t.assignedToMemberIds || []).some(id => commMemberIds.has(id)));
               const commCompleted = commTasks.filter(t => t.status === 'Approved').length;
               const commTaskPct = commTasks.length > 0 ? Math.round((commCompleted / commTasks.length) * 100) : 0;
-              const currentHealth = calculateCommitteeHealth(comm.id);
+              const currentHealth = typeof calculateCommitteeHealth === 'function' ? calculateCommitteeHealth(comm.id) : 100;
 
-              const commRecords = attendanceRecords.filter(a => commMemberIds.has(a.memberId));
+              const commRecords = (attendanceRecords || []).filter(a => commMemberIds.has(a.memberId));
               const presentRecords = commRecords.filter(a => a.status === 'Present').length;
               const realAttendance = commRecords.length > 0 ? Math.round((presentRecords / commRecords.length) * 100) : 0;
 
-              const commEvals = memberEvaluations.filter(e => commMemberIds.has(e.memberId));
+              const commEvals = (memberEvaluations || []).filter(e => commMemberIds.has(e.memberId));
               const realQualityScore = commEvals.length > 0 
-                ? Math.round(commEvals.reduce((a, b) => a + b.percentage, 0) / commEvals.length)
+                ? Math.round(commEvals.reduce((a, b) => a + (b.percentage || 0), 0) / commEvals.length)
                 : (commMembers.length > 0 ? Math.round(commMembers.reduce((acc, m) => acc + (m.performance?.overallScore || 0), 0) / commMembers.length) : 0);
 
               return (
