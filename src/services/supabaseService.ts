@@ -1109,6 +1109,26 @@ export class SupabaseService {
     }
   }
 
+  static async markNotificationAsRead(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      const { error } = await supabase.from('system_notifications').update({ read: true }).eq('id', id);
+      if (error) console.error('markNotificationAsRead error:', error);
+    } catch (e) {
+      console.error('markNotificationAsRead failed:', e);
+    }
+  }
+
+  static async markAllNotificationsAsRead() {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      const { error } = await supabase.from('system_notifications').update({ read: true }).neq('id', 'keep_empty');
+      if (error) console.error('markAllNotificationsAsRead error:', error);
+    } catch (e) {
+      console.error('markAllNotificationsAsRead failed:', e);
+    }
+  }
+
   static async deleteNotification(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {

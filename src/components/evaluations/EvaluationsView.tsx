@@ -8,7 +8,7 @@ import {
   Download, FileSpreadsheet, Calendar, Edit, Trash2, CheckSquare
 } from 'lucide-react';
 import { EvaluationRubricModal } from './EvaluationRubricModal';
-import { exportEvaluationsToExcel, exportHeadEvaluationsToExcel } from '../../utils/excelExport';
+import { exportEvaluationsToExcel, exportHeadEvaluationsToExcel, exportAttendanceAndEvaluationMasterExcel } from '../../utils/excelExport';
 
 export const EvaluationsView: React.FC = () => {
   const { 
@@ -16,6 +16,7 @@ export const EvaluationsView: React.FC = () => {
     updateMemberEvaluation, deleteMemberEvaluation,
     memberEvaluations, headEvaluations, headEvaluationRubric,
     evaluateHead, updateHeadEvaluation, deleteHeadEvaluation,
+    attendanceRecords,
     currentUser, isHighLeadership, isHighLeadershipMember 
   } = useApp();
 
@@ -349,14 +350,22 @@ export const EvaluationsView: React.FC = () => {
                   تقييم يومي ميداني مخصص للأعضاء مع تحديد يوم التقييم وربط الدرجات بالإجمالي العام
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => exportEvaluationsToExcel(memberEvaluations, 'الأعضاء')}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  onClick={() => exportAttendanceAndEvaluationMasterExcel(attendanceRecords, members, 'members', 'الأعضاء')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  title="تصدير شيت الحضور والتقييمات الميدانية المجمع للأعضاء"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>شيت التقييم الميداني (Excel) 📊</span>
+                </button>
+                <button
+                  onClick={() => exportEvaluationsToExcel(memberEvaluations, 'الأعضاء', members)}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
                   title="تصدير نتائج وسجل التقييمات إلى Excel"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>تصدير نتائج التقييم (Excel)</span>
+                  <span>سجل التقييم الشامل (Excel)</span>
                 </button>
                 <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-bold">
                   إجمالي الأعضاء: {regularMembers.length}
@@ -540,14 +549,22 @@ export const EvaluationsView: React.FC = () => {
                   يتم التقييم والاعتماد حصرياً من القيادة العليا لفريق متطوعين اتحاد طلاب جامعة الإسكندرية
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => exportHeadEvaluationsToExcel(headEvaluations, 'القيادات')}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  onClick={() => exportAttendanceAndEvaluationMasterExcel(attendanceRecords, members, 'heads', 'الهيدات')}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  title="تصدير شيت الحضور والتقييمات الميدانية المجمع للهيدات"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>شيت التقييم الميداني للهيدات (Excel) 📊</span>
+                </button>
+                <button
+                  onClick={() => exportHeadEvaluationsToExcel(headEvaluations, 'القيادات', members)}
+                  className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
                   title="تصدير تقييمات رؤساء اللجان إلى Excel"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>تصدير تقييمات الهيدات (Excel)</span>
+                  <span>سجل التقييم القيادي (Excel)</span>
                 </button>
                 <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-bold">
                   إجمالي القيادات: {committeeHeads.length}

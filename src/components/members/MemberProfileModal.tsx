@@ -4,12 +4,13 @@ import { Member } from '../../types';
 import { isHeadMember } from '../../utils/roleUtils';
 import { getMemberExactBirthData } from '../../utils/nationalId';
 import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
+import { exportSingleMemberEvaluationHistoryToExcel } from '../../utils/excelExport';
 import { 
   X, Eye, EyeOff, ShieldCheck, Award, FileText, 
   Calendar, Phone, Mail, GraduationCap, Clock, 
   Sparkles, History, Star, ArrowRightLeft, HeartHandshake,
   Heart, Edit3, Ban, ShieldAlert, RotateCcw, Crown, Shield,
-  Layers, CheckSquare, Activity, UserCheck
+  Layers, CheckSquare, Activity, UserCheck, FileSpreadsheet
 } from 'lucide-react';
 
 interface MemberProfileModalProps {
@@ -214,6 +215,15 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                 <span>تعديل الملف</span>
               </button>
             )}
+
+            <button
+              onClick={() => exportSingleMemberEvaluationHistoryToExcel(member, attendanceRecords, memberEvaluations)}
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/30 transition-all"
+              title="تصدير سجل التقييمات والحضور بالكامل إلى ملف Excel"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>تصدير التقييمات (Excel)</span>
+            </button>
 
             <button
               onClick={() => onOpenDigitalPortfolio(member)}
@@ -587,6 +597,92 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           </div>
 
         </div>
+
+        {/* Detailed Attendance & Daily Evaluations History Section */}
+        {memberAttRecords.length > 0 && (
+          <div className="mb-6 p-4 rounded-2xl bg-slate-900/70 border border-emerald-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-800">
+              <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>سجل التقييمات والحضور الميداني بالفعاليات ({memberAttRecords.length} فاعلية)</span>
+              </h4>
+              <button
+                onClick={() => exportSingleMemberEvaluationHistoryToExcel(member, attendanceRecords, memberEvaluations)}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>تصدير هذا السجل (Excel)</span>
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+              {memberAttRecords.map(att => {
+                const ev = att.dailyEvaluation;
+                const c1 = ev?.attendanceCommitment ?? ev?.attendanceScore ?? '—';
+                const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
+                const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
+                const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
+                const total = ev?.totalDailyScore;
+                const grade = ev?.overallGrade || (total ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
+
+                return (
+                  <div key={att.id} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs">{att.eventName}</span>
+                        <span className="font-mono text-[10px] text-slate-400">({att.date})</span>
+                        <span className="text-[10px] text-purple-300 font-mono">⏱️ {att.durationFormatted || 'حاضر'}</span>
+                      </div>
+
+                      {ev ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold font-mono text-xs border border-emerald-500/30">
+                            {total}/100
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs border border-amber-500/30">
+                            تقدير {grade}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          بانتظار التقييم
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Criteria score chips if evaluated */}
+                    {ev && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                        <div className="flex justify-between text-slate-300">
+                          <span>الالتزام:</span>
+                          <span className="font-bold text-emerald-400 font-mono">{c1}/25</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span>جودة الأداء:</span>
+                          <span className="font-bold text-amber-400 font-mono">{c2}/35</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span>العمل الجماعي:</span>
+                          <span className="font-bold text-sky-400 font-mono">{c3}/25</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span>المبادرة والشغف:</span>
+                          <span className="font-bold text-purple-400 font-mono">{c4}/15</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {ev?.notes && (
+                      <p className="text-[10px] text-slate-400 bg-slate-900/40 px-2 py-1 rounded">
+                        💬 <strong className="text-slate-300">ملاحظات ({ev.evaluatorName || ev.evaluatedBy}):</strong> {ev.notes}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Hobbies & Learning Aspirations Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

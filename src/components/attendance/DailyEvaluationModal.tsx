@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, Member } from '../../types';
 import { 
   Award, Star, CheckCircle2, X, Sparkles, 
   MapPin, Clock, ShieldCheck, Download, User, ThumbsUp,
   Search, Filter, Check, LogIn, LogOut, Navigation, FileSpreadsheet,
-  Users, Calendar, CheckSquare, Zap, AlertCircle
+  Users, Calendar, CheckSquare, Zap, AlertCircle, UserPlus, Info,
+  TrendingUp, Sliders, ChevronLeft, ChevronRight, MessageSquare
 } from 'lucide-react';
 import { exportAttendanceToExcel } from '../../utils/excelExport';
 
@@ -14,6 +15,54 @@ interface DailyEvaluationModalProps {
   onClose: () => void;
   selectedSessionId?: string;
 }
+
+// Criteria Configurations with 3 Standard Grades (A = 100%, B = 50%, C = 15%)
+const EVAL_CRITERIA_CONFIG = [
+  {
+    key: 'attendanceCommitment',
+    title: 'الالتزام والحضور والانضباط',
+    maxScore: 25,
+    description: 'الحضور في الموعد المحدد، الالتزام بالزي والسلوك والمظهر اللائق، والجدية طوال فترة الفعالية.',
+    grades: {
+      A: { label: 'A (ممتاز)', score: 25, pct: '100%', desc: 'انضباط كامل وحضور مبكر' },
+      B: { label: 'B (متوسط)', score: 12.5, pct: '50%', desc: 'تأخير بسيط أو انضباط جزئي' },
+      C: { label: 'C (مقبول)', score: 3.75, pct: '15%', desc: 'انضباط ضعيف وتأخير ملحوظ' }
+    }
+  },
+  {
+    key: 'taskQuality',
+    title: 'جودة الأداء وإتقان المهام',
+    maxScore: 35,
+    description: 'تنفيذ التكليفات الميدانية بدقة وسرعة وبدون أخطاء، وتحمل المسؤولية وحسن التصرف.',
+    grades: {
+      A: { label: 'A (ممتاز)', score: 35, pct: '100%', desc: 'إتقان فائق وإنجاز مهام مثالي' },
+      B: { label: 'B (متوسط)', score: 17.5, pct: '50%', desc: 'أداء جيد مع حاجة لمتابعة خفيفة' },
+      C: { label: 'C (مقبول)', score: 5.25, pct: '15%', desc: 'إنجاز بطيء أو بحاجة لتوجيه مستمر' }
+    }
+  },
+  {
+    key: 'teamworkCommunication',
+    title: 'العمل الجماعي والتواصل',
+    maxScore: 25,
+    description: 'التعاون مع الزملاء وقادة اللجان، التواصل الفعال وحل المشكلات بروح الفريق الواحد.',
+    grades: {
+      A: { label: 'A (ممتاز)', score: 25, pct: '100%', desc: 'روح فريق استثنائية وتواصل راقٍ' },
+      B: { label: 'B (متوسط)', score: 12.5, pct: '50%', desc: 'تعاون معقول مع الفريق' },
+      C: { label: 'C (مقبول)', score: 3.75, pct: '15%', desc: 'تفاعل محدود أو صعوبة في التواصل' }
+    }
+  },
+  {
+    key: 'initiativePassion',
+    title: 'المبادرة والشغف والإيجابية',
+    maxScore: 15,
+    description: 'طرح أفكار مبتكرة، التطوع للمهام الإضافية، ونشر الطاقة الإيجابية والحماس بين الحضور.',
+    grades: {
+      A: { label: 'A (ممتاز)', score: 15, pct: '100%', desc: 'مبادرة مستمرة وشغف ملهم' },
+      B: { label: 'B (متوسط)', score: 7.5, pct: '50%', desc: 'مبادرة جيدة عند الطلب' },
+      C: { label: 'C (مقبول)', score: 2.25, pct: '15%', desc: 'تطبيق التوجيهات فقط دون مبادرة' }
+    }
+  }
+];
 
 export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   isOpen,
@@ -37,29 +86,48 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   // Selected event filter state
   const defaultEvt = events.find(e => e.date === todayStr || e.status === 'Live') || liveEvent;
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('all');
-  
-  // List mode: scanned attendance records vs all team members roster
-  const [rosterMode, setRosterMode] = useState<'scanned' | 'all_members'>('scanned');
 
-  const [selectedMemberOrRecordId, setSelectedMemberOrRecordId] = useState<string | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState('all');
   const [evalFilter, setEvalFilter] = useState<'all' | 'pending' | 'evaluated'>('all');
 
-  const [attScore, setAttScore] = useState<number>(10);
-  const [partScore, setPartScore] = useState<number>(10);
-  const [commitScore, setCommitScore] = useState<number>(10);
-  const [bonusXP, setBonusXP] = useState<number>(10);
-  const [notes, setNotes] = useState<string>('أداء وانضباط ممتاز خلال الجلسة الميدانية');
+  // 4 Criteria Scores state (out of 25, 35, 25, 15)
+  const [scores, setScores] = useState<{ [key: string]: number }>({
+    attendanceCommitment: 25,
+    taskQuality: 35,
+    teamworkCommunication: 25,
+    initiativePassion: 15
+  });
 
-  // Eligible team members (members, heads, vice heads)
-  const evaluableMembers = useMemo(() => {
-    return members.filter(m => m.status === 'Active' && (m.role === 'member' || m.role === 'head' || m.role === 'vice_head'));
-  }, [members]);
+  // 4 Criteria Grade Selection (A | B | C | Custom)
+  const [grades, setGrades] = useState<{ [key: string]: 'A' | 'B' | 'C' | 'Custom' }>({
+    attendanceCommitment: 'A',
+    taskQuality: 'A',
+    teamworkCommunication: 'A',
+    initiativePassion: 'A'
+  });
 
-  // Attendance records filtered by event/session/today
-  const baseAttendanceRecords = useMemo(() => {
+  // Criteria individual comments
+  const [criteriaNotes, setCriteriaNotes] = useState<{ [key: string]: string }>({
+    attendanceCommitment: '',
+    taskQuality: '',
+    teamworkCommunication: '',
+    initiativePassion: ''
+  });
+
+  const [bonusXP, setBonusXP] = useState<number>(15);
+  const [generalNotes, setGeneralNotes] = useState<string>('أداء وانضباط ميداني متميز طوال فترة الفعالية');
+
+  // Manual Add Member Popup state
+  const [showAddMemberPicker, setShowAddMemberPicker] = useState<boolean>(false);
+  const [memberPickerSearch, setMemberPickerSearch] = useState<string>('');
+  const [memberPickerCommFilter, setMemberPickerCommFilter] = useState<string>('all');
+
+  // Filter attendance records to ONLY those who have an attendance record for this session/event/today
+  const scannedAttendanceRecords = useMemo(() => {
     return attendanceRecords.filter(r => {
+      // Must be an active role
       const mem = members.find(m => m.id === r.memberId);
       if (mem && mem.role !== 'member' && mem.role !== 'head' && mem.role !== 'vice_head') {
         return false;
@@ -74,200 +142,297 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
     });
   }, [attendanceRecords, members, selectedEventFilter, selectedSessionId, todayStr]);
 
-  // Combined active evaluation targets
-  const displayItems = useMemo(() => {
-    if (rosterMode === 'scanned') {
-      // If there are zero scanned records and user is on scanned mode, fallback to show guidance or prompt
-      return baseAttendanceRecords.filter(r => {
-        const matchesSearch = 
-          r.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (r.memberVolunteerId && r.memberVolunteerId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (r.committeeName && r.committeeName.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Filtered displayed attendee records
+  const displayRecords = useMemo(() => {
+    return scannedAttendanceRecords.filter(r => {
+      const matchesSearch = 
+        r.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.memberVolunteerId && r.memberVolunteerId.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (r.committeeName && r.committeeName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        const matchesComm = committeeFilter === 'all' || r.committeeId === committeeFilter;
-        const isEvaluated = Boolean(r.dailyEvaluation);
-        const matchesStatus = 
-          evalFilter === 'all' ? true :
-          evalFilter === 'evaluated' ? isEvaluated :
-          !isEvaluated;
+      const matchesComm = committeeFilter === 'all' || r.committeeId === committeeFilter;
+      const isEvaluated = Boolean(r.dailyEvaluation);
+      const matchesStatus = 
+        evalFilter === 'all' ? true :
+        evalFilter === 'evaluated' ? isEvaluated :
+        !isEvaluated;
 
-        return matchesSearch && matchesComm && matchesStatus;
+      return matchesSearch && matchesComm && matchesStatus;
+    });
+  }, [scannedAttendanceRecords, searchQuery, committeeFilter, evalFilter]);
+
+  // Resolve currently active target attendance record (ONLY from scanned list or manually selected)
+  const currentSelectedRecord = useMemo(() => {
+    if (selectedRecordId) {
+      const rec = scannedAttendanceRecords.find(r => r.id === selectedRecordId);
+      if (rec) return rec;
+    }
+    // Default to first item in display records if any
+    if (displayRecords.length > 0) {
+      return displayRecords[0];
+    }
+    return null;
+  }, [selectedRecordId, displayRecords, scannedAttendanceRecords]);
+
+  // Member object associated with current target
+  const currentMember = useMemo(() => {
+    if (!currentSelectedRecord) return null;
+    return members.find(m => m.id === currentSelectedRecord.memberId || m.volunteerId === currentSelectedRecord.memberVolunteerId) || null;
+  }, [currentSelectedRecord, members]);
+
+  // Handle selecting an attendee from the list
+  const handleSelectRecord = (record: AttendanceRecord) => {
+    setSelectedRecordId(record.id);
+    const ev = record.dailyEvaluation;
+    if (ev) {
+      const c1 = Number(ev.attendanceCommitment ?? ev.attendanceScore ?? 25);
+      const c2 = Number(ev.taskQuality ?? ev.participationScore ?? 35);
+      const c3 = Number(ev.teamworkCommunication ?? ev.commitmentScore ?? 25);
+      const c4 = Number(ev.initiativePassion ?? ev.taskExecutionScore ?? 15);
+
+      setScores({
+        attendanceCommitment: c1,
+        taskQuality: c2,
+        teamworkCommunication: c3,
+        initiativePassion: c4
       });
-    } else {
-      // All Members list
-      return evaluableMembers.filter(m => {
-        const matchesSearch = 
-          m.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (m.volunteerId && m.volunteerId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (m.currentCommitteeName && m.currentCommitteeName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        const matchesComm = committeeFilter === 'all' || m.currentCommitteeId === committeeFilter;
-        
-        // Find existing attendance record if any
-        const existingAtt = attendanceRecords.find(a => 
-          (a.memberId === m.id || a.memberVolunteerId === m.volunteerId) && 
-          (selectedEventFilter !== 'all' ? a.eventId === selectedEventFilter : (a.date === todayStr || true))
-        );
-        const isEvaluated = Boolean(existingAtt?.dailyEvaluation);
-
-        const matchesStatus = 
-          evalFilter === 'all' ? true :
-          evalFilter === 'evaluated' ? isEvaluated :
-          !isEvaluated;
-
-        return matchesSearch && matchesComm && matchesStatus;
+      setGrades(ev.criteriaGrades as any || {
+        attendanceCommitment: c1 === 25 ? 'A' : c1 === 12.5 ? 'B' : c1 === 3.75 ? 'C' : 'Custom',
+        taskQuality: c2 === 35 ? 'A' : c2 === 17.5 ? 'B' : c2 === 5.25 ? 'C' : 'Custom',
+        teamworkCommunication: c3 === 25 ? 'A' : c3 === 12.5 ? 'B' : c3 === 3.75 ? 'C' : 'Custom',
+        initiativePassion: c4 === 15 ? 'A' : c4 === 7.5 ? 'B' : c4 === 2.25 ? 'C' : 'Custom'
       });
-    }
-  }, [rosterMode, baseAttendanceRecords, evaluableMembers, attendanceRecords, searchQuery, committeeFilter, evalFilter, selectedEventFilter, todayStr]);
 
-  // Resolve currently active evaluated target
-  const currentSelectedTarget = useMemo(() => {
-    if (selectedMemberOrRecordId) {
-      // Check in attendance records
-      const rec = attendanceRecords.find(r => r.id === selectedMemberOrRecordId);
-      if (rec) {
-        const mem = members.find(m => m.id === rec.memberId);
-        return { record: rec, member: mem || null };
-      }
-      // Check in members list
-      const mem = members.find(m => m.id === selectedMemberOrRecordId);
-      if (mem) {
-        const rec = attendanceRecords.find(a => 
-          (a.memberId === mem.id || a.memberVolunteerId === mem.volunteerId) &&
-          (selectedEventFilter !== 'all' ? a.eventId === selectedEventFilter : (a.date === todayStr || true))
-        );
-        return { record: rec || null, member: mem };
-      }
-    }
+      setCriteriaNotes(ev.criteriaNotes || {
+        attendanceCommitment: '',
+        taskQuality: '',
+        teamworkCommunication: '',
+        initiativePassion: ''
+      });
 
-    // Default fallback to first item
-    if (displayItems.length > 0) {
-      const first = displayItems[0];
-      if ('checkInTime' in first) {
-        const rec = first as AttendanceRecord;
-        const mem = members.find(m => m.id === rec.memberId);
-        return { record: rec, member: mem || null };
-      } else {
-        const mem = first as Member;
-        const rec = attendanceRecords.find(a => 
-          (a.memberId === mem.id || a.memberVolunteerId === mem.volunteerId) &&
-          (selectedEventFilter !== 'all' ? a.eventId === selectedEventFilter : (a.date === todayStr || true))
-        );
-        return { record: rec || null, member: mem };
-      }
-    }
-
-    // If still empty, return first available member
-    if (evaluableMembers.length > 0) {
-      return { record: null, member: evaluableMembers[0] };
-    }
-
-    return { record: null, member: null };
-  }, [selectedMemberOrRecordId, displayItems, attendanceRecords, members, evaluableMembers, selectedEventFilter, todayStr]);
-
-  // Update evaluation form scores when selected target changes
-  const targetRecord = currentSelectedTarget.record;
-  const targetMember = currentSelectedTarget.member;
-
-  const handleSelectTarget = (targetId: string, recordObj?: AttendanceRecord | null) => {
-    setSelectedMemberOrRecordId(targetId);
-    if (recordObj && recordObj.dailyEvaluation) {
-      setAttScore(recordObj.dailyEvaluation.attendanceScore ?? 10);
-      setPartScore(recordObj.dailyEvaluation.participationScore ?? 10);
-      setCommitScore(recordObj.dailyEvaluation.commitmentScore ?? 10);
-      setBonusXP(recordObj.dailyEvaluation.bonusXP ?? 10);
-      setNotes(recordObj.dailyEvaluation.notes || '');
+      setBonusXP(ev.bonusXP ?? 15);
+      setGeneralNotes(ev.notes || '');
     } else {
-      setAttScore(10);
-      setPartScore(10);
-      setCommitScore(10);
-      setBonusXP(10);
-      setNotes('أداء وانضباط متميز خلال الفعالية الميدانية');
+      // Default to full marks (A) for new evaluation
+      setScores({
+        attendanceCommitment: 25,
+        taskQuality: 35,
+        teamworkCommunication: 25,
+        initiativePassion: 15
+      });
+      setGrades({
+        attendanceCommitment: 'A',
+        taskQuality: 'A',
+        teamworkCommunication: 'A',
+        initiativePassion: 'A'
+      });
+      setCriteriaNotes({
+        attendanceCommitment: '',
+        taskQuality: '',
+        teamworkCommunication: '',
+        initiativePassion: ''
+      });
+      setBonusXP(15);
+      setGeneralNotes('أداء وانضباط ممتاز ومميز خلال الفعالية');
     }
   };
 
+  // Helper to set a specific grade (A / B / C) for a criterion
+  const handleSetCriterionGrade = (key: string, gradeLetter: 'A' | 'B' | 'C', scoreVal: number) => {
+    setGrades(prev => ({ ...prev, [key]: gradeLetter }));
+    setScores(prev => ({ ...prev, [key]: scoreVal }));
+  };
+
+  // Helper to set custom score for a criterion
+  const handleSetCustomScore = (key: string, val: number, maxScore: number) => {
+    const cleanVal = Math.min(maxScore, Math.max(0, Number(val) || 0));
+    setScores(prev => ({ ...prev, [key]: cleanVal }));
+    setGrades(prev => ({ ...prev, [key]: 'Custom' }));
+  };
+
+  // Quick Preset: Apply all A's or all B's
+  const handleApplyPreset = (preset: 'all_A' | 'all_B') => {
+    if (preset === 'all_A') {
+      setScores({
+        attendanceCommitment: 25,
+        taskQuality: 35,
+        teamworkCommunication: 25,
+        initiativePassion: 15
+      });
+      setGrades({
+        attendanceCommitment: 'A',
+        taskQuality: 'A',
+        teamworkCommunication: 'A',
+        initiativePassion: 'A'
+      });
+    } else {
+      setScores({
+        attendanceCommitment: 12.5,
+        taskQuality: 17.5,
+        teamworkCommunication: 12.5,
+        initiativePassion: 7.5
+      });
+      setGrades({
+        attendanceCommitment: 'B',
+        taskQuality: 'B',
+        teamworkCommunication: 'B',
+        initiativePassion: 'B'
+      });
+    }
+  };
+
+  // Calculate live total score (out of 100)
+  const totalPoints = useMemo(() => {
+    const sum = (scores.attendanceCommitment || 0) + 
+                (scores.taskQuality || 0) + 
+                (scores.teamworkCommunication || 0) + 
+                (scores.initiativePassion || 0);
+    return Math.min(100, Math.max(0, Math.round(sum * 10) / 10));
+  }, [scores]);
+
+  const percentage = Math.round(totalPoints);
+
+  const overallGrade = useMemo(() => {
+    if (totalPoints >= 95) return 'A+';
+    if (totalPoints >= 85) return 'A';
+    if (totalPoints >= 70) return 'B';
+    if (totalPoints >= 50) return 'C';
+    return 'D';
+  }, [totalPoints]);
+
+  // Handle Save Evaluation
   const handleSaveEvaluation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetMember && !targetRecord) return;
+    if (!currentSelectedRecord) return;
 
-    const recordIdToUse = targetRecord ? targetRecord.id : (targetMember ? targetMember.id : '');
     const chosenEvent = events.find(ev => ev.id === selectedEventFilter) || defaultEvt;
 
-    submitDailyAttendanceEvaluation(recordIdToUse, {
-      attendanceScore: attScore,
-      participationScore: partScore,
-      commitmentScore: commitScore,
+    submitDailyAttendanceEvaluation(currentSelectedRecord.id, {
+      attendanceCommitment: scores.attendanceCommitment,
+      taskQuality: scores.taskQuality,
+      teamworkCommunication: scores.teamworkCommunication,
+      initiativePassion: scores.initiativePassion,
+      criteriaGrades: grades,
+      criteriaNotes: criteriaNotes,
+      totalDailyScore: totalPoints,
+      overallGrade: overallGrade,
       bonusXP,
-      notes,
-      memberId: targetMember?.id || targetRecord?.memberId,
+      notes: generalNotes,
+      memberId: currentSelectedRecord.memberId,
+      eventId: chosenEvent?.id || currentSelectedRecord.eventId || 'event-live',
+      eventName: chosenEvent?.name || currentSelectedRecord.eventName || 'جلسة عمل ميدانية',
+      date: currentSelectedRecord.date || todayStr
+    });
+
+    // Auto-advance to next unevaluated record
+    if (displayRecords.length > 1) {
+      const currentIndex = displayRecords.findIndex(r => r.id === currentSelectedRecord.id);
+      const nextRecord = displayRecords[currentIndex + 1] || displayRecords[0];
+      if (nextRecord && nextRecord.id !== currentSelectedRecord.id) {
+        handleSelectRecord(nextRecord);
+      }
+    }
+  };
+
+  // Handle Manual Member Addition to Attendance List
+  const handleAddMemberManually = (member: Member) => {
+    const chosenEvent = events.find(ev => ev.id === selectedEventFilter) || defaultEvt;
+    const nowTimeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    // Submit evaluation with manual creation
+    submitDailyAttendanceEvaluation(member.id, {
+      attendanceCommitment: 25,
+      taskQuality: 35,
+      teamworkCommunication: 25,
+      initiativePassion: 15,
+      criteriaGrades: { attendanceCommitment: 'A', taskQuality: 'A', teamworkCommunication: 'A', initiativePassion: 'A' },
+      totalDailyScore: 100,
+      overallGrade: 'A+',
+      bonusXP: 15,
+      notes: 'تمت الإضافة والتقييم يدوياً بواسطة الإدارة',
+      memberId: member.id,
       eventId: chosenEvent?.id || 'event-live',
       eventName: chosenEvent?.name || 'جلسة عمل ميدانية',
       date: todayStr
     });
 
-    // Auto-advance to next unevaluated item in list
-    if (displayItems.length > 1) {
-      const currentIndex = displayItems.findIndex(item => {
-        const id = 'id' in item ? item.id : '';
-        return id === (targetRecord?.id || targetMember?.id);
-      });
-      const nextItem = displayItems[currentIndex + 1] || displayItems[0];
-      if (nextItem) {
-        const nextId = 'id' in nextItem ? nextItem.id : '';
-        const nextRec = 'checkInTime' in nextItem ? (nextItem as AttendanceRecord) : null;
-        handleSelectTarget(nextId, nextRec);
-      }
-    }
+    setShowAddMemberPicker(false);
+    showNotification('success', `تمت إضافة العضو "${member.fullName}" لقائمة التقييم واعتماد حضوره بنجاح ✓`);
   };
 
-  const handleExportToday = () => {
-    const recordsToExport = baseAttendanceRecords.length > 0 ? baseAttendanceRecords : attendanceRecords;
+  // Export to Excel
+  const handleExportExcel = () => {
+    const recordsToExport = scannedAttendanceRecords.length > 0 ? scannedAttendanceRecords : attendanceRecords;
     const chosenEvent = events.find(ev => ev.id === selectedEventFilter);
     const title = chosenEvent ? `تقييمات_فعالية_${chosenEvent.name.replace(/\s+/g, '_')}_${todayStr}` : `تقييمات_جلسة_${todayStr}`;
-    exportAttendanceToExcel(recordsToExport, title);
-    showNotification('success', 'تم تصدير كشف الحضور والتقييمات الميدانية إلى Excel بنجاح 📊');
+    exportAttendanceToExcel(recordsToExport, title, members);
+    showNotification('success', 'تم تصدير كشف التقييمات والحضور بنجاح 📊');
   };
 
-  const totalPoints = attScore + partScore + commitScore;
-  const percentage = Math.round((totalPoints / 30) * 100);
-  const totalEvaluatedCount = baseAttendanceRecords.filter(r => Boolean(r.dailyEvaluation)).length;
+  const totalEvaluatedCount = scannedAttendanceRecords.filter(r => Boolean(r.dailyEvaluation)).length;
+
+  // Candidates for manual addition
+  const candidateMembers = useMemo(() => {
+    const alreadyAttendingIds = new Set(scannedAttendanceRecords.map(r => r.memberId));
+    return members.filter(m => {
+      if (m.status !== 'Active') return false;
+      if (alreadyAttendingIds.has(m.id)) return false;
+      const matchesSearch = 
+        m.fullName.toLowerCase().includes(memberPickerSearch.toLowerCase()) ||
+        (m.volunteerId && m.volunteerId.toLowerCase().includes(memberPickerSearch.toLowerCase())) ||
+        (m.nationalId && m.nationalId.includes(memberPickerSearch));
+      const matchesComm = memberPickerCommFilter === 'all' || m.currentCommitteeId === memberPickerCommFilter;
+      return matchesSearch && matchesComm;
+    });
+  }, [members, scannedAttendanceRecords, memberPickerSearch, memberPickerCommFilter]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in text-right">
-      <div className="w-full max-w-5xl glass-card border border-amber-500/30 bg-slate-950 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in text-right">
+      <div className="w-full max-w-6xl glass-card border border-amber-500/30 bg-slate-950 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
         
-        {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-white/10 bg-gradient-to-r from-amber-950/50 via-slate-900 to-blue-950/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-white/10 bg-gradient-to-r from-amber-950/60 via-slate-900 to-blue-950/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-amber-500/30 shrink-0">
               <Award className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-white">
-                  تقييمات الحاضرين بالفعالية والجلسة الميدانية
+                  منظومة تقييم الحاضرين بالفعالية (المعايير المعتمدة 100 درجة)
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/30 font-mono">
-                  {totalEvaluatedCount} تم تقييمهم
+                  {totalEvaluatedCount} من {scannedAttendanceRecords.length} تم تقييمهم
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                تقييم المتطوعين الحاضرين بالدرجات والملاحظات، إرسال إشعار فوري، وزيادة نقاط الـ XP
+                تقييم المتطوعين الحاضرين بمسح الباركود، رصد الدرجات الـ 4، وإرسال التقييم الشخصي فوراً
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
             <button
-              onClick={handleExportToday}
+              type="button"
+              onClick={() => setShowAddMemberPicker(true)}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-500/20"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ إضافة متطوع يدوياً</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
               className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
             >
               <FileSpreadsheet className="w-4 h-4 text-white" />
-              <span>تصدير شيت Excel 📊</span>
+              <span>تصدير Excel 📊</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
             >
@@ -276,19 +441,19 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
           </div>
         </div>
 
-        {/* Event Selector & Roster Mode Bar */}
-        <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+        {/* Event Selector & Filter Bar */}
+        <div className="p-3 bg-slate-900/90 border-b border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
           
           {/* Linked Event Selector */}
           <div className="flex items-center gap-2 flex-1">
             <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-slate-300 font-bold shrink-0">الفعالية المستهدفة:</span>
+            <span className="text-slate-300 font-bold shrink-0">الفعالية / اليوم الميداني:</span>
             <select
               value={selectedEventFilter}
               onChange={e => setSelectedEventFilter(e.target.value)}
               className="bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs text-white font-bold w-full focus:outline-none focus:border-amber-400 cursor-pointer"
             >
-              <option value="all">🌐 كل الفعاليات وجلسات اليوم ({attendanceRecords.length} سجل حضور إجمالي)</option>
+              <option value="all">🌐 كل الفعاليات وجلسات اليوم ({scannedAttendanceRecords.length} حاضر مسجل)</option>
               {events.map(ev => (
                 <option key={ev.id} value={ev.id}>
                   {ev.date === todayStr ? '✨ [اليوم] ' : ''}{ev.name} ({ev.date}) — {ev.location}
@@ -297,44 +462,42 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
             </select>
           </div>
 
-          {/* Mode Switcher Tabs (Scanned vs All Team Members) */}
-          <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800 shrink-0">
-            <button
-              type="button"
-              onClick={() => setRosterMode('scanned')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                rosterMode === 'scanned'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <CheckSquare className="w-3.5 h-3.5" />
-              <span>الحاضرون بالكود ({baseAttendanceRecords.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setRosterMode('all_members')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                rosterMode === 'all_members'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>فريق المتطوعين بالكامل ({evaluableMembers.length})</span>
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-slate-400 text-xs">عرض:</span>
+            <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setEvalFilter('all')}
+                className={`px-2.5 py-1 rounded-md transition-all font-bold cursor-pointer ${evalFilter === 'all' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}
+              >
+                الكل ({scannedAttendanceRecords.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEvalFilter('pending')}
+                className={`px-2.5 py-1 rounded-md transition-all font-bold cursor-pointer ${evalFilter === 'pending' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}
+              >
+                بانتظار التقييم ({scannedAttendanceRecords.length - totalEvaluatedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEvalFilter('evaluated')}
+                className={`px-2.5 py-1 rounded-md transition-all font-bold cursor-pointer ${evalFilter === 'evaluated' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400'}`}
+              >
+                المقيّمون ({totalEvaluatedCount})
+              </button>
+            </div>
           </div>
 
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4">
           
-          {/* Attendees List Column (5 cols) */}
-          <div className="lg:col-span-5 space-y-3 flex flex-col max-h-[520px]">
+          {/* Attendees List Column (4 cols) */}
+          <div className="lg:col-span-4 space-y-2.5 flex flex-col max-h-[560px]">
             
-            {/* Search & Committee Filters Header */}
+            {/* Search Header */}
             <div className="space-y-2 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -342,127 +505,110 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="بحث بالاسم أو كود المتطوع..."
+                  placeholder="بحث في الحاضرين بالاسم أو الكود..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg pr-8 pl-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-1.5">
-                <select
-                  value={committeeFilter}
-                  onChange={e => setCommitteeFilter(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-                >
-                  <option value="all">جميع اللجان</option>
-                  {committees.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={evalFilter}
-                  onChange={e => setEvalFilter(e.target.value as any)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 cursor-pointer"
-                >
-                  <option value="all">الكل ({displayItems.length})</option>
-                  <option value="pending">بانتظار التقييم</option>
-                  <option value="evaluated">تم تقييمهم</option>
-                </select>
-              </div>
+              <select
+                value={committeeFilter}
+                onChange={e => setCommitteeFilter(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
+              >
+                <option value="all">كل اللجان ({displayRecords.length})</option>
+                {committees.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
-            {/* List items */}
-            <div className="space-y-2 overflow-y-auto pr-1 flex-1">
-              {displayItems.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 bg-slate-900/60 rounded-xl border border-dashed border-slate-800 space-y-2">
-                  <AlertCircle className="w-6 h-6 text-amber-400 mx-auto" />
-                  <p className="font-bold text-white">لا توجد تسجيلات حضور في هذه الفعالية حتى الآن.</p>
-                  <p className="text-[11px] text-slate-400">
-                    يمكنك التبديل إلى تبويب <strong>"فريق المتطوعين بالكامل"</strong> أعلاه لاختيار وتقييم أي عضو وتحضيره مباشرة!
-                  </p>
+            {/* List of Attendees */}
+            <div className="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
+              {displayRecords.length === 0 ? (
+                <div className="p-6 text-center bg-slate-900/40 rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center gap-3 my-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-300">لا يوجد متطوعين مسجلين حضوراً بالكود</p>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-[220px]">
+                      بمجرد عمل مسح (Scan) لكود الحضور سيظهر المتطوع هنا، أو أضفه يدوياً للتقييم الفوري.
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setRosterMode('all_members')}
-                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs"
+                    onClick={() => setShowAddMemberPicker(true)}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5"
                   >
-                    عرض جميع المتطوعين 👥
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ إضافة متطوع يدوياً</span>
                   </button>
                 </div>
               ) : (
-                displayItems.map(item => {
-                  const isRec = 'checkInTime' in item;
-                  const rec = isRec ? (item as AttendanceRecord) : attendanceRecords.find(a => 
-                    (a.memberId === item.id || a.memberVolunteerId === (item as Member).volunteerId) &&
-                    (selectedEventFilter !== 'all' ? a.eventId === selectedEventFilter : (a.date === todayStr || true))
-                  );
-                  const mem = isRec ? members.find(m => m.id === (item as AttendanceRecord).memberId) : (item as Member);
-
-                  const memberName = isRec ? (item as AttendanceRecord).memberName : (item as Member).fullName;
-                  const memberAvatar = isRec ? (item as AttendanceRecord).memberAvatar : (item as Member).avatarUrl;
-                  const memberVolId = isRec ? (item as AttendanceRecord).memberVolunteerId : (item as Member).volunteerId;
-                  const committeeName = isRec ? (item as AttendanceRecord).committeeName : (item as Member).currentCommitteeName;
-
-                  const isSelected = (targetRecord && isRec && targetRecord.id === item.id) || (targetMember && !isRec && targetMember.id === item.id) || (targetMember && mem && targetMember.id === mem.id);
-                  const isEvaluated = Boolean(rec?.dailyEvaluation);
+                displayRecords.map(rec => {
+                  const isSelected = currentSelectedRecord?.id === rec.id;
+                  const isEvaluated = Boolean(rec.dailyEvaluation);
+                  const memObj = members.find(m => m.id === rec.memberId || m.volunteerId === rec.memberVolunteerId);
 
                   return (
                     <div
-                      key={item.id}
-                      onClick={() => handleSelectTarget(item.id, rec || null)}
-                      className={`p-3 rounded-xl border text-right cursor-pointer transition-all ${
+                      key={rec.id}
+                      onClick={() => handleSelectRecord(rec)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
-                          ? 'bg-amber-500/20 border-amber-500 shadow-md shadow-amber-500/10'
-                          : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                          ? 'bg-gradient-to-r from-amber-950/70 to-slate-900 border-amber-500/80 shadow-lg shadow-amber-500/10'
+                          : isEvaluated
+                          ? 'bg-slate-900/50 border-emerald-500/30 hover:border-emerald-500/60'
+                          : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="relative shrink-0">
                           <img
-                            src={memberAvatar}
-                            alt=""
-                            className="w-9 h-9 rounded-lg object-cover border border-slate-700 shrink-0"
+                            src={rec.memberAvatar || memObj?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'}
+                            alt={rec.memberName}
+                            className="w-10 h-10 rounded-full object-cover border border-white/10"
                           />
-                          <div>
-                            <div className="text-xs font-bold text-white leading-tight">
-                              {memberName}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
-                              <span className="text-blue-400 font-bold">{memberVolId || 'عضو'}</span>
-                              <span>•</span>
-                              <span>{committeeName}</span>
-                            </div>
-                          </div>
+                          {isEvaluated && (
+                            <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-bold">
+                              ✓
+                            </span>
+                          )}
                         </div>
-
-                        {isEvaluated ? (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] flex items-center gap-1 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>{rec?.dailyEvaluation?.totalDailyScore}/30</span>
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold text-[10px] border border-amber-500/30">
-                            بانتظار التقييم
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80 gap-1">
-                        {rec ? (
-                          <div className="flex items-center gap-1.5 font-mono">
-                            <span className="text-emerald-400 font-bold">🟢 دخول: {rec.checkInTime}</span>
-                            {rec.checkOutTime ? (
-                              <span className="text-purple-300 font-bold">➔ 🔴 انصراف: {rec.checkOutTime}</span>
-                            ) : (
-                              <span className="text-amber-400 text-[9px] bg-amber-950/60 px-1 py-0.2 rounded border border-amber-500/30">⏳ بالميدان</span>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-white truncate">{rec.memberName}</h4>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {rec.committeeName} • {rec.memberVolunteerId || memObj?.volunteerId || 'عضو'}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="w-3 h-3 text-emerald-400" />
+                              {rec.checkInTime || 'حاضر'}
+                            </span>
+                            {rec.checkOutTime && (
+                              <span className="flex items-center gap-0.5">
+                                <LogOut className="w-3 h-3 text-blue-400" />
+                                {rec.checkOutTime}
+                              </span>
                             )}
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="text-left shrink-0">
+                        {isEvaluated ? (
+                          <div className="flex flex-col items-end">
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold font-mono text-xs border border-emerald-500/30">
+                              {rec.dailyEvaluation?.totalDailyScore || 100}/100
+                            </span>
+                            <span className="text-[10px] text-emerald-400 font-bold mt-0.5">
+                              تقدير {rec.dailyEvaluation?.overallGrade || 'A'}
+                            </span>
+                          </div>
                         ) : (
-                          <span className="text-slate-400 text-[10px]">لم يمسح كود الـ QR بعد (جاهز للتقييم المباشر)</span>
-                        )}
-                        {rec?.durationFormatted && (
-                          <span className="text-sky-300 font-medium">⏱️ {rec.durationFormatted}</span>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/30">
+                            بانتظار التقييم
+                          </span>
                         )}
                       </div>
                     </div>
@@ -470,173 +616,242 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
                 })
               )}
             </div>
+
           </div>
 
-          {/* Evaluation Form Column (7 cols) */}
-          <div className="lg:col-span-7 bg-slate-900/60 p-4 sm:p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
-            {targetMember || targetRecord ? (
-              <form onSubmit={handleSaveEvaluation} className="space-y-4">
+          {/* Evaluation Form Column (8 cols) */}
+          <div className="lg:col-span-8 flex flex-col justify-between">
+            {currentSelectedRecord ? (
+              <form onSubmit={handleSaveEvaluation} className="space-y-4 flex flex-col h-full justify-between">
                 
-                {/* Active Member Header Card */}
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                {/* Volunteer Quick Info Banner */}
+                <div className="p-3.5 bg-gradient-to-r from-slate-900 via-amber-950/30 to-slate-900 rounded-xl border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <img
-                      src={targetRecord?.memberAvatar || targetMember?.avatarUrl}
-                      alt=""
-                      className="w-13 h-13 rounded-xl object-cover border-2 border-amber-500/40 shrink-0 shadow-lg"
+                      src={currentSelectedRecord.memberAvatar || currentMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'}
+                      alt={currentSelectedRecord.memberName}
+                      className="w-12 h-12 rounded-xl object-cover border-2 border-amber-400/50 shadow-md shrink-0"
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">
-                          {targetRecord?.memberName || targetMember?.fullName}
-                        </h4>
-                        <span className="px-2 py-0.2 rounded bg-blue-500/20 text-blue-300 text-[10px] font-mono font-bold border border-blue-500/30">
-                          {targetRecord?.memberVolunteerId || targetMember?.volunteerId || 'عضو'}
+                        <h4 className="text-sm font-bold text-white">{currentSelectedRecord.memberName}</h4>
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                          {currentMember?.position || currentMember?.role || 'عضو متطوع'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {targetRecord?.committeeName || targetMember?.currentCommitteeName} • فعالية: {targetRecord?.eventName || events.find(e => e.id === selectedEventFilter)?.name || 'جلسة الميدان'}
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        الرقم القومي: <span className="font-mono text-amber-300 font-bold">{currentMember?.nationalId || 'ميداني موثق'}</span> | الكود: <span className="font-mono text-cyan-300">{currentSelectedRecord.memberVolunteerId || currentMember?.volunteerId}</span>
                       </p>
-                      
-                      {targetRecord ? (
-                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] font-mono">
-                          <span className="text-emerald-400">🟢 دخول: {targetRecord.checkInTime}</span>
-                          {targetRecord.checkOutTime ? (
-                            <span className="text-purple-300">| 🔴 انصراف: {targetRecord.checkOutTime} ({targetRecord.durationFormatted})</span>
-                          ) : (
-                            <span className="text-amber-400 text-[10px]">| متواجد بالميدان</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-amber-300 font-bold block mt-1">
-                          ⚡ تقييم واعتماد حضور مباشر للمتطوع
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                        <span>اللجنة: <strong className="text-white">{currentSelectedRecord.committeeName}</strong></span>
+                        <span>•</span>
+                        <span>الحضور: <strong className="text-emerald-400 font-mono">{currentSelectedRecord.checkInTime || '—'}</strong></span>
+                        {currentSelectedRecord.checkOutTime && (
+                          <>
+                            <span>•</span>
+                            <span>الانصراف: <strong className="text-blue-400 font-mono">{currentSelectedRecord.checkOutTime}</strong></span>
+                          </>
+                        )}
+                        <span>•</span>
+                        <span>المدة: <strong className="text-purple-300 font-mono">{currentSelectedRecord.durationFormatted || 'حاضر'}</strong></span>
+                      </div>
                     </div>
                   </div>
 
-                  {targetRecord?.gpsLocation && (
-                    <div className="text-right sm:text-left text-[10px] bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-500/30 text-emerald-300 shrink-0">
-                      <div className="font-bold flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-emerald-400" />
-                        <span>الموقع الميداني (GPS):</span>
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-center bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                    <span className="text-[10px] text-slate-400 font-bold ml-1">تطبيق سريع:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPreset('all_A')}
+                      className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 cursor-pointer transition-all"
+                    >
+                      A كامل (100)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPreset('all_B')}
+                      className="px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer transition-all"
+                    >
+                      B نصف (50)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Criteria Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {EVAL_CRITERIA_CONFIG.map((crit, idx) => {
+                    const currentVal = scores[crit.key] ?? crit.maxScore;
+                    const currentGrade = grades[crit.key] || 'A';
+
+                    return (
+                      <div 
+                        key={crit.key}
+                        className="bg-slate-900/70 border border-slate-800 hover:border-slate-700 p-3 rounded-xl space-y-2.5 transition-all"
+                      >
+                        {/* Criterion Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold flex items-center justify-center font-mono">
+                                {idx + 1}
+                              </span>
+                              <h5 className="text-xs font-bold text-white">{crit.title}</h5>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{crit.description}</p>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                            <input
+                              type="number"
+                              min="0"
+                              max={crit.maxScore}
+                              step="0.5"
+                              value={currentVal}
+                              onChange={e => handleSetCustomScore(crit.key, parseFloat(e.target.value), crit.maxScore)}
+                              className="w-12 bg-transparent text-center text-xs font-bold font-mono text-amber-400 focus:outline-none"
+                            />
+                            <span className="text-slate-500 text-[10px] font-bold">/ {crit.maxScore}</span>
+                          </div>
+                        </div>
+
+                        {/* Grade Buttons A / B / C */}
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {(['A', 'B', 'C'] as const).map(gradeKey => {
+                            const gradeObj = crit.grades[gradeKey];
+                            const isSelected = currentGrade === gradeKey;
+
+                            return (
+                              <button
+                                key={gradeKey}
+                                type="button"
+                                onClick={() => handleSetCriterionGrade(crit.key, gradeKey, gradeObj.score)}
+                                className={`p-1.5 rounded-lg text-center transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? gradeKey === 'A'
+                                      ? 'bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-500/20 font-bold'
+                                      : gradeKey === 'B'
+                                      ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-500/20 font-bold'
+                                      : 'bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-500/20 font-bold'
+                                    : 'bg-slate-950/80 hover:bg-slate-800 text-slate-300 border-slate-800'
+                                }`}
+                              >
+                                <div className="text-xs font-bold">{gradeKey}</div>
+                                <div className="text-[10px] opacity-80 font-mono">{gradeObj.score} د ({gradeObj.pct})</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Individual criterion note */}
+                        <input
+                          type="text"
+                          value={criteriaNotes[crit.key] || ''}
+                          onChange={e => setCriteriaNotes(prev => ({ ...prev, [crit.key]: e.target.value }))}
+                          placeholder={`ملاحظة اختيارية حول ${crit.title}...`}
+                          className="w-full bg-slate-950 border border-slate-800/80 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                        />
                       </div>
-                      <span className="font-mono text-[9px] text-slate-300 block mt-0.5">
-                        {targetRecord.gpsLocation.address || `${targetRecord.gpsLocation.lat?.toFixed(4)}, ${targetRecord.gpsLocation.lng?.toFixed(4)}`}
+                    );
+                  })}
+                </div>
+
+                {/* Score Summary & General Notes Banner */}
+                <div className="p-3 bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/40 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                  
+                  {/* General Notes Input (7 cols) */}
+                  <div className="sm:col-span-7 space-y-1">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                      <span>الملاحظات والتوجيهات العامة للمتطوع:</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={generalNotes}
+                      onChange={e => setGeneralNotes(e.target.value)}
+                      placeholder="اكتب توجيهاً أو إشادة بالمتطوع (ستظهر له في الإشعار)..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Bonus XP selector (2 cols) */}
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-amber-400" />
+                      <span>مكافأة XP:</span>
+                    </label>
+                    <select
+                      value={bonusXP}
+                      onChange={e => setBonusXP(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-amber-400 font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value={10}>+10 XP</option>
+                      <option value={15}>+15 XP (قياسي)</option>
+                      <option value={25}>+25 XP (متميز)</option>
+                      <option value={40}>+40 XP (استثنائي)</option>
+                    </select>
+                  </div>
+
+                  {/* Total Live Points & Grade (3 cols) */}
+                  <div className="sm:col-span-3 bg-slate-950 p-2.5 rounded-xl border border-amber-500/30 text-center flex flex-col justify-center items-center">
+                    <div className="text-[10px] text-slate-400 font-bold">النتيجة الإجمالية لليوم</div>
+                    <div className="flex items-center gap-1.5 my-0.5">
+                      <span className="text-xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-300">
+                        {totalPoints}
+                      </span>
+                      <span className="text-xs text-slate-500 font-bold font-mono">/ 100</span>
+                      <span className={`px-2 py-0.5 rounded-md font-bold text-xs ${
+                        overallGrade === 'A+' || overallGrade === 'A'
+                          ? 'bg-emerald-500 text-slate-950'
+                          : overallGrade === 'B'
+                          ? 'bg-blue-500 text-white'
+                          : overallGrade === 'C'
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-red-500 text-white'
+                      }`}>
+                        {overallGrade}
                       </span>
                     </div>
-                  )}
-                </div>
-
-                {/* Rubric Sliders */}
-                <div className="space-y-3 pt-1">
-                  
-                  {/* 1. Attendance & Punctuality */}
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                    <div className="flex justify-between items-center text-xs mb-1.5">
-                      <span className="font-bold text-slate-200">1. الحضور والانضباط بالمواعيد والزي الرسمي:</span>
-                      <span className="font-extrabold text-sky-400 font-mono text-sm">{attScore} / 10</span>
+                    <div className="text-[10px] text-emerald-400 font-bold">
+                      {percentage}% ({overallGrade === 'A+' ? 'ممتاز مرتفع' : overallGrade === 'A' ? 'ممتاز' : overallGrade === 'B' ? 'جيد جداً' : overallGrade === 'C' ? 'مقبول' : 'بحاجة تحسين'})
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={attScore}
-                      onChange={e => setAttScore(Number(e.target.value))}
-                      className="w-full accent-sky-500 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* 2. Participation & Initiative */}
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                    <div className="flex justify-between items-center text-xs mb-1.5">
-                      <span className="font-bold text-slate-200">2. التفاعل والمبادرة والمشاركة والروح الإيجابية:</span>
-                      <span className="font-extrabold text-amber-400 font-mono text-sm">{partScore} / 10</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={partScore}
-                      onChange={e => setPartScore(Number(e.target.value))}
-                      className="w-full accent-amber-500 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* 3. Performance & Quality */}
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                    <div className="flex justify-between items-center text-xs mb-1.5">
-                      <span className="font-bold text-slate-200">3. جودة التنفيذ الميداني والتعاون مع الفريق:</span>
-                      <span className="font-extrabold text-emerald-400 font-mono text-sm">{commitScore} / 10</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={commitScore}
-                      onChange={e => setCommitScore(Number(e.target.value))}
-                      className="w-full accent-emerald-500 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Bonus XP & Total Score */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        نقاط تشجيعية إضافية (Bonus XP):
-                      </label>
-                      <select
-                        value={bonusXP}
-                        onChange={e => setBonusXP(Number(e.target.value))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-500 cursor-pointer font-bold"
-                      >
-                        <option value={0}>0 XP إضافي</option>
-                        <option value={10}>+10 XP (مجهود مميز)</option>
-                        <option value={20}>+20 XP (أداء استثنائي)</option>
-                        <option value={30}>+30 XP (بطل الجلسة 🌟)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        مجموع الدرجات والنسبة المئوية:
-                      </label>
-                      <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
-                        <span className="text-slate-300 font-semibold">الدرجة النهائية:</span>
-                        <span className="text-amber-400 font-black text-sm font-mono">{totalPoints} / 30 ({percentage}%)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      ملاحظات وتوجيهات المقيم للمتطوع (ستصله في إشعار شخصي):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={notes}
-                      onChange={e => setNotes(e.target.value)}
-                      placeholder="اكتب كلمة تشجيعية أو توجيه ميداني للمتطوع..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                    />
                   </div>
 
                 </div>
 
-                <div className="pt-2">
+                {/* Save and Submit Button */}
+                <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-800/80">
+                  <div className="text-xs text-slate-400">
+                    المقيّم: <strong className="text-white">{currentUser.fullName}</strong> ({currentUser.position || currentUser.role})
+                  </div>
+
                   <button
                     type="submit"
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 text-xs font-black transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:scale-[1.01] active:scale-[0.99]"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>حفظ تقييم اليوم واعتماد زيادة نقاط الـ XP وإرسال الإشعار للمتطوع</span>
+                    <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                    <span>حفظ واعتماد تقييم المتطوع ({totalPoints}/100) وإرسال الإشعار ✓</span>
                   </button>
                 </div>
 
               </form>
             ) : (
-              <div className="text-center py-20 text-slate-500 text-xs">
-                اختر متطوعاً من القائمة الجانبية للبدء في تقييمه.
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-400 mb-3">
+                  <Award className="w-8 h-8" />
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">اختر متطوعاً من قائمة الحاضرين للتقييم</h4>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  انقر على أي متطوع من القائمة الجانبية أو اضغط على زر "إضافة متطوع يدوياً" لإدخال عضو جديد وتقييم أدائه الميداني.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemberPicker(true)}
+                  className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-md shadow-blue-500/20"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ إضافة متطوع يدوياً للتقييم الآن</span>
+                </button>
               </div>
             )}
           </div>
@@ -644,6 +859,103 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
         </div>
 
       </div>
+
+      {/* Manual Member Add Popup Modal */}
+      {showAddMemberPicker && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold text-white">إضافة متطوع يدوياً لقائمة التقييم</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMemberPicker(false)}
+                className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 space-y-2 border-b border-slate-800 bg-slate-950/50">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={memberPickerSearch}
+                  onChange={e => setMemberPickerSearch(e.target.value)}
+                  placeholder="ابحث بالاسم، الرقم القومي، أو الكود التطوعي..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pr-8 pl-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <select
+                value={memberPickerCommFilter}
+                onChange={e => setMemberPickerCommFilter(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                <option value="all">كل اللجان ({candidateMembers.length} عضو متاح)</option>
+                {committees.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="p-3 overflow-y-auto flex-1 space-y-2 max-h-96 custom-scrollbar">
+              {candidateMembers.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs">
+                  لا يوجد متطوعين مطابقين للبحث أو أن جميع المتطوعين مسجلون بالفعل.
+                </div>
+              ) : (
+                candidateMembers.map(m => (
+                  <div
+                    key={m.id}
+                    onClick={() => handleAddMemberManually(m)}
+                    className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500 hover:bg-slate-800/60 transition-all cursor-pointer flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={m.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'}
+                        alt={m.fullName}
+                        className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-bold text-white truncate">{m.fullName}</h5>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {m.currentCommitteeName} • <span className="font-mono text-cyan-300">{m.volunteerId}</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          الرقم القومي: {m.nationalId || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shrink-0 flex items-center gap-1 hover:bg-amber-400 transition-all"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>إضافة وتقييم</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-950 border-t border-slate-800 text-center">
+              <button
+                type="button"
+                onClick={() => setShowAddMemberPicker(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

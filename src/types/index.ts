@@ -309,18 +309,26 @@ export interface GPSLocation {
 }
 
 export interface DailySessionEvaluation {
-  attendanceScore?: number; // 1-10
-  disciplineScore?: number; // 1-10
-  participationScore: number; // 1-10
-  commitmentScore?: number; // 1-10
-  taskExecutionScore?: number; // 1-10
-  totalDailyScore?: number; // sum
-  overallDailyScore?: number; // 1-10 or total
+  attendanceCommitment?: number; // 25 (الالتزام والحضور)
+  taskQuality?: number; // 35 (جودة الأداء وإتقان المهام)
+  teamworkCommunication?: number; // 25 (العمل الجماعي والتواصل)
+  initiativePassion?: number; // 15 (المبادرة والشغف)
+  attendanceScore?: number; // 25 (legacy compat)
+  participationScore?: number; // 35 (legacy compat)
+  commitmentScore?: number; // 25 (legacy compat)
+  taskExecutionScore?: number; // 15 (legacy compat)
+  criteriaScores?: { [criterionName: string]: number };
+  criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
+  criteriaNotes?: { [criterionName: string]: string };
+  totalDailyScore?: number; // sum out of 100
+  percentage?: number; // e.g. 95%
+  overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
   bonusXP?: number;
   bonusPoints?: number;
   notes?: string;
   evaluatedBy?: string;
   evaluatorName?: string;
+  evaluatorRole?: string;
   evaluatedAt: string;
 }
 
@@ -522,10 +530,19 @@ export interface MemberEvaluationRecord {
   evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
   eventId?: string; // كود الفعالية المقيمة (اختياري)
   eventName?: string; // اسم الفعالية المقيمة (اختياري)
-  scores: { [criterionId: string]: number }; // points earned per criterion
-  totalScore: number;
-  maxTotalScore: number;
+  checkInTime?: string;
+  checkOutTime?: string;
+  fieldHours?: number;
+  durationFormatted?: string;
+  gpsLocation?: GPSLocation;
+  scores: { [criterionId: string]: number }; // points earned per criterion (e.g. 25, 35, 25, 15)
+  criteriaGrades?: { [criterionId: string]: 'A' | 'B' | 'C' | 'Custom' };
+  criteriaNotes?: { [criterionId: string]: string };
+  totalScore: number; // out of 100
+  maxTotalScore: number; // 100
   percentage: number;
+  overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
+  bonusXP?: number;
   feedback: string;
   evaluatedAt: string;
 }
@@ -543,11 +560,20 @@ export interface HeadEvaluationRecord {
   evaluationDate?: string; // تاريخ ويوم التقييم المحدد (YYYY-MM-DD)
   eventId?: string; // كود الفعالية المقيمة (اختياري)
   eventName?: string; // اسم الفعالية المقيمة (اختياري)
+  checkInTime?: string;
+  checkOutTime?: string;
+  fieldHours?: number;
+  durationFormatted?: string;
+  gpsLocation?: GPSLocation;
   scores: { [criterionId: string]: number };
+  criteriaGrades?: { [criterionId: string]: 'A' | 'B' | 'C' | 'Custom' };
+  criteriaNotes?: { [criterionId: string]: string };
   totalScore: number;
   maxTotalScore: number;
   percentage: number;
   leadershipRating?: number; // 1-5 stars
+  overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
+  bonusXP?: number;
   feedback: string;
   actionItems?: string;
   evaluatedAt: string;

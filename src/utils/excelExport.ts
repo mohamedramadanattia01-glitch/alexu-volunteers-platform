@@ -283,13 +283,17 @@ export const exportComprehensiveVolunteersMasterExcel = (
 };
 
 /**
- * 2. Export Attendance & Check-in / Check-out Records to Excel (.xlsx)
+ * 2. Export Attendance & Check-in / Check-out Records to Excel (.xlsx) with 4-Criteria Rubric
  */
-export const exportAttendanceToExcel = (records: AttendanceRecord[], customTitle?: string) => {
+export const exportAttendanceToExcel = (records: AttendanceRecord[], customTitle?: string, members: Member[] = []) => {
   const headers = [
+    'الرقم القومي (14 رقم)',
     'الرقم التطوعي للمتطوع',
     'اسم المتطوع',
+    'الكلية والفرقة',
+    'رقم الواتساب',
     'اللجنة التابع لها',
+    'المسمى والدور التنظيمي',
     'اسم الفعالية / جلسة الحضور',
     'التاريخ',
     'وقت تسجيل الحضور (Check-in)',
@@ -297,52 +301,273 @@ export const exportAttendanceToExcel = (records: AttendanceRecord[], customTitle
     'إجمالي الساعات الميدانية',
     'حالة الحضور',
     'الموقع الجغرافي الحقيقي (GPS)',
-    'إحداثيات خط العرض (Lat)',
-    'إحداثيات خط الطول (Lng)',
     'دقة الموقع (متر)',
-    'تقييم الالتزام والانضباط (/10)',
-    'تقييم التفاعل والمشاركة (/10)',
-    'تقييم إنجاز المهام (/10)',
-    'الدرجة الإجمالية اليومية (/10)',
+    'الالتزام والحضور (25)',
+    'جودة الأداء وإتقان المهام (35)',
+    'العمل الجماعي والتواصل (25)',
+    'المبادرة والشغف (15)',
+    'الدرجة الإجمالية اليومية (100)',
+    'النسبة المئوية (%)',
+    'التقدير العام (Grade)',
     'نقاط التميز (Bonus XP)',
     'ملاحظات المقيّم',
-    'اسم المقيّم'
+    'اسم المقيّم',
+    'تاريخ الاعتماد'
   ];
 
   const rows = records.map(record => {
+    const mem = members.find(m => m.id === record.memberId || (m.volunteerId && m.volunteerId === record.memberVolunteerId));
     const gps = record.gpsLocation;
-    const lat = gps ? (gps.lat ?? gps.latitude ?? 0) : 0;
-    const lng = gps ? (gps.lng ?? gps.longitude ?? 0) : 0;
     const ev = record.dailyEvaluation;
+    const c1 = ev?.attendanceCommitment ?? ev?.attendanceScore ?? '—';
+    const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
+    const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
+    const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
+    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 : '—');
+    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${total}%` : '—');
+    const grade = ev?.overallGrade || (typeof total === 'number' ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
 
     return [
-      record.memberVolunteerId || (record as any).volunteerId || record.memberId,
-      record.memberName,
-      record.committeeName,
+      mem?.nationalId || '—',
+      record.memberVolunteerId || (record as any).volunteerId || mem?.volunteerId || record.memberId,
+      record.memberName || mem?.fullName || 'متطوع',
+      mem ? `${mem.college} - ${mem.academicYear}` : '—',
+      mem?.whatsappNumber || mem?.phone || '—',
+      record.committeeName || mem?.currentCommitteeName || '—',
+      mem?.position || 'عضو متطوع',
       record.eventName,
       record.date,
       record.checkInTime || '—',
       record.checkOutTime || '—',
-      record.durationFormatted || `${(record.durationMinutes / 60).toFixed(1)} ساعة`,
-      record.status === 'Present' ? 'حاضر' : record.status === 'Late' ? 'متأخر' : record.status === 'Excused' ? 'معتذر' : 'غائب',
-      gps?.address || 'تم الالتقاط',
-      lat ? lat.toFixed(6) : '—',
-      lng ? lng.toFixed(6) : '—',
+      record.durationFormatted || (record.durationMinutes ? `${(record.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
+      record.status === 'Present' ? 'حاضر ✓' : record.status === 'Late' ? 'متأخر' : record.status === 'Excused' ? 'معتذر' : 'غائب',
+      gps?.address || 'ميداني موثق',
       gps?.accuracy ? `±${Math.round(gps.accuracy)}م` : '—',
-      ev?.disciplineScore ?? ev?.commitmentScore ?? '—',
-      ev?.participationScore ?? '—',
-      ev?.taskExecutionScore ?? '—',
-      ev?.totalDailyScore ?? ev?.overallDailyScore ?? '—',
+      c1,
+      c2,
+      c3,
+      c4,
+      total,
+      pct,
+      grade,
       ev?.bonusXP ?? ev?.bonusPoints ?? 0,
       ev?.notes || '—',
-      ev?.evaluatedBy || ev?.evaluatorName || '—'
+      ev?.evaluatorName || ev?.evaluatedBy || '—',
+      ev?.evaluatedAt || '—'
     ];
   });
 
-  const aoaData = [headers, ...rows];
-  const fileName = `سجل_الحضور_والتقييم_${customTitle || 'المعتمد'}_${new Date().toISOString().slice(0, 10)}`;
+  const aoaData = [
+    ['كشف الحضور والتقييمات الميدانية الرسمية — اتحاد طلاب جامعة الإسكندرية'],
+    [`تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [`إجمالي السجلات: ${records.length} سجل`],
+    [],
+    headers,
+    ...rows
+  ];
 
-  downloadExcelWorkbook(aoaData, fileName, 'سجل الحضور');
+  const fileName = `سجل_الحضور_والتقييم_${customTitle || 'المعتمد'}_${new Date().toISOString().slice(0, 10)}`;
+  downloadExcelWorkbook(aoaData, fileName, 'سجل الحضور والتقييم');
+};
+
+/**
+ * 2.1 Master Full Team Evaluation Sheet (Separate for Members & Heads)
+ */
+export const exportAttendanceAndEvaluationMasterExcel = (
+  records: AttendanceRecord[],
+  members: Member[],
+  targetGroup: 'all' | 'members' | 'heads' = 'all',
+  customTitle?: string
+) => {
+  let filteredMembers = members;
+  if (targetGroup === 'members') {
+    filteredMembers = members.filter(m => m.role === 'member');
+  } else if (targetGroup === 'heads') {
+    filteredMembers = members.filter(m => m.role === 'head' || m.role === 'vice_head' || m.position?.includes('رئيس') || m.position?.includes('هيد') || m.position?.includes('نائب'));
+  }
+  const memberIdSet = new Set(filteredMembers.map(m => m.id));
+  const filteredRecords = records.filter(r => memberIdSet.has(r.memberId) || !r.memberId);
+
+  const groupLabel = targetGroup === 'heads' ? 'رؤساء ونواب اللجان (الهيدات)' : targetGroup === 'members' ? 'أعضاء الفريق المتطوعين' : 'كافة الأعضاء والهيدات';
+
+  const headers = [
+    'م',
+    'الرقم القومي (14 رقم)',
+    'الرقم التطوعي',
+    'اسم المتطوع / القائد',
+    'الفئة التنظيمية',
+    'اللجنة التخصصية',
+    'المسمى التنظيمي',
+    'الكلية والفرقة الدراسية',
+    'رقم الواتساب',
+    'اسم الفعالية / الحدث',
+    'تاريخ الفعالية',
+    'وقت تسجيل الحضور (Check-in)',
+    'وقت تسجيل الانصراف (Check-out)',
+    'ساعات العمل الميداني',
+    'حالة الحضور',
+    'الموقع الجغرافي GPS',
+    'الالتزام والحضور (25)',
+    'جودة الأداء وإتقان المهام (35)',
+    'العمل الجماعي والتواصل (25)',
+    'المبادرة والشغف (15)',
+    'درجة اليوم الإجمالية (100)',
+    'النسبة المئوية (%)',
+    'التقدير العام (Grade)',
+    'نقاط الـ XP الممنوحة',
+    'ملاحظات وتوجيهات المقيم',
+    'اسم المقيم',
+    'تاريخ ووقت الاعتماد'
+  ];
+
+  const rows = filteredRecords.map((r, idx) => {
+    const mem = members.find(m => m.id === r.memberId || (m.volunteerId && m.volunteerId === r.memberVolunteerId));
+    const isHead = mem && (mem.role === 'head' || mem.role === 'vice_head');
+    const ev = r.dailyEvaluation;
+    const gps = r.gpsLocation;
+    const c1 = ev?.attendanceCommitment ?? ev?.attendanceScore ?? '—';
+    const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
+    const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
+    const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
+    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 : '—');
+    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${total}%` : '—');
+    const grade = ev?.overallGrade || (typeof total === 'number' ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
+
+    return [
+      idx + 1,
+      mem?.nationalId || '—',
+      r.memberVolunteerId || mem?.volunteerId || r.memberId,
+      r.memberName || mem?.fullName || 'متطوع',
+      isHead ? 'قائد لجنة (Head)' : 'عضو متطوع (Member)',
+      r.committeeName || mem?.currentCommitteeName || '—',
+      mem?.position || 'عضو متطوع',
+      mem ? `${mem.college} - ${mem.academicYear}` : '—',
+      mem?.whatsappNumber || mem?.phone || '—',
+      r.eventName,
+      r.date,
+      r.checkInTime || '—',
+      r.checkOutTime || '—',
+      r.durationFormatted || (r.durationMinutes ? `${(r.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
+      r.status === 'Present' ? 'حاضر ✓' : r.status === 'Late' ? 'متأخر' : r.status === 'Excused' ? 'معتذر' : 'غائب',
+      gps?.address || 'ميداني موثق',
+      c1,
+      c2,
+      c3,
+      c4,
+      total,
+      pct,
+      grade,
+      ev?.bonusXP || 0,
+      ev?.notes || '—',
+      ev?.evaluatorName || ev?.evaluatedBy || '—',
+      ev?.evaluatedAt || '—'
+    ];
+  });
+
+  const aoaData = [
+    [`شيت التقييم والحضور العام — ${groupLabel}`],
+    [`اتحاد طلاب جامعة الإسكندرية • تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [`إجمالي السجلات: ${filteredRecords.length} سجل | إجمالي الحاضرين المقيّمين: ${filteredRecords.filter(r => Boolean(r.dailyEvaluation)).length}`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  const titlePrefix = targetGroup === 'heads' ? 'شيت_تقييم_الهيدات_العام' : targetGroup === 'members' ? 'شيت_تقييم_الأعضاء_العام' : 'شيت_التقييم_العام_المجمع';
+  const fileName = `${titlePrefix}_${customTitle ? customTitle + '_' : ''}${new Date().toISOString().slice(0, 10)}`;
+  downloadExcelWorkbook(aoaData, fileName, groupLabel);
+};
+
+/**
+ * 2.2 Export Single Volunteer Evaluation History directly from profile
+ */
+export const exportSingleMemberEvaluationHistoryToExcel = (
+  member: Member,
+  records: AttendanceRecord[] = [],
+  memberEvaluations: MemberEvaluationRecord[] = []
+) => {
+  const userRecords = records.filter(r => r.memberId === member.id || (r.memberVolunteerId && r.memberVolunteerId === member.volunteerId));
+  const userEvaluations = memberEvaluations.filter(e => e.memberId === member.id || (e.memberVolunteerId && e.memberVolunteerId === member.volunteerId));
+
+  const headers = [
+    'م',
+    'الرقم القومي',
+    'الرقم التطوعي',
+    'اسم المتطوع',
+    'اللجنة التخصصية',
+    'اسم الفعالية / اليوم الميداني',
+    'تاريخ الحضور',
+    'وقت تسجيل الحضور (Check-in)',
+    'وقت تسجيل الانصراف (Check-out)',
+    'ساعات العمل الميداني',
+    'حالة الحضور',
+    'الالتزام والحضور (25)',
+    'جودة الأداء وإتقان المهام (35)',
+    'العمل الجماعي والتواصل (25)',
+    'المبادرة والشغف (15)',
+    'إجمالي نتيجة اليوم (100)',
+    'النسبة المئوية (%)',
+    'التقدير العام (Grade)',
+    'نقاط التميز (Bonus XP)',
+    'الملاحظات والتوجيهات',
+    'اسم المقيّم',
+    'تاريخ ووقت التقييم'
+  ];
+
+  const rows = userRecords.map((r, idx) => {
+    const ev = r.dailyEvaluation;
+    const c1 = ev?.attendanceCommitment ?? ev?.attendanceScore ?? '—';
+    const c2 = ev?.taskQuality ?? ev?.participationScore ?? '—';
+    const c3 = ev?.teamworkCommunication ?? ev?.commitmentScore ?? '—';
+    const c4 = ev?.initiativePassion ?? ev?.taskExecutionScore ?? '—';
+    const total = ev?.totalDailyScore ?? (typeof c1 === 'number' && typeof c2 === 'number' && typeof c3 === 'number' && typeof c4 === 'number' ? c1 + c2 + c3 + c4 : '—');
+    const pct = ev?.percentage !== undefined ? `${ev.percentage}%` : (typeof total === 'number' ? `${total}%` : '—');
+    const grade = ev?.overallGrade || (typeof total === 'number' ? (total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D') : '—');
+
+    return [
+      idx + 1,
+      member.nationalId || '—',
+      member.volunteerId || member.id,
+      member.fullName,
+      member.currentCommitteeName,
+      r.eventName || 'جلسة ميدانية',
+      r.date,
+      r.checkInTime || '—',
+      r.checkOutTime || '—',
+      r.durationFormatted || (r.durationMinutes ? `${(r.durationMinutes / 60).toFixed(1)} ساعة` : '—'),
+      r.status === 'Present' ? 'حاضر ✓' : r.status === 'Late' ? 'متأخر' : r.status === 'Excused' ? 'معتذر' : 'غائب',
+      c1,
+      c2,
+      c3,
+      c4,
+      total,
+      pct,
+      grade,
+      ev?.bonusXP || 0,
+      ev?.notes || '—',
+      ev?.evaluatorName || ev?.evaluatedBy || '—',
+      ev?.evaluatedAt || '—'
+    ];
+  });
+
+  const totalEvaluated = userRecords.filter(r => Boolean(r.dailyEvaluation)).length;
+  const totalHours = userRecords.reduce((acc, r) => acc + (r.durationMinutes || 0), 0) / 60;
+  const overallAvg = member.performance?.overallScore || 0;
+
+  const aoaData = [
+    [`السجل الفردي الكامل للحضور والتقييمات الميدانية — ${member.fullName}`],
+    [`الرقم القومي: ${member.nationalId || '—'} | الكود التطوعي: ${member.volunteerId} | اللجنة: ${member.currentCommitteeName}`],
+    [`الكلية: ${member.college} - الفرقة: ${member.academicYear} | الهاتف/واتساب: ${member.whatsappNumber || member.phone || '—'}`],
+    [`المعدل التراكمي العام: ${overallAvg}% | إجمالي الفعاليات المحضورة: ${userRecords.length} | إجمالي الساعات: ${totalHours.toFixed(1)} ساعة | التقييمات المسجلة: ${totalEvaluated}`],
+    [`تاريخ استخراج التقرير: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  const cleanName = member.fullName.replace(/[\s\/:*?"<>|]+/g, '_');
+  const fileName = `سجل_تقييمات_${cleanName}_${new Date().toISOString().slice(0, 10)}`;
+  downloadExcelWorkbook(aoaData, fileName, 'سجل التقييمات الفردي');
 };
 
 /**
@@ -397,34 +622,57 @@ export const exportTasksToExcel = (tasks: Task[], customTitle?: string) => {
 /**
  * 4. Export Evaluations (360 Degree) to Excel (.xlsx)
  */
-export const exportEvaluationsToExcel = (evaluations: MemberEvaluationRecord[], customTitle?: string) => {
+export const exportEvaluationsToExcel = (evaluations: MemberEvaluationRecord[], customTitle?: string, members: Member[] = []) => {
   const headers = [
     'كود التقييم',
+    'الرقم القومي',
     'الرقم التطوعي',
     'اسم المتطوع المقيّم',
     'اللجنة',
-    'الدرجة المحرزة',
+    'الالتزام والحضور (25)',
+    'جودة الأداء وإتقان المهام (35)',
+    'العمل الجماعي والتواصل (25)',
+    'المبادرة والشغف (15)',
+    'الدرجة المحرزة الإجمالية (100)',
     'الدرجة القصوى',
     'النسبة المئوية (%)',
+    'التقدير العام (Grade)',
     'اسم المقيّم',
     'الدور الإداري للمقيّم',
     'تاريخ الاعتماد',
     'التوجيه والملاحظات'
   ];
 
-  const rows = evaluations.map(ev => [
-    ev.id,
-    ev.memberVolunteerId || ev.memberId,
-    ev.memberName,
-    ev.committeeName,
-    ev.totalScore,
-    ev.maxTotalScore,
-    `${ev.percentage}%`,
-    ev.evaluatorName,
-    ev.evaluatorRole,
-    ev.evaluatedAt,
-    ev.feedback || '—'
-  ]);
+  const rows = evaluations.map(ev => {
+    const mem = members.find(m => m.id === ev.memberId || (m.volunteerId && m.volunteerId === ev.memberVolunteerId));
+    const scores = ev.scores || {};
+    const c1 = scores['الالتزام والحضور (25)'] ?? scores['الحضور والانضباط'] ?? scores['الالتزام والحضور'] ?? '—';
+    const c2 = scores['جودة الأداء وإتقان المهام (35)'] ?? scores['جودة الأداء'] ?? scores['التفاعل والمبادرة'] ?? '—';
+    const c3 = scores['العمل الجماعي والتواصل (25)'] ?? scores['العمل الجماعي'] ?? scores['جودة الأداء الميداني'] ?? '—';
+    const c4 = scores['المبادرة والشغف (15)'] ?? scores['المبادرة والشغف'] ?? '—';
+    const total = ev.totalScore;
+    const grade = total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D';
+
+    return [
+      ev.id,
+      mem?.nationalId || '—',
+      ev.memberVolunteerId || mem?.volunteerId || ev.memberId,
+      ev.memberName || mem?.fullName || 'متطوع',
+      ev.committeeName || mem?.currentCommitteeName || '—',
+      c1,
+      c2,
+      c3,
+      c4,
+      ev.totalScore,
+      ev.maxTotalScore || 100,
+      `${ev.percentage}%`,
+      grade,
+      ev.evaluatorName,
+      ev.evaluatorRole,
+      ev.evaluatedAt,
+      ev.feedback || '—'
+    ];
+  });
 
   const aoaData = [headers, ...rows];
   const fileName = `سجل_تقييمات_المتطوعين_${customTitle || ''}_${new Date().toISOString().slice(0, 10)}`;
@@ -435,38 +683,61 @@ export const exportEvaluationsToExcel = (evaluations: MemberEvaluationRecord[], 
 /**
  * 5. Export Head Evaluations to Excel (.xlsx)
  */
-export const exportHeadEvaluationsToExcel = (headEvaluations: HeadEvaluationRecord[], customTitle?: string) => {
+export const exportHeadEvaluationsToExcel = (headEvaluations: HeadEvaluationRecord[], customTitle?: string, members: Member[] = []) => {
   const headers = [
     'كود التقييم القيادي',
+    'الرقم القومي',
     'الرقم التطوعي للقائد',
     'اسم القائد',
     'المسمى القيادي',
     'اللجنة',
-    'الدرجة القيادية',
+    'الالتزام والحضور (25)',
+    'جودة الأداء وإتقان المهام (35)',
+    'العمل الجماعي والتواصل (25)',
+    'المبادرة والشغف (15)',
+    'الدرجة القيادية (100)',
     'الدرجة القصوى',
     'النسبة المئوية (%)',
+    'التقدير العام (Grade)',
     'تقييم النجوم (/5)',
     'اسم مقيّم الإدارة العليا',
     'صفة المقيّم',
     'تاريخ الاعتماد',
-    'التوجيه القيادي'
+    'التوجيه القيادي والملاحظات'
   ];
 
-  const rows = headEvaluations.map(ev => [
-    ev.id,
-    ev.headVolunteerId || ev.headId,
-    ev.headName,
-    ev.headPosition,
-    ev.committeeName,
-    ev.totalScore,
-    ev.maxTotalScore,
-    `${ev.percentage}%`,
-    ev.leadershipRating ? `${ev.leadershipRating}/5` : '5/5',
-    ev.evaluatorName,
-    ev.evaluatorRole,
-    ev.evaluatedAt,
-    ev.feedback || '—'
-  ]);
+  const rows = headEvaluations.map(ev => {
+    const mem = members.find(m => m.id === ev.headId || (m.volunteerId && m.volunteerId === ev.headVolunteerId));
+    const scores = ev.scores || {};
+    const c1 = scores['الالتزام والحضور (25)'] ?? scores['الحضور والانضباط القيادي'] ?? scores['الالتزام والحضور'] ?? '—';
+    const c2 = scores['جودة الأداء وإتقان المهام (35)'] ?? scores['إدارة وتفاعل الفريق'] ?? scores['جودة الأداء'] ?? '—';
+    const c3 = scores['العمل الجماعي والتواصل (25)'] ?? scores['تنفيذ المهام الميدانية'] ?? scores['العمل الجماعي'] ?? '—';
+    const c4 = scores['المبادرة والشغف (15)'] ?? scores['المبادرة والشغف'] ?? '—';
+    const total = ev.totalScore;
+    const grade = total >= 95 ? 'A+' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 50 ? 'C' : 'D';
+
+    return [
+      ev.id,
+      mem?.nationalId || '—',
+      ev.headVolunteerId || mem?.volunteerId || ev.headId,
+      ev.headName || mem?.fullName || 'قائد',
+      ev.headPosition || mem?.position || 'رئيس لجنة',
+      ev.committeeName || mem?.currentCommitteeName || '—',
+      c1,
+      c2,
+      c3,
+      c4,
+      ev.totalScore,
+      ev.maxTotalScore || 100,
+      `${ev.percentage}%`,
+      grade,
+      ev.leadershipRating ? `${ev.leadershipRating}/5` : '5/5',
+      ev.evaluatorName,
+      ev.evaluatorRole,
+      ev.evaluatedAt,
+      ev.feedback || '—'
+    ];
+  });
 
   const aoaData = [headers, ...rows];
   const fileName = `سجل_تقييمات_قادة_اللجان_${customTitle || ''}_${new Date().toISOString().slice(0, 10)}`;

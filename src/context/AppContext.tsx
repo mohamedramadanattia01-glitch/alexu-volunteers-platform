@@ -159,9 +159,19 @@ interface AppContextType {
   createAttendanceSession: (sessionData: Partial<AttendanceSession>) => AttendanceSession;
   closeAttendanceSession: (sessionId: string) => void;
   submitDailyAttendanceEvaluation: (recordId: string, evalData: {
-    attendanceScore: number;
-    participationScore: number;
-    commitmentScore: number;
+    attendanceCommitment?: number;
+    taskQuality?: number;
+    teamworkCommunication?: number;
+    initiativePassion?: number;
+    attendanceScore?: number;
+    participationScore?: number;
+    commitmentScore?: number;
+    taskExecutionScore?: number;
+    criteriaScores?: { [criterionName: string]: number };
+    criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
+    criteriaNotes?: { [criterionName: string]: string };
+    totalDailyScore?: number;
+    overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
     bonusXP?: number;
     notes?: string;
     memberId?: string;
@@ -946,18 +956,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         }
 
-        // Smart Merge Notifications
+        // Cloud Notifications Sync
         if (cloudData.notifications) {
-          setNotifications(prev => {
-            const cloudMap = new Map(cloudData.notifications!.map(n => [n.id, n]));
-            const merged = cloudData.notifications!.slice();
-            prev.forEach(localN => {
-              if (!cloudMap.has(localN.id)) {
-                merged.unshift(localN);
-              }
-            });
-            return merged;
-          });
+          setNotifications(cloudData.notifications);
         }
 
         // Smart Merge Banned Users
@@ -3495,9 +3496,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Submit Daily Session Evaluation (Head / Leadership)
   const submitDailyAttendanceEvaluation = (recordId: string, evalData: {
-    attendanceScore: number;
-    participationScore: number;
-    commitmentScore: number;
+    attendanceCommitment?: number;
+    taskQuality?: number;
+    teamworkCommunication?: number;
+    initiativePassion?: number;
+    attendanceScore?: number;
+    participationScore?: number;
+    commitmentScore?: number;
+    taskExecutionScore?: number;
+    criteriaScores?: { [criterionName: string]: number };
+    criteriaGrades?: { [criterionName: string]: 'A' | 'B' | 'C' | 'Custom' };
+    criteriaNotes?: { [criterionName: string]: string };
+    totalDailyScore?: number;
+    overallGrade?: 'A+' | 'A' | 'B' | 'C' | 'D';
     bonusXP?: number;
     notes?: string;
     memberId?: string;
@@ -3507,11 +3518,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sessionTitle?: string;
     date?: string;
   }) => {
-    const totalDaily = (Number(evalData.attendanceScore) || 0) + (Number(evalData.participationScore) || 0) + (Number(evalData.commitmentScore) || 0);
-    const awardedXP = (Number(evalData.bonusXP) || 0) + (totalDaily >= 25 ? 30 : totalDaily >= 20 ? 20 : 10);
-    const percentage = Math.round((totalDaily / 30) * 100);
+    const c1 = Number(evalData.attendanceCommitment ?? evalData.attendanceScore ?? 25);
+    const c2 = Number(evalData.taskQuality ?? evalData.participationScore ?? 35);
+    const c3 = Number(evalData.teamworkCommunication ?? evalData.commitmentScore ?? 25);
+    const c4 = Number(evalData.initiativePassion ?? evalData.taskExecutionScore ?? 15);
+
+    const totalDaily = Math.min(100, Math.max(0, Math.round(c1 + c2 + c3 + c4)));
+    const percentage = totalDaily; // Out of 100
+
+    const overallGrade: 'A+' | 'A' | 'B' | 'C' | 'D' = 
+      totalDaily >= 95 ? 'A+' :
+      totalDaily >= 85 ? 'A' :
+      totalDaily >= 70 ? 'B' :
+      totalDaily >= 50 ? 'C' : 'D';
+
+    const awardedXP = (Number(evalData.bonusXP) || 15) + (totalDaily >= 90 ? 30 : totalDaily >= 75 ? 20 : 10);
     const todayStr = new Date().toISOString().split('T')[0];
     const nowTimeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    const criteriaScoresBreakdown = {
+      'الالتزام والحضور (25)': c1,
+      'جودة الأداء وإتقان المهام (35)': c2,
+      'العمل الجماعي والتواصل (25)': c3,
+      'المبادرة والشغف (15)': c4
+    };
 
     let targetMemberId = evalData.memberId || '';
     let updatedRecord: AttendanceRecord | null = null;
@@ -3524,13 +3554,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedRecord = {
             ...rec,
             dailyEvaluation: {
-              attendanceScore: evalData.attendanceScore,
-              participationScore: evalData.participationScore,
-              commitmentScore: evalData.commitmentScore,
+              attendanceCommitment: c1,
+              taskQuality: c2,
+              teamworkCommunication: c3,
+              initiativePassion: c4,
+              attendanceScore: c1,
+              participationScore: c2,
+              commitmentScore: c3,
+              taskExecutionScore: c4,
+              criteriaScores: criteriaScoresBreakdown,
+              criteriaGrades: evalData.criteriaGrades || {},
+              criteriaNotes: evalData.criteriaNotes || {},
               totalDailyScore: totalDaily,
+              percentage: percentage,
+              overallGrade: overallGrade,
               bonusXP: awardedXP,
               notes: evalData.notes || '',
               evaluatedBy: currentUser.fullName,
+              evaluatorName: currentUser.fullName,
+              evaluatorRole: currentUser.role,
               evaluatedAt: nowTimeStr
             }
           };
@@ -3563,13 +3605,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'Present',
           qrHashToken: `DIRECT_EVAL_${Date.now()}`,
           dailyEvaluation: {
-            attendanceScore: evalData.attendanceScore,
-            participationScore: evalData.participationScore,
-            commitmentScore: evalData.commitmentScore,
+            attendanceCommitment: c1,
+            taskQuality: c2,
+            teamworkCommunication: c3,
+            initiativePassion: c4,
+            attendanceScore: c1,
+            participationScore: c2,
+            commitmentScore: c3,
+            taskExecutionScore: c4,
+            criteriaScores: criteriaScoresBreakdown,
+            criteriaGrades: evalData.criteriaGrades || {},
+            criteriaNotes: evalData.criteriaNotes || {},
             totalDailyScore: totalDaily,
+            percentage: percentage,
+            overallGrade: overallGrade,
             bonusXP: awardedXP,
             notes: evalData.notes || '',
             evaluatedBy: currentUser.fullName,
+            evaluatorName: currentUser.fullName,
+            evaluatorRole: currentUser.role,
             evaluatedAt: nowTimeStr
           }
         };
@@ -3600,15 +3654,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         evaluatorName: currentUser.fullName,
         evaluatorRole: currentUser.role,
         evaluationDate: evalDateStr,
-        scores: {
-          'الحضور والانضباط': evalData.attendanceScore,
-          'التفاعل والمبادرة': evalData.participationScore,
-          'جودة الأداء الميداني': evalData.commitmentScore
-        },
+        scores: criteriaScoresBreakdown,
         totalScore: totalDaily,
-        maxTotalScore: 30,
+        maxTotalScore: 100,
         percentage: percentage,
-        feedback: evalData.notes ? `${evalData.notes} (مكافأة: +${awardedXP} XP)` : `تقييم جلسة: ${eventNameStr} (+${awardedXP} XP)`,
+        feedback: evalData.notes ? `${evalData.notes} [التقدير: ${overallGrade}] (+${awardedXP} XP)` : `تقييم جلسة: ${eventNameStr} [التقدير: ${overallGrade}] (+${awardedXP} XP)`,
         evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
       };
 
@@ -3631,16 +3681,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           evaluatorName: currentUser.fullName,
           evaluatorRole: currentUser.role,
           evaluationDate: evalDateStr,
-          scores: {
-            'الحضور والانضباط القيادي': evalData.attendanceScore,
-            'إدارة وتفاعل الفريق': evalData.participationScore,
-            'تنفيذ المهام الميدانية': evalData.commitmentScore
-          },
+          scores: criteriaScoresBreakdown,
           totalScore: totalDaily,
-          maxTotalScore: 30,
+          maxTotalScore: 100,
           percentage: percentage,
-          leadershipRating: Number((totalDaily / 6).toFixed(1)),
-          feedback: evalData.notes || 'أداء والتزام ميداني ممتاز',
+          leadershipRating: Number((totalDaily / 20).toFixed(1)),
+          feedback: evalData.notes || `أداء قيادي وانضباط ميداني متميز [التقدير: ${overallGrade}]`,
           evaluatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
         };
         setHeadEvaluations(prev => [headEvalObj, ...prev.filter(h => h.id !== headEvalObj.id)]);
@@ -3663,7 +3709,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...m.performance,
               overallScore: newOverall,
               evaluationsCount: prevCount + 1,
-              commitment: Math.min(100, (m.performance?.commitment || 90) + 1)
+              commitment: Math.min(100, Math.round(((m.performance?.commitment || 90) + (c1 * 4)) / 2)),
+              taskQuality: Number(((c2 / 35) * 5).toFixed(1)),
+              teamwork: Math.min(100, Math.round(((m.performance?.teamwork || 90) + (c3 * 4)) / 2))
             }
           };
           SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
@@ -3672,11 +3720,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return m;
       }));
 
-      // 4. Send targeted personal notification to the volunteer
+      // 4. Send targeted personal notification to the volunteer with breakdown
       const evalNotif: SystemNotification = {
         id: `notif-daily-eval-${Date.now()}`,
-        title: `🌟 تقييم اليوم الميداني (+${awardedXP} XP)`,
-        message: `أهلاً يا ${targetMember.fullName.split(' ')[0]}، تم اعتماد تقييمك لجلسة (${eventNameStr}) بواسطة ${currentUser.fullName}: النتيجة ${totalDaily}/30 (${percentage}%). ${evalData.notes ? `ملاحظات: "${evalData.notes}"` : ''}`,
+        title: `🌟 تقييم اليوم الميداني: ${totalDaily}/100 (${overallGrade})`,
+        message: `أهلاً يا ${targetMember.fullName.split(' ')[0]}، تم اعتماد تقييمك لجلسة (${eventNameStr}) بواسطة ${currentUser.fullName}: النتيجة ${totalDaily}/100 [تقدير: ${overallGrade}]. (حضور: ${c1}/25 | أداء: ${c2}/35 | عمل جماعي: ${c3}/25 | مبادرة: ${c4}/15). ${evalData.notes ? `ملاحظات: "${evalData.notes}"` : ''}`,
         type: 'eval',
         targetMemberIds: [targetMember.id],
         senderName: currentUser.fullName,
@@ -3689,17 +3737,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 5. Send Web Push Notification to user's device
       sendSystemPushNotification({
-        title: `🌟 تقييم اليوم الميداني (+${awardedXP} XP)`,
-        body: `تم اعتماد تقييمك لجلسة ${eventNameStr}: ${totalDaily}/30 (${percentage}%). استمر في التميز!`,
+        title: `🌟 تقييم اليوم الميداني: ${totalDaily}/100 (${overallGrade})`,
+        body: `تم اعتماد تقييمك لجلسة ${eventNameStr}: ${totalDaily}/100 (${percentage}%). مبروك +${awardedXP} XP!`,
         type: 'achievement',
         data: { url: '/?tab=evaluations' }
       });
     }
 
     playSound('task');
-    triggerGamificationCelebration(`🌟 تم اعتماد تقييم ${targetMember?.fullName.split(' ')[0] || 'المتطوع'} بنجاح! (+${awardedXP} XP)`, awardedXP);
-    addAuditLog('تسجيل تقييم اليوم الميداني', targetMember?.fullName || `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/30 (${percentage}%) - XP: +${awardedXP} - المقيم: ${currentUser.fullName}`);
-    showNotification('success', `تم حفظ تقييم اليوم للمتطوع وإرسال الإشعار وإضافة +${awardedXP} XP بنجاح!`);
+    triggerGamificationCelebration(`🌟 تم اعتماد تقييم ${targetMember?.fullName.split(' ')[0] || 'المتطوع'} بنجاح! (${totalDaily}/100 - تقدير ${overallGrade})`, awardedXP);
+    addAuditLog('تسجيل تقييم اليوم الميداني', targetMember?.fullName || `Record ID: ${recordId}`, `الدرجة: ${totalDaily}/100 (${overallGrade}) - XP: +${awardedXP} - المقيم: ${currentUser.fullName}`);
+    showNotification('success', `تم حفظ تقييم اليوم للمتطوع بنتيجة ${totalDaily}/100 (${overallGrade}) وإرسال الإشعار بنجاح!`);
   };
 
   // Delete Attendance Record
@@ -4396,18 +4444,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const markNotificationRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    SupabaseService.markNotificationAsRead(id).catch(e => console.warn(e));
   };
 
   const markAllNotificationsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    SupabaseService.markAllNotificationsAsRead().catch(e => console.warn(e));
   };
 
   const deleteNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+    SupabaseService.deleteNotification(id).catch(e => console.warn(e));
   };
 
   const clearAllNotifications = () => {
     setNotifications([]);
+    SupabaseService.clearAllNotifications().catch(e => console.warn(e));
   };
 
   const getAIRecommendationForTask = (requiredSkills: string[], committeeId?: string) => {
