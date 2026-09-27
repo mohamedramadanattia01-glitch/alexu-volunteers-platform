@@ -330,15 +330,24 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('attachments', 'attachments', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage Policies
+-- Storage Policies (Idempotent with DROP IF EXISTS)
+DROP POLICY IF EXISTS "Public Read Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Public Insert Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Public Update Avatars" ON storage.objects;
 CREATE POLICY "Public Read Avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
 CREATE POLICY "Public Insert Avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
 CREATE POLICY "Public Update Avatars" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
 
+DROP POLICY IF EXISTS "Public Read Documents" ON storage.objects;
+DROP POLICY IF EXISTS "Public Insert Documents" ON storage.objects;
+DROP POLICY IF EXISTS "Public Update Documents" ON storage.objects;
 CREATE POLICY "Public Read Documents" ON storage.objects FOR SELECT USING (bucket_id = 'documents');
 CREATE POLICY "Public Insert Documents" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'documents');
 CREATE POLICY "Public Update Documents" ON storage.objects FOR UPDATE USING (bucket_id = 'documents');
 
+DROP POLICY IF EXISTS "Public Read Attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Public Insert Attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Public Update Attachments" ON storage.objects;
 CREATE POLICY "Public Read Attachments" ON storage.objects FOR SELECT USING (bucket_id = 'attachments');
 CREATE POLICY "Public Insert Attachments" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'attachments');
 CREATE POLICY "Public Update Attachments" ON storage.objects FOR UPDATE USING (bucket_id = 'attachments');
@@ -363,27 +372,59 @@ ALTER TABLE public.system_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Enable all for banned_users" ON public.banned_users;
 CREATE POLICY "Enable all for banned_users" ON public.banned_users FOR ALL USING (true);
 
 -- Allow full read/write for all application operations (Anon + Authenticated)
+DROP POLICY IF EXISTS "Enable read for all users" ON public.members;
+DROP POLICY IF EXISTS "Enable insert for all users" ON public.members;
+DROP POLICY IF EXISTS "Enable update for all users" ON public.members;
+DROP POLICY IF EXISTS "Enable delete for all users" ON public.members;
 CREATE POLICY "Enable read for all users" ON public.members FOR SELECT USING (true);
 CREATE POLICY "Enable insert for all users" ON public.members FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for all users" ON public.members FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for all users" ON public.members FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "Enable all for committees" ON public.committees;
 CREATE POLICY "Enable all for committees" ON public.committees FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for seasons" ON public.seasons;
 CREATE POLICY "Enable all for seasons" ON public.seasons FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for tasks" ON public.tasks;
 CREATE POLICY "Enable all for tasks" ON public.tasks FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for events" ON public.events;
 CREATE POLICY "Enable all for events" ON public.events FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for attendance_sessions" ON public.attendance_sessions;
 CREATE POLICY "Enable all for attendance_sessions" ON public.attendance_sessions FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for attendance_records" ON public.attendance_records;
 CREATE POLICY "Enable all for attendance_records" ON public.attendance_records FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for member_evaluations" ON public.member_evaluations;
 CREATE POLICY "Enable all for member_evaluations" ON public.member_evaluations FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for head_evaluations" ON public.head_evaluations;
 CREATE POLICY "Enable all for head_evaluations" ON public.head_evaluations FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for complaints" ON public.complaints;
 CREATE POLICY "Enable all for complaints" ON public.complaints FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for documents" ON public.documents;
 CREATE POLICY "Enable all for documents" ON public.documents FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for announcements" ON public.announcements;
 CREATE POLICY "Enable all for announcements" ON public.announcements FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for audit_logs" ON public.audit_logs;
 CREATE POLICY "Enable all for audit_logs" ON public.audit_logs FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for system_notifications" ON public.system_notifications;
 CREATE POLICY "Enable all for system_notifications" ON public.system_notifications FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Enable all for app_settings" ON public.app_settings;
 CREATE POLICY "Enable all for app_settings" ON public.app_settings FOR ALL USING (true);
 
 -- ==============================================================================
