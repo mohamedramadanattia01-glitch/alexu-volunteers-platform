@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { 
   AttendanceRecord, Member, Complaint, MemberEvaluationRecord, 
   HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig,
-  AttendanceSession
+  AttendanceSession, AuditLogItem
 } from '../types';
 import { getRoleShortLabel, isHighLeadershipRole } from './roleUtils';
 
@@ -99,9 +99,10 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
   ];
 
   const rows = filtered.map(m => {
-    const isLeadership = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership';
-    const cleanPoints = isLeadership && !m.points ? 0 : (m.points || 0);
-    const cleanLevel = m.level || 1;
+    const isLeadershipOrHead = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership' || m.role === 'head' || m.role === 'vice_head';
+    const cleanPoints = isLeadershipOrHead ? '—' : (m.points || 0);
+    const cleanLevel = isLeadershipOrHead ? '—' : (m.level || 1);
+    const cleanOverall = isLeadershipOrHead ? '—' : (m.performance?.evaluationsCount && m.performance.evaluationsCount > 0 ? `${m.performance.overallScore}%` : '0%');
 
     return [
       m.volunteerId || m.id,
@@ -122,7 +123,7 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
       m.address || '—',
       cleanPoints,
       cleanLevel,
-      m.performance?.evaluationsCount && m.performance.evaluationsCount > 0 ? `${m.performance.overallScore}%` : '0%',
+      cleanOverall,
       `${m.performance?.attendanceRate || 0}%`,
       `${m.performance?.taskCompletionRate || 0}%`,
       m.hobbies && m.hobbies.length > 0 ? m.hobbies.join(' • ') : '—',
@@ -135,6 +136,150 @@ export const exportMembersToExcel = (members: Member[], customTitle?: string, ro
   const fileName = `${title}_${new Date().toISOString().slice(0, 10)}`;
 
   downloadExcelWorkbook(aoaData, fileName, 'سجل الأعضاء');
+};
+
+/**
+ * 1.1 Master Full Volunteer Profile with Linked Evaluations & History Excel Export
+ * يجمع كل بيانات المتطوع الشخصية والأكاديمية والرقم القومي مع سجل كل التقييمات عبر الفعاليات والمهام
+ */
+export const exportComprehensiveVolunteersMasterExcel = (
+  members: Member[],
+  memberEvaluations: MemberEvaluationRecord[] = [],
+  headEvaluations: HeadEvaluationRecord[] = [],
+  attendanceRecords: AttendanceRecord[] = [],
+  tasks: Task[] = []
+) => {
+  const headers = [
+    'الرقم التطوعي الفريد',
+    'الاسم الكامل',
+    'الرقم القومي (14 رقم)',
+    'البريد الإلكتروني المعتمد',
+    'رقم الواتساب',
+    'رقم الهاتف البديل',
+    'الكلية / المعهد',
+    'الفرقة الدراسية',
+    'اللجنة التخصصية الحالية',
+    'المسمى التنظيمي',
+    'المستوى والدور الإداري',
+    'حالة العضوية',
+    'تاريخ الانضمام',
+    'تاريخ الميلاد',
+    'العمر',
+    'فصيلة الدم',
+    'هاتف الطوارئ',
+    'محل الإقامة',
+    'نقاط التطوع (XP)',
+    'المستوى (Level)',
+    'التقييم الشامل (%)',
+    'نسبة الحضور (%)',
+    'نسبة إنجاز المهام (%)',
+    'جودة المهام (/5)',
+    'الالتزام والانضباط (%)',
+    'العمل الجماعي (%)',
+    'المهارات القيادية (%)',
+    'إجمالي عدد التقييمات المسجلة',
+    'تفاصيل وسجل التقييمات عبر الفعاليات (تواريخ ودرجات)',
+    'ملاحظات وتوجيهات المقيمين',
+    'إجمالي الفعاليات الميدانية المحضورة',
+    'إجمالي الساعات الميدانية الفعلية',
+    'المهام المسندة الإجمالية',
+    'المهام المعتمدة والمكتملة',
+    'الأوسمة والبادجات الحاصل عليها',
+    'المهارات المعتمدة',
+    'الهوايات والاهتمامات',
+    'تطلعات التعلم والتطوير',
+    'رابط فيسبوك',
+    'رابط لينكد إن',
+    'رابط إنستغرام',
+    'رابط تيك توك'
+  ];
+
+  const rows = members.map(m => {
+    // 1. Gather all member evaluations
+    const userMemberEvals = memberEvaluations.filter(e => e.memberId === m.id || (e.memberVolunteerId && e.memberVolunteerId === m.volunteerId));
+    const userHeadEvals = headEvaluations.filter(e => e.headId === m.id || (e.headVolunteerId && e.headVolunteerId === m.volunteerId));
+    
+    const evalsSummary = [...userMemberEvals.map(e => `[${e.evaluationDate || e.evaluatedAt?.slice(0, 10) || 'تاريخ'}] ${e.percentage}% (${e.evaluatorName || 'المقيم'})`),
+      ...userHeadEvals.map(h => `[${h.evaluationDate || h.evaluatedAt?.slice(0, 10) || 'قيادي'}] ${h.percentage}% (${h.evaluatorName || 'إدارة'})`)
+    ].join(' | ') || 'لا توجد تقييمات مسجلة بعد';
+
+    const feedbacks = [...userMemberEvals.map(e => e.feedback).filter(Boolean), ...userHeadEvals.map(h => h.feedback).filter(Boolean)].join(' • ') || '—';
+
+    // 2. Gather attendance history
+    const userAttendance = attendanceRecords.filter(a => a.memberId === m.id || (a.memberVolunteerId && a.memberVolunteerId === m.volunteerId));
+    const presentAtts = userAttendance.filter(a => a.status === 'Present' || a.status === 'Late');
+    const totalFieldHours = (presentAtts.reduce((acc, a) => acc + (a.durationMinutes || 0), 0) / 60).toFixed(1);
+
+    // 3. Gather tasks history
+    const userTasks = tasks.filter(t => t.assignedToMemberIds?.includes(m.id));
+    const approvedTasks = userTasks.filter(t => t.status === 'Approved');
+
+    // 4. Badges & skills
+    const badgesText = m.badges && m.badges.length > 0 ? m.badges.join(', ') : '—';
+    const skillsText = m.skills ? Object.entries(m.skills).map(([k, v]) => `${k} (${v}/5)`).join(' • ') : '—';
+
+    const isLeadershipOrHead = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership' || m.role === 'head' || m.role === 'vice_head';
+    const cleanPoints = isLeadershipOrHead ? '—' : (m.points || 0);
+    const cleanLevel = isLeadershipOrHead ? '—' : (m.level || 1);
+    const cleanOverall = isLeadershipOrHead ? '—' : (m.performance?.evaluationsCount && m.performance.evaluationsCount > 0 ? `${m.performance.overallScore}%` : '0%');
+
+    return [
+      m.volunteerId || m.id,
+      m.fullName,
+      m.nationalId || '—',
+      m.universityEmail,
+      m.whatsappNumber || m.phone || '—',
+      m.phone || m.whatsappNumber || '—',
+      m.college,
+      m.academicYear,
+      m.currentCommitteeName,
+      m.position,
+      getRoleShortLabel(m.role, m.currentCommitteeName),
+      m.status === 'Active' ? 'نشط ومفعل' : m.status === 'Pending' ? 'قيد المراجعة' : m.status === 'Banned' ? 'محظور ⛔' : m.status,
+      m.joinDate,
+      m.birthDate || '—',
+      m.age || '—',
+      m.bloodType || '—',
+      m.emergencyContact || '—',
+      m.address || '—',
+      cleanPoints,
+      cleanLevel,
+      cleanOverall,
+      `${m.performance?.attendanceRate || 0}%`,
+      `${m.performance?.taskCompletionRate || 0}%`,
+      m.performance?.taskQuality ? `${m.performance.taskQuality}/5` : '—',
+      `${m.performance?.commitment || 0}%`,
+      `${m.performance?.teamwork || 0}%`,
+      `${m.performance?.leadership || 0}%`,
+      userMemberEvals.length + userHeadEvals.length,
+      evalsSummary,
+      feedbacks,
+      presentAtts.length,
+      `${totalFieldHours} ساعة`,
+      userTasks.length,
+      approvedTasks.length,
+      badgesText,
+      skillsText,
+      m.hobbies && m.hobbies.length > 0 ? m.hobbies.join(' • ') : '—',
+      m.learningAspirations && m.learningAspirations.length > 0 ? m.learningAspirations.join(' • ') : '—',
+      m.facebookUrl || '—',
+      m.linkedinUrl || '—',
+      m.instagramUrl || '—',
+      m.tiktokUrl || '—'
+    ];
+  });
+
+  const aoaData = [
+    ['قاعدة البيانات المركزية الشاملة للمتطوعين وسجل التقييمات والأداء الميداني'],
+    [`اتحاد طلاب جامعة الإسكندرية • تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [`إجمالي المتطوعين المسجلين: ${members.length} متطوع | إجمالي التقييمات المربوطة: ${memberEvaluations.length + headEvaluations.length} تقييم`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  const fileName = `سجل_المتطوعين_والتقييمات_الشامل_${new Date().toISOString().slice(0, 10)}`;
+  downloadExcelWorkbook(aoaData, fileName, 'السجل الشامل للمتطوعين والتقييمات');
 };
 
 /**
@@ -608,4 +753,44 @@ export const exportDailySessionAttendanceToExcel = (
   ];
 
   downloadExcelWorkbook(aoaData, fileName, 'شيت الحضور اليومي');
+};
+
+/**
+ * 11. Export Audit Logs to Excel (.xlsx)
+ */
+export const exportAuditLogsToExcel = (logs: AuditLogItem[]) => {
+  const headers = [
+    'معرف السجل',
+    'التوقيت والتاريخ',
+    'اسم القائم بالإجراء',
+    'المسمى والدور الإداري',
+    'نوع الإجراء',
+    'العنصر أو الجهة المستهدفة',
+    'تفاصيل الإجراء',
+    'القيمة السابقة',
+    'القيمة الجديدة'
+  ];
+
+  const rows = logs.map(log => [
+    log.id,
+    log.timestamp,
+    log.userName,
+    log.userRole || 'عضو بالمنظومة',
+    log.action,
+    log.targetEntity,
+    log.details,
+    log.previousValue || '—',
+    log.newValue || '—'
+  ]);
+
+  const aoaData = [
+    ['سجل التدقيق والحوكمة والعمليات — اتحاد طلاب جامعة الإسكندرية'],
+    [`تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [`إجمالي السجلات والعمليات: ${logs.length} عملية موثقة`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  downloadExcelWorkbook(aoaData, `سجل_التدقيق_والحوكمة_${new Date().toISOString().split('T')[0]}`, 'سجل التدقيق');
 };

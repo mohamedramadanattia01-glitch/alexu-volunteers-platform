@@ -123,7 +123,10 @@ const MainAppContent: React.FC = () => {
       <div className="max-w-7xl mx-auto w-full flex flex-1 overflow-x-hidden">
         
         {/* Desktop Sidebar */}
-        <Sidebar onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)} />
+        <Sidebar 
+          onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)} 
+          onOpenInstallModal={() => setIsInstallModalOpen(true)}
+        />
 
         {/* Main Content Area with Animated Page Transitions */}
         <main className="flex-1 p-3 sm:p-5 max-w-full overflow-hidden">

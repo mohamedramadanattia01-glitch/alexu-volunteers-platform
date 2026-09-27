@@ -468,6 +468,72 @@ export class SupabaseService {
     }
   }
 
+  static async deleteMember(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('members').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteMember failed:', e);
+    }
+  }
+
+  static async upsertCommittee(committee: Committee) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('committees').upsert({
+        id: committee.id,
+        name: committee.name,
+        code: committee.code,
+        description: committee.description,
+        responsibilities: committee.responsibilities,
+        head_id: committee.headId,
+        head_name: committee.headName,
+        vice_id: committee.viceId,
+        vice_name: committee.viceName,
+        member_count: committee.memberCount,
+        active_tasks_count: committee.activeTasksCount,
+        completed_tasks_count: committee.completedTasksCount,
+        attendance_rate: committee.attendanceRate,
+        performance_score: committee.performanceScore,
+        health_score: committee.healthScore,
+        season_id: committee.seasonId,
+        color: committee.color,
+        icon: committee.icon,
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error('upsertCommittee failed:', e);
+    }
+  }
+
+  static async deleteCommittee(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('committees').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteCommittee failed:', e);
+    }
+  }
+
+  static async upsertSeason(season: Season) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('seasons').upsert({
+        id: season.id,
+        name: season.name,
+        is_current: season.isCurrent,
+        start_date: season.startDate,
+        end_date: season.endDate,
+        total_members: season.totalMembers,
+        total_events: season.totalEvents,
+        total_tasks: season.totalTasks,
+        archived: season.archived
+      });
+    } catch (e) {
+      console.error('upsertSeason failed:', e);
+    }
+  }
+
   static async upsertTask(task: Task) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
@@ -501,6 +567,15 @@ export class SupabaseService {
     }
   }
 
+  static async deleteTask(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('tasks').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteTask failed:', e);
+    }
+  }
+
   static async upsertEvent(event: EventEntity) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
@@ -529,6 +604,46 @@ export class SupabaseService {
     }
   }
 
+  static async deleteEvent(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('events').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteEvent failed:', e);
+    }
+  }
+
+  static async upsertAttendanceSession(session: AttendanceSession) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('attendance_sessions').upsert({
+        id: session.id,
+        title: session.title,
+        committee_id: session.committeeId,
+        committee_name: session.committeeName,
+        created_by_id: session.createdByMemberId,
+        created_by_name: session.createdByMemberName,
+        created_by_role: session.createdByRole,
+        require_gps: session.requireGPS,
+        qr_token: session.qrToken,
+        is_active: session.isActive,
+        notes: session.notes,
+        created_at: session.createdAt
+      });
+    } catch (e) {
+      console.error('upsertAttendanceSession failed:', e);
+    }
+  }
+
+  static async deleteAttendanceSession(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('attendance_sessions').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteAttendanceSession failed:', e);
+    }
+  }
+
   static async insertAttendanceRecord(record: AttendanceRecord) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
@@ -551,6 +666,231 @@ export class SupabaseService {
       });
     } catch (e) {
       console.error('insertAttendanceRecord failed:', e);
+    }
+  }
+
+  static async deleteAttendanceRecord(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('attendance_records').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteAttendanceRecord failed:', e);
+    }
+  }
+
+  static async upsertMemberEvaluation(ev: MemberEvaluationRecord) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('member_evaluations').upsert({
+        id: ev.id,
+        member_id: ev.memberId,
+        member_name: ev.memberName,
+        member_volunteer_id: ev.memberVolunteerId,
+        committee_name: ev.committeeName,
+        evaluator_id: ev.evaluatorId,
+        evaluator_name: ev.evaluatorName,
+        evaluator_role: ev.evaluatorRole,
+        scores: ev.scores,
+        total_score: ev.totalScore,
+        max_total_score: ev.maxTotalScore,
+        percentage: ev.percentage,
+        feedback: ev.feedback,
+        evaluated_at: ev.evaluatedAt
+      });
+    } catch (e) {
+      console.error('upsertMemberEvaluation failed:', e);
+    }
+  }
+
+  static async deleteMemberEvaluation(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('member_evaluations').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteMemberEvaluation failed:', e);
+    }
+  }
+
+  static async upsertHeadEvaluation(he: HeadEvaluationRecord) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('head_evaluations').upsert({
+        id: he.id,
+        head_id: he.headId,
+        head_name: he.headName,
+        head_volunteer_id: he.headVolunteerId,
+        head_position: he.headPosition,
+        committee_name: he.committeeName,
+        evaluator_id: he.evaluatorId,
+        evaluator_name: he.evaluatorName,
+        evaluator_role: he.evaluatorRole,
+        scores: he.scores,
+        total_score: he.totalScore,
+        max_total_score: he.maxTotalScore,
+        percentage: he.percentage,
+        leadership_rating: he.leadershipRating,
+        feedback: he.feedback,
+        action_items: he.actionItems,
+        evaluated_at: he.evaluatedAt
+      });
+    } catch (e) {
+      console.error('upsertHeadEvaluation failed:', e);
+    }
+  }
+
+  static async deleteHeadEvaluation(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('head_evaluations').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteHeadEvaluation failed:', e);
+    }
+  }
+
+  static async upsertComplaint(c: Complaint) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('complaints').upsert({
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        category: c.category,
+        sender_id: c.senderId,
+        sender_name: c.senderName,
+        sender_avatar: c.senderAvatar,
+        sender_committee_id: c.senderCommitteeId,
+        sender_committee_name: c.senderCommitteeName,
+        sender_role: c.senderRole,
+        is_anonymous: c.isAnonymous,
+        status: c.status,
+        target_recipients: c.targetRecipients,
+        response_notes: c.responseNotes,
+        internal_notes: c.internalNotes,
+        responded_by: c.respondedBy,
+        responded_at: c.respondedAt,
+        resolved_at: c.resolvedAt,
+        satisfaction_rating: c.satisfactionRating,
+        created_at: c.createdAt
+      });
+    } catch (e) {
+      console.error('upsertComplaint failed:', e);
+    }
+  }
+
+  static async deleteComplaint(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('complaints').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteComplaint failed:', e);
+    }
+  }
+
+  static async upsertAnnouncement(a: Announcement) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('announcements').upsert({
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        author_name: a.authorName,
+        author_role: a.authorRole,
+        target_type: a.targetType,
+        target_committee_id: a.targetCommitteeId,
+        target_committee_name: a.targetCommitteeName,
+        is_pinned: a.isPinned,
+        created_at: a.createdAt
+      });
+    } catch (e) {
+      console.error('upsertAnnouncement failed:', e);
+    }
+  }
+
+  static async deleteAnnouncement(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('announcements').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteAnnouncement failed:', e);
+    }
+  }
+
+  static async insertAuditLog(log: AuditLogItem) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('audit_logs').insert({
+        id: log.id,
+        user_id: log.userId,
+        user_name: log.userName,
+        user_role: log.userRole,
+        action: log.action,
+        target_entity: log.targetEntity,
+        details: log.details,
+        previous_value: log.previousValue,
+        new_value: log.newValue,
+        timestamp: log.timestamp || new Date().toISOString()
+      });
+    } catch (e) {
+      console.error('insertAuditLog failed:', e);
+    }
+  }
+
+  static async upsertNotification(n: SystemNotification) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('system_notifications').upsert({
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        type: n.type,
+        read: n.read,
+        link_tab: n.linkTab,
+        created_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error('upsertNotification failed:', e);
+    }
+  }
+
+  static async deleteNotification(id: string) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('system_notifications').delete().eq('id', id);
+    } catch (e) {
+      console.error('deleteNotification failed:', e);
+    }
+  }
+
+  static async clearAllNotifications() {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('system_notifications').delete().neq('id', 'keep_empty');
+    } catch (e) {
+      console.error('clearAllNotifications failed:', e);
+    }
+  }
+
+  static async saveAppSetting(key: string, value: any) {
+    if (!isSupabaseConfigured() || !supabase) return;
+    try {
+      await supabase.from('app_settings').upsert({
+        key,
+        value,
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error(`saveAppSetting [${key}] failed:`, e);
+    }
+  }
+
+  static async loadAppSetting(key: string): Promise<any | null> {
+    if (!isSupabaseConfigured() || !supabase) return null;
+    try {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', key).single();
+      if (error || !data) return null;
+      return data.value;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -611,12 +951,27 @@ export class SupabaseService {
     }
   }
 
-  static async deleteMember(id: string) {
-    if (!isSupabaseConfigured() || !supabase) return;
+  /**
+   * Subscribe to all postgres_changes in real time
+   */
+  static subscribeToAllChanges(onDataChange: (table: string, eventType: string, newRow: any, oldRow: any) => void) {
+    if (!isSupabaseConfigured() || !supabase) return null;
+
     try {
-      await supabase.from('members').delete().eq('id', id);
-    } catch (e) {
-      console.error('deleteMember failed:', e);
+      const channel = supabase.channel('realtime_all_tables')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+            onDataChange(payload.table, payload.eventType, payload.new, payload.old);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    } catch (err) {
+      console.error('Supabase Realtime subscription error:', err);
+      return null;
     }
   }
 }

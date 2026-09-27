@@ -654,9 +654,383 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Realtime Cloud Listener & Polling Heartbeat
   useEffect(() => {
     syncWithCloud();
-  }, []);
+
+    // 1. Setup Supabase Realtime Subscription
+    const channel = SupabaseService.subscribeToAllChanges((table, eventType, newRow, oldRow) => {
+      try {
+        if (table === 'tasks') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const taskObj: Task = {
+              id: newRow.id,
+              title: newRow.title,
+              description: newRow.description,
+              committeeId: newRow.committee_id,
+              committeeName: newRow.committee_name,
+              assignedToMemberIds: newRow.assigned_to_ids || [],
+              assignedToMemberNames: newRow.assigned_to_names || [],
+              createdByMemberId: newRow.created_by_id,
+              createdByMemberName: newRow.created_by_name,
+              priority: newRow.priority,
+              deadline: newRow.deadline,
+              status: newRow.status,
+              attachments: newRow.attachments || [],
+              submission: newRow.submission,
+              evaluation: newRow.evaluation,
+              requiredSkills: newRow.required_skills || [],
+              eventId: newRow.event_id,
+              eventName: newRow.event_name,
+              completionPercentage: newRow.completion_percentage || 0,
+              xpReward: newRow.xp_reward || 20,
+              subtasks: newRow.subtasks || [],
+              createdAt: newRow.created_at
+            };
+
+            setTasks(prev => {
+              const exists = prev.some(t => t.id === taskObj.id);
+              if (exists) return prev.map(t => t.id === taskObj.id ? taskObj : t);
+              return [taskObj, ...prev];
+            });
+
+            if (taskObj.assignedToMemberIds.includes(currentUserId) && taskObj.createdByMemberId !== currentUserId) {
+              playSound('task');
+              showNotification('info', `📋 مهمة جديدة مسندة إليك: "${taskObj.title}"`);
+            }
+          } else if (eventType === 'DELETE') {
+            setTasks(prev => prev.filter(t => t.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'events') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const eventObj: EventEntity = {
+              id: newRow.id,
+              name: newRow.name,
+              date: newRow.date,
+              startTime: newRow.start_time,
+              endTime: newRow.end_time,
+              location: newRow.location,
+              description: newRow.description,
+              eventManagerId: newRow.event_manager_id,
+              eventManagerName: newRow.event_manager_name,
+              committeeQuotas: newRow.committee_quotas || {},
+              status: newRow.status,
+              expectedMembersCount: newRow.expected_members_count || 0,
+              actualAttendanceCount: newRow.actual_attendance_count || 0,
+              tasksCount: newRow.tasks_count || 0,
+              sosAlertsCount: newRow.sos_alerts_count || 0,
+              seasonId: newRow.season_id,
+              liveDashboardActive: newRow.live_dashboard_active || false
+            };
+
+            setEvents(prev => {
+              const exists = prev.some(e => e.id === eventObj.id);
+              if (exists) return prev.map(e => e.id === eventObj.id ? eventObj : e);
+              return [eventObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setEvents(prev => prev.filter(e => e.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'announcements') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const annObj: Announcement = {
+              id: newRow.id,
+              title: newRow.title,
+              content: newRow.content,
+              authorName: newRow.author_name,
+              authorRole: newRow.author_role,
+              targetType: newRow.target_type,
+              targetCommitteeId: newRow.target_committee_id,
+              targetCommitteeName: newRow.target_committee_name,
+              isPinned: newRow.is_pinned,
+              createdAt: newRow.created_at
+            };
+            setAnnouncements(prev => {
+              const exists = prev.some(a => a.id === annObj.id);
+              if (exists) return prev.map(a => a.id === annObj.id ? annObj : a);
+              return [annObj, ...prev];
+            });
+            playSound('announcement');
+          } else if (eventType === 'DELETE') {
+            setAnnouncements(prev => prev.filter(a => a.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'system_notifications') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const notifObj: SystemNotification = {
+              id: newRow.id,
+              title: newRow.title,
+              message: newRow.message,
+              type: newRow.type,
+              read: newRow.read,
+              linkTab: newRow.link_tab,
+              createdAt: newRow.created_at
+            };
+            setNotifications(prev => {
+              if (prev.some(n => n.id === notifObj.id)) return prev.map(n => n.id === notifObj.id ? notifObj : n);
+              return [notifObj, ...prev];
+            });
+
+            if (notifObj.type === 'sos') {
+              playSound('alert');
+              showNotification('error', `🚨 ${notifObj.title}: ${notifObj.message}`);
+            }
+          } else if (eventType === 'DELETE') {
+            setNotifications(prev => prev.filter(n => n.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'member_evaluations') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const evalObj: MemberEvaluationRecord = {
+              id: newRow.id,
+              memberId: newRow.member_id,
+              memberName: newRow.member_name,
+              memberVolunteerId: newRow.member_volunteer_id,
+              committeeName: newRow.committee_name,
+              evaluatorId: newRow.evaluator_id,
+              evaluatorName: newRow.evaluator_name,
+              evaluatorRole: newRow.evaluator_role,
+              scores: newRow.scores || {},
+              totalScore: newRow.total_score,
+              maxTotalScore: newRow.max_total_score,
+              percentage: newRow.percentage,
+              feedback: newRow.feedback,
+              evaluatedAt: newRow.evaluated_at
+            };
+            setMemberEvaluations(prev => {
+              const exists = prev.some(e => e.id === evalObj.id);
+              if (exists) return prev.map(e => e.id === evalObj.id ? evalObj : e);
+              return [evalObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setMemberEvaluations(prev => prev.filter(e => e.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'head_evaluations') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const headEvalObj: HeadEvaluationRecord = {
+              id: newRow.id,
+              headId: newRow.head_id,
+              headName: newRow.head_name,
+              headVolunteerId: newRow.head_volunteer_id,
+              headPosition: newRow.head_position,
+              committeeName: newRow.committee_name,
+              evaluatorId: newRow.evaluator_id,
+              evaluatorName: newRow.evaluator_name,
+              evaluatorRole: newRow.evaluator_role,
+              scores: newRow.scores || {},
+              totalScore: newRow.total_score,
+              maxTotalScore: newRow.max_total_score,
+              percentage: newRow.percentage,
+              leadershipRating: newRow.leadership_rating,
+              feedback: newRow.feedback,
+              actionItems: newRow.action_items,
+              evaluatedAt: newRow.evaluated_at
+            };
+            setHeadEvaluations(prev => {
+              const exists = prev.some(e => e.id === headEvalObj.id);
+              if (exists) return prev.map(e => e.id === headEvalObj.id ? headEvalObj : e);
+              return [headEvalObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setHeadEvaluations(prev => prev.filter(e => e.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'complaints') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const compObj: Complaint = {
+              id: newRow.id,
+              title: newRow.title,
+              description: newRow.description,
+              category: newRow.category,
+              senderId: newRow.sender_id,
+              senderName: newRow.sender_name,
+              senderAvatar: newRow.sender_avatar,
+              senderCommitteeId: newRow.sender_committee_id,
+              senderCommitteeName: newRow.sender_committee_name,
+              senderRole: newRow.sender_role,
+              isAnonymous: newRow.is_anonymous,
+              status: newRow.status,
+              targetRecipients: newRow.target_recipients || [],
+              responseNotes: newRow.response_notes,
+              internalNotes: newRow.internal_notes,
+              respondedBy: newRow.responded_by,
+              respondedAt: newRow.responded_at,
+              createdAt: newRow.created_at,
+              resolvedAt: newRow.resolved_at,
+              satisfactionRating: newRow.satisfaction_rating
+            };
+            setComplaints(prev => {
+              const exists = prev.some(c => c.id === compObj.id);
+              if (exists) return prev.map(c => c.id === compObj.id ? compObj : c);
+              return [compObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setComplaints(prev => prev.filter(c => c.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'members') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const memObj: Member = {
+              id: newRow.id,
+              volunteerId: newRow.volunteer_id,
+              fullName: newRow.full_name,
+              universityEmail: newRow.email,
+              college: newRow.college,
+              academicYear: newRow.academic_year,
+              whatsappNumber: newRow.whatsapp_number,
+              birthDate: newRow.birth_date,
+              age: newRow.age,
+              nationalId: newRow.national_id,
+              currentCommitteeId: newRow.current_committee_id,
+              currentCommitteeName: newRow.current_committee_name,
+              preferredCommitteeId: newRow.preferred_committee_id,
+              preferredCommitteeName: newRow.preferred_committee_name,
+              position: newRow.position,
+              role: newRow.role,
+              joinDate: newRow.join_date,
+              status: newRow.status,
+              avatarUrl: newRow.avatar_url,
+              password: newRow.password,
+              performance: newRow.performance || {
+                overallScore: 90, attendanceRate: 100, taskCompletionRate: 90,
+                taskQuality: 4.5, commitment: 90, teamwork: 90, leadership: 85, evaluationsCount: 0
+              },
+              skills: newRow.skills || {},
+              activeWorkload: newRow.active_workload || 0,
+              workloadStatus: newRow.workload_status || 'Optimal',
+              engagementRisk: newRow.engagement_risk || 'Low',
+              points: newRow.points || 0,
+              level: newRow.level || 1,
+              badges: newRow.badges || [],
+              committeeHistory: newRow.committee_history || [],
+              availability: newRow.availability || 'Available',
+              bio: newRow.bio || '',
+              hobbies: newRow.hobbies || [],
+              learningAspirations: newRow.learning_aspirations || [],
+              facebookUrl: newRow.facebook_url,
+              tiktokUrl: newRow.tiktok_url,
+              instagramUrl: newRow.instagram_url,
+              linkedinUrl: newRow.linkedin_url
+            };
+            setMembers(prev => {
+              const exists = prev.some(m => m.id === memObj.id);
+              if (exists) return prev.map(m => m.id === memObj.id ? memObj : m);
+              return [...prev, memObj];
+            });
+          } else if (eventType === 'DELETE') {
+            setMembers(prev => prev.filter(m => m.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'attendance_records') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const recObj: AttendanceRecord = {
+              id: newRow.id,
+              memberId: newRow.member_id,
+              memberName: newRow.member_name,
+              memberAvatar: newRow.member_avatar,
+              committeeId: newRow.committee_id,
+              committeeName: newRow.committee_name,
+              eventId: newRow.event_id,
+              eventName: newRow.event_name,
+              date: newRow.date,
+              checkInTime: newRow.check_in_time,
+              checkOutTime: newRow.check_out_time,
+              durationMinutes: newRow.duration_minutes,
+              durationFormatted: newRow.duration_formatted,
+              status: newRow.status,
+              qrHashToken: newRow.qr_hash_token
+            };
+            setAttendanceRecords(prev => {
+              const exists = prev.some(a => a.id === recObj.id);
+              if (exists) return prev.map(a => a.id === recObj.id ? recObj : a);
+              return [recObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setAttendanceRecords(prev => prev.filter(a => a.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'attendance_sessions') {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            const sessObj: AttendanceSession = {
+              id: newRow.id,
+              title: newRow.title,
+              committeeId: newRow.committee_id,
+              committeeName: newRow.committee_name,
+              createdByMemberId: newRow.created_by_id,
+              createdByMemberName: newRow.created_by_name,
+              createdByRole: newRow.created_by_role,
+              createdAt: newRow.created_at,
+              requireGPS: newRow.require_gps,
+              qrToken: newRow.qr_token,
+              isActive: newRow.is_active,
+              notes: newRow.notes
+            };
+            setAttendanceSessions(prev => {
+              const exists = prev.some(s => s.id === sessObj.id);
+              if (exists) return prev.map(s => s.id === sessObj.id ? sessObj : s);
+              return [sessObj, ...prev];
+            });
+          } else if (eventType === 'DELETE') {
+            setAttendanceSessions(prev => prev.filter(s => s.id !== oldRow.id));
+          }
+        }
+
+        if (table === 'audit_logs') {
+          if (eventType === 'INSERT') {
+            const logObj: AuditLogItem = {
+              id: newRow.id,
+              userId: newRow.user_id,
+              userName: newRow.user_name,
+              userRole: newRow.user_role,
+              action: newRow.action,
+              targetEntity: newRow.target_entity,
+              details: newRow.details,
+              previousValue: newRow.previous_value,
+              newValue: newRow.new_value,
+              timestamp: newRow.timestamp
+            };
+            setAuditLogs(prev => {
+              if (prev.some(l => l.id === logObj.id)) return prev;
+              return [logObj, ...prev];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Realtime event parse warning:', err);
+      }
+    });
+
+    // 2. Polling Heartbeat every 20s
+    const interval = setInterval(() => {
+      syncWithCloud();
+    }, 20000);
+
+    // 3. Focus-based Sync
+    const handleFocus = () => {
+      syncWithCloud();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  }, [currentUserId]);
 
   // Security Watchdog: Automatically terminate session and block access if active user is banned or inactive
   useEffect(() => {
@@ -867,6 +1241,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
     };
     setAuditLogs(prev => [logItem, ...prev]);
+    SupabaseService.insertAuditLog(logItem).catch(e => console.warn('Supabase audit log insert error:', e));
   };
 
   // Gamification Celebration
@@ -956,6 +1331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setComplaints(prev => [newComp, ...prev]);
+    SupabaseService.upsertComplaint(newComp).catch(e => console.warn('Supabase createComplaint error:', e));
 
     const notif: SystemNotification = {
       id: `notif-comp-${Date.now()}`,
@@ -967,14 +1343,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkTab: 'complaints'
     };
     setNotifications(prev => [notif, ...prev]);
+    SupabaseService.upsertNotification(notif).catch(e => console.warn('Supabase notif error:', e));
+
     playSound('alert');
     addAuditLog('رفع شكوى / مقترح جديد', newComp.title, `التصنيف: ${newComp.category} - الأهمية: ${newComp.urgency}`);
   };
 
   const updateComplaintStatus = (complaintId: string, newStatus: ComplaintStatus, notes?: string, internalNotes?: string) => {
+    let updatedComplaint: Complaint | null = null;
     setComplaints(prev => prev.map(c => {
       if (c.id === complaintId) {
-        return {
+        updatedComplaint = {
           ...c,
           status: newStatus,
           responseNotes: notes || c.responseNotes,
@@ -983,24 +1362,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           respondedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
           resolvedAt: newStatus === 'Resolved' ? new Date().toISOString().replace('T', ' ').substring(0, 16) : c.resolvedAt
         };
+        return updatedComplaint;
       }
       return c;
     }));
+
+    if (updatedComplaint) {
+      SupabaseService.upsertComplaint(updatedComplaint).catch(e => console.warn('Supabase updateComplaint error:', e));
+      const targetComp = updatedComplaint as Complaint;
+      if (targetComp.senderId && targetComp.senderId !== 'anonymous' && targetComp.senderId !== currentUser.id) {
+        const notif: SystemNotification = {
+          id: `notif-comp-upd-${Date.now()}`,
+          title: `📬 تحديث بخصوص شكواك: ${targetComp.title}`,
+          message: `تم تغيير حالة الشكوى إلى: [${newStatus === 'Resolved' ? 'تم الحل والاعتماد' : newStatus === 'Under Review' ? 'قيد المراجعة والتحقيق' : newStatus}] بواسطة ${currentUser.fullName}`,
+          type: 'complaint',
+          targetMemberIds: [targetComp.senderId],
+          read: false,
+          createdAt: 'الآن',
+          linkTab: 'complaints'
+        };
+        setNotifications(prev => [notif, ...prev]);
+        SupabaseService.upsertNotification(notif).catch(e => console.warn(e));
+      }
+    }
 
     addAuditLog('تحديث حالة شكوى', `ID: ${complaintId}`, `تم تغيير الحالة إلى [${newStatus}] بواسطة ${currentUser.fullName}`);
     playSound('task');
   };
 
   const rateComplaintResolution = (complaintId: string, rating: number) => {
+    let updatedComplaint: Complaint | null = null;
     setComplaints(prev => prev.map(c => {
       if (c.id === complaintId) {
-        return {
+        updatedComplaint = {
           ...c,
           satisfactionRating: rating
         };
+        return updatedComplaint;
       }
       return c;
     }));
+
+    if (updatedComplaint) {
+      SupabaseService.upsertComplaint(updatedComplaint).catch(e => console.warn('Supabase rate complaint error:', e));
+    }
+
     showNotification('success', 'شكراً لك على تقييم تجربة حل الشكوى!');
     playSound('success');
   };
@@ -1083,7 +1489,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setMembers(prev => [newMember, ...prev]);
-    setCommittees(prev => prev.map(c => c.id === newMember.currentCommitteeId ? { ...c, memberCount: c.memberCount + 1 } : c));
+    SupabaseService.upsertMember(newMember).catch(e => console.warn('Supabase addMember error:', e));
+
+    setCommittees(prev => prev.map(c => {
+      if (c.id === newMember.currentCommitteeId) {
+        const updatedC = { ...c, memberCount: c.memberCount + 1 };
+        SupabaseService.upsertCommittee(updatedC).catch(err => console.warn(err));
+        return updatedC;
+      }
+      return c;
+    }));
+
     addAuditLog('إضافة متطوع جديد', `العضو: ${newMember.fullName} (${newMember.volunteerId})`, `تمت إضافة المتطوع وإسناده إلى ${newMember.currentCommitteeName}`);
   };
 
@@ -1149,10 +1565,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setMembers(prev => [...fullMembers, ...prev]);
 
+    // Save all to Supabase
+    fullMembers.forEach(m => {
+      SupabaseService.upsertMember(m).catch(e => console.warn('Supabase bulk save error:', e));
+    });
+
     // Update committee member counts
     setCommittees(prev => prev.map(c => {
       const addedCount = fullMembers.filter(m => m.currentCommitteeId === c.id).length;
-      return { ...c, memberCount: c.memberCount + addedCount };
+      const updatedComm = { ...c, memberCount: c.memberCount + addedCount };
+      if (addedCount > 0) {
+        SupabaseService.upsertCommittee(updatedComm).catch(e => console.warn(e));
+      }
+      return updatedComm;
     }));
 
     addAuditLog('استيراد أعضاء جماعي (Excel)', `عدد: ${fullMembers.length}`, `تمت إضافة الأعضاء وتوليد الأكواد التطوعية`);
@@ -1740,11 +2165,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCommittees(prev => [...prev, newComm]);
     addAuditLog('إنشاء لجنة تخصصية جديدة', newComm.name, `تم تأسيس اللجنة وتعيين ${newComm.headName} رئيساً لها`);
+    SupabaseService.upsertCommittee(newComm).catch(e => console.warn('Supabase upsertCommittee error:', e));
   };
 
   const updateCommittee = (id: string, updates: Partial<Committee>) => {
-    setCommittees(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    let updatedComm: Committee | null = null;
+    setCommittees(prev => prev.map(c => {
+      if (c.id === id) {
+        updatedComm = { ...c, ...updates };
+        return updatedComm;
+      }
+      return c;
+    }));
     addAuditLog('تعديل بيانات لجنة', `ID: ${id}`, `تم تحديث الأهداف أو القيادة`);
+    if (updatedComm) {
+      SupabaseService.upsertCommittee(updatedComm).catch(e => console.warn('Supabase updateCommittee error:', e));
+    }
   };
 
   // Create Task
@@ -1777,6 +2213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setTasks(prev => [newTask, ...prev]);
+    SupabaseService.upsertTask(newTask).catch(e => console.warn('Supabase upsertTask error:', e));
 
     newTask.assignedToMemberIds.forEach(mId => {
       const targetM = members.find(m => m.id === mId);
@@ -1796,6 +2233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         linkTab: 'tasks'
       };
       setNotifications(prev => [notif, ...prev]);
+      SupabaseService.upsertNotification(notif).catch(e => console.warn('Supabase notif error:', e));
     });
 
     sendSystemPushNotification({
@@ -1810,9 +2248,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Update Task (Full Edit)
   const updateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+    let updatedTask: Task | null = null;
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        updatedTask = { ...t, ...updates };
+        return updatedTask;
+      }
+      return t;
+    }));
     addAuditLog('تعديل مهمة', `ID: ${taskId}`, `تم تعديل بيانات المهمة بواسطة ${currentUser.fullName}`);
     playSound('task');
+    if (updatedTask) {
+      SupabaseService.upsertTask(updatedTask).catch(e => console.warn('Supabase updateTask error:', e));
+    }
   };
 
   // Delete Task
@@ -1821,21 +2269,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTasks(prev => prev.filter(t => t.id !== taskId));
     addAuditLog('حذف مهمة', task?.title || taskId, `تم حذف المهمة بواسطة ${currentUser.fullName}`);
     playSound('task');
+    SupabaseService.deleteTask(taskId).catch(e => console.warn('Supabase deleteTask error:', e));
   };
 
   // Update Task Status
   const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
+    let updatedTask: Task | null = null;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return {
+        updatedTask = {
           ...t,
           status: newStatus,
           completionPercentage: newStatus === 'Approved' ? 100 : newStatus === 'Submitted' ? 90 : t.completionPercentage
         };
+        return updatedTask;
       }
       return t;
     }));
     addAuditLog('تحديث حالة مهمة', `ID: ${taskId}`, `تم تغيير الحالة إلى [${newStatus}]`);
+    if (updatedTask) {
+      SupabaseService.upsertTask(updatedTask).catch(e => console.warn('Supabase updateTaskStatus error:', e));
+    }
   };
 
   // Submit Task (Report + Attachments)
@@ -1843,9 +2297,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
+    let submittedTask: Task | null = null;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return {
+        submittedTask = {
           ...t,
           status: 'Submitted',
           completionPercentage: 90,
@@ -1856,9 +2311,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             fileUrls: fileUrls || []
           }
         };
+        return submittedTask;
       }
       return t;
     }));
+
+    if (submittedTask) {
+      SupabaseService.upsertTask(submittedTask).catch(e => console.warn('Supabase submitTask error:', e));
+    }
+
+    // Notify task creator and committee head
+    const submitNotif: SystemNotification = {
+      id: `notif-sub-${Date.now()}`,
+      title: '📥 تم تسليم مخرجات مهمة',
+      message: `قام ${currentUser.fullName} بتسليم مهمة: "${task.title}" بانتظار المراجعة والاعتماد`,
+      type: 'task',
+      read: false,
+      createdAt: 'الآن',
+      linkTab: 'tasks'
+    };
+    setNotifications(prev => [submitNotif, ...prev]);
+    SupabaseService.upsertNotification(submitNotif).catch(e => console.warn(e));
 
     playSound('task');
     addAuditLog('تسليم مخرجات مهمة', task.title, `قام ${currentUser.fullName} برفع ملفات ومخرجات التسليم`);
@@ -1869,11 +2342,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
+    let updatedTask: Task | null = null;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         const timeStr = new Date().toISOString().substring(0, 10);
         const updatedStatus: TaskStatus = stance === 'Excused' ? 'Cancelled' : (t.status === 'Assigned' ? 'In Progress' : t.status);
-        return {
+        updatedTask = {
           ...t,
           status: updatedStatus,
           stance,
@@ -1882,9 +2356,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           excusedByMemberId: currentUser.id,
           excusedByMemberName: currentUser.fullName
         };
+        return updatedTask;
       }
       return t;
     }));
+
+    if (updatedTask) {
+      SupabaseService.upsertTask(updatedTask).catch(e => console.warn(e));
+    }
 
     if (stance === 'Excused') {
       addAuditLog('اعتذار عن مهمة', task.title, `اعتذر ${currentUser.fullName} عن المهمة. السبب: ${excuseReason || 'بدون سبب'}`);
@@ -1899,21 +2378,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Toggle Subtask Completion
   const toggleTaskSubtask = (taskId: string, subtaskId: string) => {
+    let updatedTask: Task | null = null;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId && t.subtasks) {
         const updatedSubtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
         const completedCount = updatedSubtasks.filter(s => s.completed).length;
         const total = updatedSubtasks.length;
         const calcPercent = total > 0 ? Math.round((completedCount / total) * 100) : t.completionPercentage;
-        return {
+        updatedTask = {
           ...t,
           subtasks: updatedSubtasks,
           completionPercentage: t.status === 'Approved' ? 100 : calcPercent
         };
+        return updatedTask;
       }
       return t;
     }));
     playSound('task');
+    if (updatedTask) {
+      SupabaseService.upsertTask(updatedTask).catch(e => console.warn(e));
+    }
   };
 
   // Evaluate Task (With custom awardedPoints and maxPoints)
@@ -1927,9 +2411,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
+    let evaluatedTask: Task | null = null;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return {
+        evaluatedTask = {
           ...t,
           status: 'Approved',
           completionPercentage: 100,
@@ -1940,14 +2425,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           gradedAt: now,
           feedback: evalData.feedback
         };
+        return evaluatedTask;
       }
       return t;
     }));
 
+    if (evaluatedTask) {
+      SupabaseService.upsertTask(evaluatedTask).catch(e => console.warn(e));
+    }
+
     setMembers(prev => prev.map(m => {
       if (task.assignedToMemberIds.includes(m.id)) {
         const newPoints = m.points + pointsAwarded;
-        return {
+        const updatedM = {
           ...m,
           points: newPoints,
           level: Math.floor(newPoints / 150) + 1,
@@ -1957,9 +2447,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             evaluationsCount: m.performance.evaluationsCount + 1
           }
         };
+        SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+        return updatedM;
       }
       return m;
     }));
+
+    // Notify assigned members
+    task.assignedToMemberIds.forEach(mId => {
+      const evalNotif: SystemNotification = {
+        id: `notif-eval-${Date.now()}-${mId}`,
+        title: '🌟 تم اعتماد وتقييم مهمتك بنجاح',
+        message: `تم اعتماد مهمتك "${task.title}" بنتيجة ${evalData.qualityScore}/5 وإضافة +${pointsAwarded} XP إلى رصيدك!`,
+        type: 'achievement',
+        read: false,
+        createdAt: 'الآن',
+        linkTab: 'tasks'
+      };
+      setNotifications(prev => [evalNotif, ...prev]);
+      SupabaseService.upsertNotification(evalNotif).catch(e => console.warn(e));
+    });
 
     triggerGamificationCelebration('🌟 تقييم متميز للمهمة!', pointsAwarded);
     addAuditLog('تقييم مهمة', task.title, `التقييم: ${evalData.qualityScore}/5 - النقاط الممنوحة: ${pointsAwarded}/${task.maxPoints || task.xpReward || 25}`);
@@ -1988,6 +2495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setEvents(prev => [newEvent, ...prev]);
+    SupabaseService.upsertEvent(newEvent).catch(e => console.warn('Supabase upsertEvent error:', e));
     
     // Broadcast notification for new event to all members
     const eventNotif: SystemNotification = {
@@ -2004,6 +2512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkTab: 'events'
     };
     setNotifications(prev => [eventNotif, ...prev]);
+    SupabaseService.upsertNotification(eventNotif).catch(e => console.warn(e));
 
     sendSystemPushNotification({
       title: `📅 فعالية جديدة: ${newEvent.name}`,
@@ -2017,8 +2526,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Update Event
   const updateEvent = (id: string, updates: Partial<EventEntity>) => {
-    setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    let updatedEvent: EventEntity | null = null;
+    setEvents(prev => prev.map(e => {
+      if (e.id === id) {
+        updatedEvent = { ...e, ...updates };
+        return updatedEvent;
+      }
+      return e;
+    }));
     addAuditLog('تعديل فعالية', `ID: ${id}`, `تم تحديث بيانات الفعالية أو حالتها`);
+    if (updatedEvent) {
+      SupabaseService.upsertEvent(updatedEvent).catch(e => console.warn('Supabase updateEvent error:', e));
+    }
   };
 
   // Delete Event
@@ -2027,6 +2546,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEvents(prev => prev.filter(e => e.id !== id));
     addAuditLog('حذف فعالية', evt?.name || id, `تم حذف الفعالية بواسطة ${currentUser.fullName}`);
     showNotification('success', `تم حذف الفعالية "${evt?.name || ''}" بنجاح`);
+    SupabaseService.deleteEvent(id).catch(e => console.warn('Supabase deleteEvent error:', e));
   };
 
   // Event RSVP & Attendance Confirmation / Apology
@@ -2037,6 +2557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     apologyReason?: string
   ) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    let updatedEv: EventEntity | null = null;
     setEvents(prev => prev.map(ev => {
       if (ev.id === eventId) {
         const rsvps = ev.rsvps || {};
@@ -2052,16 +2573,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           expectedArrivalTime: status === 'Attending' ? (expectedArrivalTime || ev.startTime) : undefined,
           registeredAt: now
         };
-        return {
+        updatedEv = {
           ...ev,
           rsvps: {
             ...rsvps,
             [currentUser.id]: userRSVP
           }
         };
+        return updatedEv;
       }
       return ev;
     }));
+
+    if (updatedEv) {
+      SupabaseService.upsertEvent(updatedEv).catch(e => console.warn(e));
+    }
 
     addAuditLog(
       status === 'Attending' ? 'تأكيد حضور فعالية' : 'اعتذار عن حضور فعالية',
@@ -2093,6 +2619,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setNotifications(prev => [notif, ...prev]);
+    SupabaseService.upsertNotification(notif).catch(e => console.warn(e));
     playSound('announcement');
     showNotification('success', `تم إرسال إشعار تذكير يوم الفعالية لجميع المسجلين لحضور "${targetEvent.name}" بنجاح 🔔`);
   };
@@ -2110,6 +2637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCommittees(prev => prev.filter(c => c.id !== id));
     addAuditLog('حذف لجنة', comm?.name || id, `تم حذف اللجنة بواسطة ${currentUser.fullName}`);
     showNotification('success', `تم حذف اللجنة ${comm?.name || ''} بنجاح`);
+    SupabaseService.deleteCommittee(id).catch(e => console.warn('Supabase deleteCommittee error:', e));
   };
 
   // Create Attendance Session (Head / VP / Super Admin / Advisor)
@@ -2142,6 +2670,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAttendanceSessions(prev => [newSession, ...prev.map(s => ({ ...s, isActive: false }))]);
+    SupabaseService.upsertAttendanceSession(newSession).catch(e => console.warn(e));
     playSound('task');
     addAuditLog('إنشاء جلسة حضور QR', newSession.title, `اللجنة: ${newSession.committeeName} [${newSession.sessionType === 'heads' ? 'رؤساء اللجان' : 'المتطوعين'}] - الفعالية: ${newSession.eventName || 'عامة'} - بواسطة ${currentUser.fullName}`);
     showNotification('success', `تم إنشاء وتفعيل جلسة الحضور بنجاح: "${newSession.title}"`);
@@ -2150,7 +2679,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Close Attendance Session
   const closeAttendanceSession = (sessionId: string) => {
-    setAttendanceSessions(prev => prev.map(s => s.id === sessionId ? { ...s, isActive: false } : s));
+    let closedSession: AttendanceSession | null = null;
+    setAttendanceSessions(prev => prev.map(s => {
+      if (s.id === sessionId) {
+        closedSession = { ...s, isActive: false };
+        return closedSession;
+      }
+      return s;
+    }));
+    if (closedSession) {
+      SupabaseService.upsertAttendanceSession(closedSession).catch(e => console.warn(e));
+    }
     addAuditLog('إغلاق جلسة حضور QR', `ID: ${sessionId}`, 'تم إنهاء الجلسة وإيقاف استقبال المسح');
     showNotification('info', 'تم إغلاق جلسة الحضور');
   };
@@ -2207,12 +2746,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setAttendanceRecords(prev => [newRec, ...prev]);
+      SupabaseService.insertAttendanceRecord(newRec).catch(e => console.warn('Supabase attendance record error:', e));
 
       // Award XP to member (+25 XP for presence)
       setMembers(prev => prev.map(m => {
         if (m.id === targetMember.id) {
           const updatedXP = m.points + 25;
-          return {
+          const updatedM = {
             ...m,
             points: updatedXP,
             level: Math.floor(updatedXP / 150) + 1,
@@ -2221,6 +2761,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               attendanceRate: Math.min(100, m.performance.attendanceRate + 1)
             }
           };
+          SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+          return updatedM;
         }
         return m;
       }));
@@ -2239,11 +2781,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: 'لم يتم العثور على تسجيل حضور سابق لتسجيل الانصراف' };
       }
 
-      setAttendanceRecords(prev => prev.map(a => a.id === existing.id ? {
-        ...a,
-        checkOutTime: timeStr,
-        gpsLocation: params.gpsLocation || a.gpsLocation
-      } : a));
+      let updatedRec: AttendanceRecord | null = null;
+      setAttendanceRecords(prev => prev.map(a => {
+        if (a.id === existing.id) {
+          updatedRec = {
+            ...a,
+            checkOutTime: timeStr,
+            gpsLocation: params.gpsLocation || a.gpsLocation
+          };
+          return updatedRec;
+        }
+        return a;
+      }));
+
+      if (updatedRec) {
+        SupabaseService.insertAttendanceRecord(updatedRec).catch(e => console.warn(e));
+      }
 
       playSound('task');
       addAuditLog('تسجيل انصراف QR مع GPS', targetMember.fullName, `الجلسة: ${session?.title || targetEvent?.name}`);
@@ -2266,11 +2819,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const awardedXP = (Number(evalData.bonusXP) || 0) + (totalDaily >= 25 ? 30 : totalDaily >= 20 ? 20 : 10);
 
     let targetMemberId = '';
+    let updatedRecord: AttendanceRecord | null = null;
 
     setAttendanceRecords(prev => prev.map(rec => {
       if (rec.id === recordId) {
         targetMemberId = rec.memberId;
-        return {
+        updatedRecord = {
           ...rec,
           dailyEvaluation: {
             attendanceScore: evalData.attendanceScore,
@@ -2283,15 +2837,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             evaluatedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
           }
         };
+        return updatedRecord;
       }
       return rec;
     }));
+
+    if (updatedRecord) {
+      SupabaseService.insertAttendanceRecord(updatedRecord).catch(e => console.warn(e));
+    }
 
     if (targetMemberId) {
       setMembers(prev => prev.map(m => {
         if (m.id === targetMemberId) {
           const newXP = m.points + awardedXP;
-          return {
+          const updatedM = {
             ...m,
             points: newXP,
             level: Math.floor(newXP / 150) + 1,
@@ -2300,6 +2859,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               overallScore: Math.min(100, Math.round((m.performance.overallScore + totalDaily * 3.3) / 2))
             }
           };
+          SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+          return updatedM;
         }
         return m;
       }));
@@ -2315,6 +2876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAttendanceRecords(prev => prev.filter(r => r.id !== recordId));
     addAuditLog('حذف سجل حضور', `ID: ${recordId}`, `تم الحذف بواسطة ${currentUser.fullName}`);
     showNotification('info', 'تم حذف سجل الحضور بنجاح');
+    SupabaseService.deleteAttendanceRecord(recordId).catch(e => console.warn(e));
   };
 
   // Legacy Record Attendance Helper
@@ -2341,7 +2903,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'Open'
     };
 
-    setSosAlerts(prev => [newAlert, ...prev]);
+    setSosAlerts(prev => {
+      const updated = [newAlert, ...prev];
+      SupabaseService.saveAppSetting('sos_alerts', updated).catch(e => console.warn(e));
+      return updated;
+    });
 
     const sosNotif: SystemNotification = {
       id: `notif-sos-${Date.now()}`,
@@ -2353,26 +2919,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkTab: 'events'
     };
     setNotifications(prev => [sosNotif, ...prev]);
+    SupabaseService.upsertNotification(sosNotif).catch(e => console.warn(e));
+
+    sendSystemPushNotification({
+      title: `🚨 بلاغ طوارئ SOS عاجل: ${newAlert.alertType}`,
+      body: `${newAlert.description} - الموقع: ${newAlert.location}`,
+      type: 'sos'
+    });
+
     playSound('alert');
     addAuditLog('إطلاق بلاغ طوارئ SOS', newAlert.alertType, newAlert.location);
   };
 
   const acknowledgeSOS = (alertId: string) => {
-    setSosAlerts(prev => prev.map(s => s.id === alertId ? {
-      ...s,
-      status: 'Acknowledged',
-      acknowledgedBy: currentUser.fullName,
-      acknowledgedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-    } : s));
+    setSosAlerts(prev => {
+      const updated = prev.map(s => s.id === alertId ? {
+        ...s,
+        status: 'Acknowledged' as const,
+        acknowledgedBy: currentUser.fullName,
+        acknowledgedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      } : s);
+      SupabaseService.saveAppSetting('sos_alerts', updated).catch(e => console.warn(e));
+      return updated;
+    });
     addAuditLog('تأكيد بلاغ طوارئ', `ID: ${alertId}`, `بواسطة ${currentUser.fullName}`);
   };
 
   const resolveSOS = (alertId: string) => {
-    setSosAlerts(prev => prev.map(s => s.id === alertId ? {
-      ...s,
-      status: 'Resolved',
-      resolvedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-    } : s));
+    setSosAlerts(prev => {
+      const updated = prev.map(s => s.id === alertId ? {
+        ...s,
+        status: 'Resolved' as const,
+        resolvedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      } : s);
+      SupabaseService.saveAppSetting('sos_alerts', updated).catch(e => console.warn(e));
+      return updated;
+    });
     playSound('success');
     addAuditLog('حل وإغلاق بلاغ طوارئ', `ID: ${alertId}`, 'تم التعامل مع الأزمة بنجاح');
   };
@@ -2403,12 +2985,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setMemberEvaluations(prev => [record, ...prev]);
+    SupabaseService.upsertMemberEvaluation(record).catch(e => console.warn('Supabase upsertMemberEvaluation error:', e));
 
     setMembers(prev => prev.map(m => {
       if (m.id === evalData.memberId) {
         const prevCount = m.performance.evaluationsCount || 1;
         const newOverall = Math.round(((m.performance.overallScore * prevCount) + percentage) / (prevCount + 1));
-        return {
+        const updatedM = {
           ...m,
           performance: {
             ...m.performance,
@@ -2416,6 +2999,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             evaluationsCount: prevCount + 1
           }
         };
+        SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+        return updatedM;
       }
       return m;
     }));
@@ -2430,6 +3015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkTab: 'evaluations'
     };
     setNotifications(prev => [notif, ...prev]);
+    SupabaseService.upsertNotification(notif).catch(e => console.warn(e));
 
     playSound('task');
     addAuditLog('تقييم متطوع شامل', evalData.memberName, `تاريخ التقييم: ${record.evaluationDate} - النتيجة: ${percentage}%`);
@@ -2437,13 +3023,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateMemberEvaluation = (id: string, updates: Partial<MemberEvaluationRecord>) => {
+    let updatedRec: MemberEvaluationRecord | null = null;
     setMemberEvaluations(prev => prev.map(rec => {
       if (rec.id === id) {
         const scores = updates.scores || rec.scores;
         const maxTotalScore = updates.maxTotalScore || rec.maxTotalScore;
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
         const percentage = Math.round((totalScore / maxTotalScore) * 100);
-        return {
+        updatedRec = {
           ...rec,
           ...updates,
           scores,
@@ -2451,9 +3038,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           maxTotalScore,
           percentage
         };
+        return updatedRec;
       }
       return rec;
     }));
+
+    if (updatedRec) {
+      SupabaseService.upsertMemberEvaluation(updatedRec).catch(e => console.warn(e));
+    }
 
     addAuditLog('تعديل تقييم عضو', `ID: ${id}`, `تم تحديث درجات تقييم المتطوع بواسطة ${currentUser.fullName}`);
     showNotification('success', 'تم تعديل وحفظ درجات التقييم بنجاح ✓');
@@ -2464,6 +3056,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMemberEvaluations(prev => prev.filter(rec => rec.id !== id));
     addAuditLog('حذف تقييم عضو', target?.memberName || id, `تم حذف سجل التقييم بواسطة ${currentUser.fullName}`);
     showNotification('info', 'تم حذف سجل التقييم بنجاح');
+    SupabaseService.deleteMemberEvaluation(id).catch(e => console.warn(e));
   };
 
   // Evaluate Head (High Leadership evaluation for Committee Heads and Vice Heads)
@@ -2483,6 +3076,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setHeadEvaluations(prev => [record, ...prev]);
+    SupabaseService.upsertHeadEvaluation(record).catch(e => console.warn('Supabase upsertHeadEvaluation error:', e));
 
     // Update Head's leadership performance metrics
     setMembers(prev => prev.map(m => {
@@ -2490,7 +3084,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const prevCount = m.performance.evaluationsCount || 1;
         const newOverall = Math.round(((m.performance.overallScore * prevCount) + percentage) / (prevCount + 1));
         const newLeadership = Math.round(((m.performance.leadership * prevCount) + percentage) / (prevCount + 1));
-        return {
+        const updatedHead = {
           ...m,
           performance: {
             ...m.performance,
@@ -2499,6 +3093,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             evaluationsCount: prevCount + 1
           }
         };
+        SupabaseService.upsertMember(updatedHead).catch(e => console.warn(e));
+        return updatedHead;
       }
       return m;
     }));
@@ -2513,6 +3109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       linkTab: 'evaluations'
     };
     setNotifications(prev => [notif, ...prev]);
+    SupabaseService.upsertNotification(notif).catch(e => console.warn(e));
 
     playSound('task');
     addAuditLog('تقييم أداء رئيس/نائب لجنة', evalData.headName, `تاريخ: ${record.evaluationDate} - النتيجة: ${percentage}% - المقيم: ${currentUser.fullName}`);
@@ -2520,13 +3117,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateHeadEvaluation = (id: string, updates: Partial<HeadEvaluationRecord>) => {
+    let updatedRec: HeadEvaluationRecord | null = null;
     setHeadEvaluations(prev => prev.map(rec => {
       if (rec.id === id) {
         const scores = updates.scores || rec.scores;
         const maxTotalScore = updates.maxTotalScore || rec.maxTotalScore;
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
         const percentage = Math.round((totalScore / maxTotalScore) * 100);
-        return {
+        updatedRec = {
           ...rec,
           ...updates,
           scores,
@@ -2534,9 +3132,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           maxTotalScore,
           percentage
         };
+        return updatedRec;
       }
       return rec;
     }));
+
+    if (updatedRec) {
+      SupabaseService.upsertHeadEvaluation(updatedRec).catch(e => console.warn(e));
+    }
 
     addAuditLog('تعديل تقييم قيادي', `ID: ${id}`, `تم تعديل درجات تقييم رئيس/نائب اللجنة بواسطة ${currentUser.fullName}`);
     showNotification('success', 'تم تعديل وحفظ درجات التقييم القيادي بنجاح ✓');
@@ -2547,6 +3150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHeadEvaluations(prev => prev.filter(rec => rec.id !== id));
     addAuditLog('حذف تقييم قيادي', target?.headName || id, `تم حذف سجل التقييم القيادي بواسطة ${currentUser.fullName}`);
     showNotification('info', 'تم حذف سجل التقييم القيادي بنجاح');
+    SupabaseService.deleteHeadEvaluation(id).catch(e => console.warn(e));
   };
 
   const updateHeadEvaluationRubric = (rubric: HeadEvaluationRubric) => {
@@ -2771,6 +3375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setAnnouncements(prev => [newAnn, ...prev]);
+    SupabaseService.upsertAnnouncement(newAnn).catch(e => console.warn('Supabase upsertAnnouncement error:', e));
 
     // Send notification to all or target committee
     const notifTitle = newAnn.poll ? '📊 استطلاع رأي وتصويت جديد' : '📢 إعلان وتعميم إداري جديد';
@@ -2795,6 +3400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           linkTab: 'announcements'
         };
         setNotifications(prev => [notif, ...prev]);
+        SupabaseService.upsertNotification(notif).catch(e => console.warn('Supabase notif error:', e));
       }
     });
 
@@ -2810,6 +3416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Vote on Poll in Announcement
   const voteOnPoll = (announcementId: string, optionId: string) => {
+    let updatedAnnouncement: Announcement | null = null;
     setAnnouncements(prev => prev.map(ann => {
       if (ann.id === announcementId && ann.poll) {
         const existingVoteIndex = (ann.poll.votes || []).findIndex(v => v.memberId === currentUser.id);
@@ -2835,7 +3442,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { ...opt, voteCount: count };
         });
 
-        return {
+        updatedAnnouncement = {
           ...ann,
           poll: {
             ...ann.poll,
@@ -2844,9 +3451,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             totalVotes: updatedVotes.length
           }
         };
+        return updatedAnnouncement;
       }
       return ann;
     }));
+
+    if (updatedAnnouncement) {
+      SupabaseService.upsertAnnouncement(updatedAnnouncement).catch(e => console.warn(e));
+    }
 
     playSound('task');
     showNotification('success', 'تم تسجيل وتحديث تصويتك في الاستطلاع بنجاح ✓');
@@ -2854,6 +3466,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // React to Announcement with Emojis
   const reactToAnnouncement = (announcementId: string, emoji: string, label: string = 'تفاعل') => {
+    let updatedAnnouncement: Announcement | null = null;
     setAnnouncements(prev => prev.map(ann => {
       if (ann.id === announcementId) {
         const reactions = ann.reactions || [];
@@ -2879,25 +3492,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ];
         }
 
-        return {
+        updatedAnnouncement = {
           ...ann,
           reactions: updatedReactions
         };
+        return updatedAnnouncement;
       }
       return ann;
     }));
+
+    if (updatedAnnouncement) {
+      SupabaseService.upsertAnnouncement(updatedAnnouncement).catch(e => console.warn(e));
+    }
   };
 
   const updateAnnouncement = (id: string, updates: Partial<Announcement>) => {
-    setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+    let updatedAnn: Announcement | null = null;
+    setAnnouncements(prev => prev.map(a => {
+      if (a.id === id) {
+        updatedAnn = { ...a, ...updates };
+        return updatedAnn;
+      }
+      return a;
+    }));
     addAuditLog('تعديل إعلان', `ID: ${id}`, 'تم تحديث نص الإعلان');
     playSound('task');
+    if (updatedAnn) {
+      SupabaseService.upsertAnnouncement(updatedAnn).catch(e => console.warn(e));
+    }
   };
 
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(prev => prev.filter(a => a.id !== id));
     addAuditLog('حذف إعلان', `ID: ${id}`, 'تم حذف الإعلان الرسمي');
     playSound('task');
+    SupabaseService.deleteAnnouncement(id).catch(e => console.warn(e));
   };
 
   const updateCandidateStatus = (candId: string, status: RecruitmentCandidate['status'], score?: number, notes?: string) => {
@@ -3299,16 +3928,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetMember = members.find(m => m.id === memberId);
     if (!targetMember) return;
 
-    setMembers(prev => prev.map(m => {
-      if (m.id === memberId) {
-        return {
-          ...m,
-          status: 'Inactive' as MemberStatus,
-          rejectionReason: reason
-        };
-      }
-      return m;
-    }));
+    const updatedMember: Member = {
+      ...targetMember,
+      status: 'Inactive' as MemberStatus,
+      rejectionReason: reason
+    };
+
+    setMembers(prev => prev.map(m => m.id === memberId ? updatedMember : m));
+    SupabaseService.upsertMember(updatedMember).catch(e => console.warn('Supabase reject save error:', e));
 
     addAuditLog(
       'رفض طلب انضمام',

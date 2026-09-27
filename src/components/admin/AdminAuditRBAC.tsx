@@ -3,16 +3,18 @@ import { useApp } from '../../context/AppContext';
 import { Role, Permission } from '../../types';
 import { 
   ShieldAlert, Shield, Search, Lock, CheckCircle2, History, 
-  Users, Layers, Check, Plus, Trash2, Edit2, Sliders, Save, Sparkles 
+  Users, Layers, Check, Plus, Trash2, Edit2, Sliders, Save, Sparkles,
+  FileSpreadsheet, Download
 } from 'lucide-react';
+import { exportAuditLogsToExcel } from '../../utils/excelExport';
 
 export const AdminAuditRBAC: React.FC = () => {
   const { 
     auditLogs, permissions, rolePermissions, updateRolePermissions, 
-    committees, updateCommittee, currentUser 
+    committees, updateCommittee, currentUser, isHighLeadership 
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'rbac' | 'responsibilities' | 'audit'>('rbac');
+  const [activeTab, setActiveTab] = useState<'rbac' | 'responsibilities' | 'audit'>('audit');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Selected Role for Permissions Editor
@@ -21,6 +23,20 @@ export const AdminAuditRBAC: React.FC = () => {
   // Selected Committee for Responsibilities Editor
   const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>(committees[0]?.id || 'comm-org');
   const [newRespText, setNewRespText] = useState('');
+
+  if (!isHighLeadership) {
+    return (
+      <div className="glass-card p-8 text-center space-y-4 animate-in fade-in max-w-lg mx-auto my-12">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-white">منطقة محمية: مقتصرة على القيادة العليا فقط 🔒</h3>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          سجل التدقيق والعمليات الشامل ومصفوفة الصلاحيات مخصصة حصرياً لرئيس الفريق، المستشار، ونواب ومسؤولي القيادة العليا لمتابعة كافة الأنشطة وحوكمة النظام.
+        </p>
+      </div>
+    );
+  }
 
   const filteredLogs = auditLogs.filter(log => {
     return log.action.includes(searchQuery) || log.targetEntity.includes(searchQuery) || log.userName.includes(searchQuery);
@@ -335,15 +351,26 @@ export const AdminAuditRBAC: React.FC = () => {
       {/* Tab 3: Immutable Audit Log Table */}
       {activeTab === 'audit' && (
         <div className="glass-card p-5 space-y-4 animate-in fade-in">
-          <div className="relative max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="بحث في سجل العمليات..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="glass-input text-xs pr-9"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative max-w-sm flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="بحث في سجل العمليات..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="glass-input text-xs pr-9 w-full"
+              />
+            </div>
+
+            <button
+              onClick={() => exportAuditLogsToExcel(filteredLogs)}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/25 transition-all shrink-0"
+              title="تصدير سجل العمليات والتدقيق بصيغة إكسل"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>تصدير السجل كملف إكسل (Excel .xlsx) 📊</span>
+            </button>
           </div>
 
           <div className="overflow-x-auto">

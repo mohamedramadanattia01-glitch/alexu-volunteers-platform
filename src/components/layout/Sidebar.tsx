@@ -4,14 +4,16 @@ import {
   LayoutDashboard, Zap, Users, Layers, CheckSquare, 
   Calendar, QrCode, Target, GraduationCap, Trophy, 
   Bot, Megaphone, FolderGit2, ShieldAlert, 
-  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2, Database
+  BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2, Database,
+  Smartphone
 } from 'lucide-react';
 
 interface SidebarProps {
   onOpenDatabaseModal?: () => void;
+  onOpenInstallModal?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenInstallModal }) => {
   const { 
     activeTab, setActiveTab, tasks, isLiveCommandCenterActive, 
     sosAlerts, teamHealthScore, currentUser, complaints, isHighLeadership 
@@ -155,6 +157,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal }) => {
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black shrink-0">
                 إدارة 🗄️
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Universal PWA Install App Button */}
+        {onOpenInstallModal && (
+          <div className="pt-2 mt-1">
+            <button
+              onClick={onOpenInstallModal}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-900/40 via-sky-950/40 to-indigo-950/40 hover:from-blue-800/50 hover:to-sky-900/50 text-sky-200 border border-sky-500/40 transition-all cursor-pointer shadow-md group hover:scale-[1.02]"
+              title="تثبيت التطبيق على جهازك أو هاتفك للوصول السريع بدون متصفح"
+            >
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-sky-300 group-hover:animate-bounce" />
+                <span className="truncate">تثبيت التطبيق</span>
+              </div>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-300 font-mono border border-sky-400/30">
+                PWA 📱
               </span>
             </button>
           </div>

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { ALL_ROLES_INFO, isHighLeadershipRole, isHeadRole } from '../../utils/roleUtils';
 import { parseEgyptianNationalId } from '../../utils/nationalId';
-import { exportMembersToExcel } from '../../utils/excelExport';
+import { exportMembersToExcel, exportComprehensiveVolunteersMasterExcel } from '../../utils/excelExport';
 import { ALEXANDRIA_UNIVERSITY_COLLEGES } from '../../data/colleges';
 
 interface DatabaseMasterModalProps {
@@ -22,7 +22,8 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
   const { 
     members, committees, updateMember, deleteMember, addMember, 
     changeVolunteerId, isVolunteerIdAvailable,
-    syncWithCloud, isSupabaseConnected, currentUser, isHighLeadership 
+    syncWithCloud, isSupabaseConnected, currentUser, isHighLeadership,
+    memberEvaluations, headEvaluations, attendanceRecords, tasks
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,6 +235,18 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
     setTimeout(() => setSaveSuccessNotice(null), 4000);
   };
 
+  const handleExportComprehensiveExcel = () => {
+    exportComprehensiveVolunteersMasterExcel(
+      filteredMembers, 
+      memberEvaluations, 
+      headEvaluations, 
+      attendanceRecords, 
+      tasks
+    );
+    setSaveSuccessNotice('تم تصدير شيت إكسيل الشامل (.xlsx) لبيانات المتطوعين وسجل التقييمات والأداء بنجاح 📊');
+    setTimeout(() => setSaveSuccessNotice(null), 4000);
+  };
+
   const handleExportExcel = () => {
     exportMembersToExcel(filteredMembers, 'قاعدة_بيانات_متطوعي_جامعة_الإسكندرية_المجمعة');
     setSaveSuccessNotice('تم تصدير شيت إكسيل (.xlsx) يحتوي على كافة بيانات المتطوعين بنجاح 📊');
@@ -262,14 +275,14 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Excel Export Button */}
+            {/* Comprehensive Master Excel Button */}
             <button
-              onClick={handleExportExcel}
-              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/30 active:scale-95"
-              title="تصدير السجلات الحالية إلى ملف Excel (.xlsx)"
+              onClick={handleExportComprehensiveExcel}
+              className="px-3.5 py-1.5 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 border border-emerald-400/30"
+              title="تصدير شيت الإكسيل الشامل للأعضاء متضمناً سجل التقييمات والفاعليات والمهام"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>تصدير Excel (.xlsx)</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span>سحب الشيت الشامل والتقييمات (.xlsx) 📊</span>
             </button>
 
             {/* Cloud Sync Button */}
@@ -374,7 +387,7 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
               ) : (
                 filteredMembers.map(m => {
                   const roleInfo = ALL_ROLES_INFO[m.role] || ALL_ROLES_INFO.member;
-                  const isLead = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership';
+                  const isLeadOrHead = isHighLeadershipRole(m.role) || m.currentCommitteeId === 'comm-leadership' || m.role === 'head' || m.role === 'vice_head';
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
@@ -404,8 +417,10 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                         {m.college || 'جامعة الإسكندرية'} • {m.academicYear || 'الفرقة الثالثة'}
                       </td>
                       <td className="p-3 font-mono font-bold text-emerald-400">
-                        {isLead ? (
-                          <span className="text-amber-400/80 text-[10px] font-bold">قيادة عليا</span>
+                        {isLeadOrHead ? (
+                          <span className="text-amber-400/90 text-[10px] font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            {m.role === 'head' || m.role === 'vice_head' ? 'قيادة لجنة' : 'قيادة عليا'}
+                          </span>
                         ) : (
                           <span className="flex items-center gap-1">
                             <Flame className="w-3 h-3 text-amber-400" />
@@ -587,38 +602,56 @@ export const DatabaseMasterModal: React.FC<DatabaseMasterModalProps> = ({ isOpen
                 </div>
 
                 {/* 4. Points (XP) and Level Editable by Leadership */}
-                <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/30 to-blue-950/30 border border-amber-500/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-amber-300 mb-1 flex items-center gap-1">
-                      <Flame className="w-3.5 h-3.5 text-amber-400" />
-                      <span>نقاط التطوع (XP) المكتسبة</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editForm.points}
-                      onChange={e => setEditForm(prev => ({ ...prev, points: parseInt(e.target.value) || 0 }))}
-                      className="w-full px-3 py-1.5 bg-slate-900 border border-amber-500/40 rounded-lg text-xs font-mono text-amber-300 font-bold"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-0.5">يمكن للإدارة العليا تعديل رصيد النقاط لأي شخص مباشرة</p>
-                  </div>
+                {/* 4. Points & Level */}
+                {(() => {
+                  const isLeadOrHeadInForm = editForm.currentCommitteeId === 'comm-leadership' || isHighLeadershipRole(editForm.role) || editForm.role === 'head' || editForm.role === 'vice_head';
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-sky-300 mb-1 flex items-center gap-1">
-                      <Trophy className="w-3.5 h-3.5 text-sky-400" />
-                      <span>المستوى (Level)</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={editForm.level}
-                      onChange={e => setEditForm(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
-                      className="w-full px-3 py-1.5 bg-slate-900 border border-sky-500/40 rounded-lg text-xs font-mono text-sky-300 font-bold"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-0.5">الرتبة والمستوى في لوحة الشرف ونظام الجيمي فيكيشن</p>
-                  </div>
-                </div>
+                  if (isLeadOrHeadInForm) {
+                    return (
+                      <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                        <Crown className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>
+                          <strong>منصب قيادي / إداري:</strong> قيادات اللجان والإدارة العليا لا يخضعون لنقاط المتطوعين العادية ويتم تقييم أدائهم عبر مصفوفة القيادة المعتمدة من الإدارة العليا.
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/30 to-blue-950/30 border border-amber-500/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-amber-300 mb-1 flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 text-amber-400" />
+                          <span>نقاط التطوع (XP) المكتسبة</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={editForm.points}
+                          onChange={e => setEditForm(prev => ({ ...prev, points: parseInt(e.target.value) || 0 }))}
+                          className="w-full px-3 py-1.5 bg-slate-900 border border-amber-500/40 rounded-lg text-xs font-mono text-amber-300 font-bold"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-0.5">يمكن للإدارة العليا تعديل رصيد النقاط لأي متطوع مباشرة</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-sky-300 mb-1 flex items-center gap-1">
+                          <Trophy className="w-3.5 h-3.5 text-sky-400" />
+                          <span>المستوى (Level)</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={editForm.level}
+                          onChange={e => setEditForm(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
+                          className="w-full px-3 py-1.5 bg-slate-900 border border-sky-500/40 rounded-lg text-xs font-mono text-sky-300 font-bold"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-0.5">الرتبة والمستوى في لوحة الشرف ونظام الجيمي فيكيشن</p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 5. College & Academic Year */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
