@@ -679,34 +679,290 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const cloudData = await SupabaseService.loadAllData();
       if (cloudData) {
+        // Smart Merge Members: never delete or revert local members
         if (cloudData.members && cloudData.members.length > 0) {
           setMembers(prev => {
             const cloudMap = new Map(cloudData.members!.map(m => [m.id, m]));
-            const merged = cloudData.members!.slice();
-            // Preserve any local members not yet in cloud and push them up
+            const localMap = new Map(prev.map(m => [m.id, m]));
+            const merged: Member[] = [];
+
+            cloudData.members!.forEach(cloudM => {
+              const localM = localMap.get(cloudM.id);
+              if (localM) {
+                merged.push({
+                  ...cloudM,
+                  points: localM.points !== undefined ? localM.points : cloudM.points,
+                  level: localM.level !== undefined ? localM.level : cloudM.level,
+                  badges: (localM.badges && localM.badges.length > 0) ? localM.badges : cloudM.badges,
+                  phone: localM.phone || cloudM.phone,
+                  whatsappNumber: localM.whatsappNumber || cloudM.whatsappNumber,
+                  bloodType: localM.bloodType || cloudM.bloodType,
+                  emergencyContact: localM.emergencyContact || cloudM.emergencyContact,
+                  address: localM.address || cloudM.address,
+                  bio: localM.bio || cloudM.bio,
+                  hobbies: (localM.hobbies && localM.hobbies.length > 0) ? localM.hobbies : cloudM.hobbies,
+                  learningAspirations: (localM.learningAspirations && localM.learningAspirations.length > 0) ? localM.learningAspirations : cloudM.learningAspirations,
+                  certifiedSkills: (localM.certifiedSkills && localM.certifiedSkills.length > 0) ? localM.certifiedSkills : cloudM.certifiedSkills
+                });
+              } else {
+                merged.push(cloudM);
+              }
+            });
+
+            // Add any local-only members not yet in cloud and upload them
             prev.forEach(localM => {
               if (!cloudMap.has(localM.id)) {
                 merged.push(localM);
                 SupabaseService.upsertMember(localM).catch(err => console.warn('Sync push local member warning:', err));
               }
             });
+
             return merged;
           });
         }
-        if (cloudData.committees && cloudData.committees.length > 0) setCommittees(cloudData.committees);
-        if (cloudData.seasons && cloudData.seasons.length > 0) setSeasons(cloudData.seasons);
-        if (cloudData.tasks) setTasks(cloudData.tasks);
-        if (cloudData.events) setEvents(cloudData.events);
-        if (cloudData.attendanceRecords) setAttendanceRecords(cloudData.attendanceRecords);
-        if (cloudData.attendanceSessions) setAttendanceSessions(cloudData.attendanceSessions);
-        if (cloudData.memberEvaluations) setMemberEvaluations(cloudData.memberEvaluations);
-        if (cloudData.headEvaluations) setHeadEvaluations(cloudData.headEvaluations);
-        if (cloudData.complaints) setComplaints(cloudData.complaints);
-        if (cloudData.documents) setDocuments(cloudData.documents);
-        if (cloudData.announcements) setAnnouncements(cloudData.announcements);
-        if (cloudData.auditLogs) setAuditLogs(cloudData.auditLogs);
-        if (cloudData.notifications) setNotifications(cloudData.notifications);
-        if (cloudData.bannedUsers && cloudData.bannedUsers.length > 0) setBannedList(cloudData.bannedUsers);
+
+        // Smart Merge Committees
+        if (cloudData.committees && cloudData.committees.length > 0) {
+          setCommittees(prev => {
+            const cloudMap = new Map(cloudData.committees!.map(c => [c.id, c]));
+            const merged = cloudData.committees!.slice();
+            prev.forEach(localC => {
+              if (!cloudMap.has(localC.id)) {
+                merged.push(localC);
+                SupabaseService.upsertCommittee(localC).catch(err => console.warn('Sync push local committee warning:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Seasons
+        if (cloudData.seasons && cloudData.seasons.length > 0) {
+          setSeasons(prev => {
+            const cloudMap = new Map(cloudData.seasons!.map(s => [s.id, s]));
+            const merged = cloudData.seasons!.slice();
+            prev.forEach(localS => {
+              if (!cloudMap.has(localS.id)) {
+                merged.push(localS);
+                SupabaseService.upsertSeason(localS).catch(err => console.warn('Sync push local season warning:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Tasks: preserve local tasks and subtasks
+        if (cloudData.tasks) {
+          setTasks(prev => {
+            const cloudMap = new Map(cloudData.tasks!.map(t => [t.id, t]));
+            const localMap = new Map(prev.map(t => [t.id, t]));
+            const merged: Task[] = [];
+
+            cloudData.tasks!.forEach(cloudT => {
+              const localT = localMap.get(cloudT.id);
+              if (localT) {
+                merged.push({
+                  ...cloudT,
+                  subtasks: (localT.subtasks && localT.subtasks.length > 0) ? localT.subtasks : cloudT.subtasks,
+                  submission: localT.submission || cloudT.submission,
+                  stance: localT.stance || cloudT.stance
+                });
+              } else {
+                merged.push(cloudT);
+              }
+            });
+
+            // Push any local tasks not in cloud
+            prev.forEach(localT => {
+              if (!cloudMap.has(localT.id)) {
+                merged.unshift(localT);
+                SupabaseService.upsertTask(localT).catch(err => console.warn('Sync push local task warning:', err));
+              }
+            });
+
+            return merged;
+          });
+        }
+
+        // Smart Merge Events: preserve local events and RSVPs
+        if (cloudData.events) {
+          setEvents(prev => {
+            const cloudMap = new Map(cloudData.events!.map(e => [e.id, e]));
+            const localMap = new Map(prev.map(e => [e.id, e]));
+            const merged: EventEntity[] = [];
+
+            cloudData.events!.forEach(cloudE => {
+              const localE = localMap.get(cloudE.id);
+              if (localE) {
+                merged.push({
+                  ...cloudE,
+                  rsvps: { ...(cloudE.rsvps || {}), ...(localE.rsvps || {}) }
+                });
+              } else {
+                merged.push(cloudE);
+              }
+            });
+
+            // Push local events not in cloud
+            prev.forEach(localE => {
+              if (!cloudMap.has(localE.id)) {
+                merged.unshift(localE);
+                SupabaseService.upsertEvent(localE).catch(err => console.warn('Sync push local event warning:', err));
+              }
+            });
+
+            return merged;
+          });
+        }
+
+        // Smart Merge Attendance Records
+        if (cloudData.attendanceRecords) {
+          setAttendanceRecords(prev => {
+            const cloudMap = new Map(cloudData.attendanceRecords!.map(a => [a.id, a]));
+            const merged = cloudData.attendanceRecords!.slice();
+            prev.forEach(localA => {
+              if (!cloudMap.has(localA.id)) {
+                merged.unshift(localA);
+                SupabaseService.insertAttendanceRecord(localA).catch(err => console.warn('Sync push local attendance record:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Attendance Sessions
+        if (cloudData.attendanceSessions) {
+          setAttendanceSessions(prev => {
+            const cloudMap = new Map(cloudData.attendanceSessions!.map(s => [s.id, s]));
+            const merged = cloudData.attendanceSessions!.slice();
+            prev.forEach(localS => {
+              if (!cloudMap.has(localS.id)) {
+                merged.unshift(localS);
+                SupabaseService.upsertAttendanceSession(localS).catch(err => console.warn('Sync push local attendance session:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Member Evaluations
+        if (cloudData.memberEvaluations) {
+          setMemberEvaluations(prev => {
+            const cloudMap = new Map(cloudData.memberEvaluations!.map(e => [e.id, e]));
+            const merged = cloudData.memberEvaluations!.slice();
+            prev.forEach(localE => {
+              if (!cloudMap.has(localE.id)) {
+                merged.unshift(localE);
+                SupabaseService.upsertMemberEvaluation(localE).catch(err => console.warn('Sync push local eval:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Head Evaluations
+        if (cloudData.headEvaluations) {
+          setHeadEvaluations(prev => {
+            const cloudMap = new Map(cloudData.headEvaluations!.map(he => [he.id, he]));
+            const merged = cloudData.headEvaluations!.slice();
+            prev.forEach(localHE => {
+              if (!cloudMap.has(localHE.id)) {
+                merged.unshift(localHE);
+                SupabaseService.upsertHeadEvaluation(localHE).catch(err => console.warn('Sync push local head eval:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Complaints
+        if (cloudData.complaints) {
+          setComplaints(prev => {
+            const cloudMap = new Map(cloudData.complaints!.map(c => [c.id, c]));
+            const merged = cloudData.complaints!.slice();
+            prev.forEach(localC => {
+              if (!cloudMap.has(localC.id)) {
+                merged.unshift(localC);
+                SupabaseService.upsertComplaint(localC).catch(err => console.warn('Sync push local complaint:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Documents
+        if (cloudData.documents) {
+          setDocuments(prev => {
+            const cloudMap = new Map(cloudData.documents!.map(d => [d.id, d]));
+            const merged = cloudData.documents!.slice();
+            prev.forEach(localD => {
+              if (!cloudMap.has(localD.id)) {
+                merged.unshift(localD);
+                SupabaseService.upsertDocument(localD).catch(err => console.warn('Sync push local doc:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Announcements
+        if (cloudData.announcements) {
+          setAnnouncements(prev => {
+            const cloudMap = new Map(cloudData.announcements!.map(a => [a.id, a]));
+            const merged = cloudData.announcements!.slice();
+            prev.forEach(localA => {
+              if (!cloudMap.has(localA.id)) {
+                merged.unshift(localA);
+                SupabaseService.upsertAnnouncement(localA).catch(err => console.warn('Sync push local announcement:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Audit Logs
+        if (cloudData.auditLogs) {
+          setAuditLogs(prev => {
+            const cloudMap = new Map(cloudData.auditLogs!.map(l => [l.id, l]));
+            const merged = cloudData.auditLogs!.slice();
+            prev.forEach(localL => {
+              if (!cloudMap.has(localL.id)) {
+                merged.unshift(localL);
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Notifications
+        if (cloudData.notifications) {
+          setNotifications(prev => {
+            const cloudMap = new Map(cloudData.notifications!.map(n => [n.id, n]));
+            const merged = cloudData.notifications!.slice();
+            prev.forEach(localN => {
+              if (!cloudMap.has(localN.id)) {
+                merged.unshift(localN);
+              }
+            });
+            return merged;
+          });
+        }
+
+        // Smart Merge Banned Users
+        if (cloudData.bannedUsers && cloudData.bannedUsers.length > 0) {
+          setBannedList(prev => {
+            const cloudMap = new Map(cloudData.bannedUsers!.map(b => [b.id, b]));
+            const merged = cloudData.bannedUsers!.slice();
+            prev.forEach(localB => {
+              if (!cloudMap.has(localB.id)) {
+                merged.push(localB);
+                SupabaseService.upsertBannedUser(localB).catch(err => console.warn('Sync push banned user:', err));
+              }
+            });
+            return merged;
+          });
+        }
+
         setIsSupabaseConnected(true);
       }
     } catch (e) {
@@ -743,8 +999,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               eventId: newRow.event_id,
               eventName: newRow.event_name,
               completionPercentage: newRow.completion_percentage || 0,
-              xpReward: newRow.xp_reward || 20,
+              maxPoints: newRow.max_points || newRow.xp_reward || 30,
+              xpReward: newRow.xp_reward || newRow.max_points || 30,
               subtasks: newRow.subtasks || [],
+              voiceNoteUrl: newRow.voice_note_url,
+              voiceDuration: newRow.voice_duration,
+              stance: newRow.stance,
+              excuseReason: newRow.excuse_reason,
+              excusedAt: newRow.excused_at,
+              excusedByMemberId: newRow.excused_by_id,
+              excusedByMemberName: newRow.excused_by_name,
+              awardedPoints: newRow.awarded_points,
+              gradedBy: newRow.graded_by,
+              gradedByName: newRow.graded_by_name,
+              gradedAt: newRow.graded_at,
+              feedback: newRow.feedback,
               createdAt: newRow.created_at
             };
 
@@ -754,9 +1023,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return [taskObj, ...prev];
             });
 
-            if (taskObj.assignedToMemberIds.includes(currentUserId) && taskObj.createdByMemberId !== currentUserId) {
-              playSound('task');
-              showNotification('info', `📋 مهمة جديدة مسندة إليك: "${taskObj.title}"`);
+            if (taskObj.createdByMemberId !== currentUserId) {
+              const isAssignedToMe = taskObj.assignedToMemberIds.includes(currentUserId);
+              if (isAssignedToMe) {
+                playSound('task');
+                showNotification('info', `📋 مهمة جديدة مسندة إليك: "${taskObj.title}"`);
+              } else if (taskObj.committeeId === currentUser.currentCommitteeId && (currentUser.role === 'head' || currentUser.role === 'vice_head')) {
+                playSound('task');
+                showNotification('info', `📋 تم إنشاء مهمة جديدة في لجنتك: "${taskObj.title}"`);
+              }
             }
           } else if (eventType === 'DELETE') {
             setTasks(prev => prev.filter(t => t.id !== oldRow.id));
@@ -782,7 +1057,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               tasksCount: newRow.tasks_count || 0,
               sosAlertsCount: newRow.sos_alerts_count || 0,
               seasonId: newRow.season_id,
-              liveDashboardActive: newRow.live_dashboard_active || false
+              liveDashboardActive: newRow.live_dashboard_active || false,
+              targetAudience: newRow.target_audience || 'all',
+              selectedCommitteeIds: newRow.selected_committee_ids || [],
+              rsvps: newRow.rsvps || {}
             };
 
             setEvents(prev => {
@@ -790,6 +1068,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (exists) return prev.map(e => e.id === eventObj.id ? eventObj : e);
               return [eventObj, ...prev];
             });
+
+            if (eventType === 'INSERT' && eventObj.eventManagerId !== currentUserId) {
+              playSound('announcement');
+              showNotification('info', `📅 فعالية جديدة: "${eventObj.name}" بتاريخ ${eventObj.date} في ${eventObj.location}`);
+            }
           } else if (eventType === 'DELETE') {
             setEvents(prev => prev.filter(e => e.id !== oldRow.id));
           }
@@ -807,6 +1090,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               targetCommitteeId: newRow.target_committee_id,
               targetCommitteeName: newRow.target_committee_name,
               isPinned: newRow.is_pinned,
+              poll: newRow.poll,
+              reactions: newRow.reactions || [],
               createdAt: newRow.created_at
             };
             setAnnouncements(prev => {
@@ -827,6 +1112,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               title: newRow.title,
               message: newRow.message,
               type: newRow.type,
+              targetName: newRow.target_name,
+              requiredAction: newRow.required_action,
+              badgeText: newRow.badge_text,
+              targetCommitteeId: newRow.target_committee_id,
+              targetMemberIds: newRow.target_member_ids || [],
+              senderName: newRow.sender_name,
               read: newRow.read,
               linkTab: newRow.link_tab,
               createdAt: newRow.created_at
@@ -947,7 +1238,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               universityEmail: newRow.email,
               college: newRow.college,
               academicYear: newRow.academic_year,
-              whatsappNumber: newRow.whatsapp_number,
+              phone: newRow.phone || newRow.whatsapp_number || '',
+              whatsappNumber: newRow.whatsapp_number || newRow.phone || '',
               birthDate: newRow.birth_date,
               age: newRow.age,
               nationalId: newRow.national_id,
@@ -977,6 +1269,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               bio: newRow.bio || '',
               hobbies: newRow.hobbies || [],
               learningAspirations: newRow.learning_aspirations || [],
+              certifiedSkills: newRow.certified_skills || [],
+              bloodType: newRow.blood_type || 'O+',
+              emergencyContact: newRow.emergency_contact || '',
+              address: newRow.address || '',
+              banReason: newRow.ban_reason,
+              bannedAt: newRow.banned_at,
+              bannedBy: newRow.banned_by,
+              rejectionReason: newRow.rejection_reason,
+              registrationDate: newRow.registration_date,
               facebookUrl: newRow.facebook_url,
               tiktokUrl: newRow.tiktok_url,
               instagramUrl: newRow.instagram_url,
@@ -999,17 +1300,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               memberId: newRow.member_id,
               memberName: newRow.member_name,
               memberAvatar: newRow.member_avatar,
+              memberVolunteerId: newRow.member_volunteer_id,
               committeeId: newRow.committee_id,
               committeeName: newRow.committee_name,
               eventId: newRow.event_id,
               eventName: newRow.event_name,
+              sessionId: newRow.session_id,
+              sessionTitle: newRow.session_title,
               date: newRow.date,
               checkInTime: newRow.check_in_time,
               checkOutTime: newRow.check_out_time,
               durationMinutes: newRow.duration_minutes,
               durationFormatted: newRow.duration_formatted,
               status: newRow.status,
-              qrHashToken: newRow.qr_hash_token
+              qrHashToken: newRow.qr_hash_token,
+              gpsLocation: newRow.gps_location,
+              dailyEvaluation: newRow.daily_evaluation
             };
             setAttendanceRecords(prev => {
               const exists = prev.some(a => a.id === recObj.id);
@@ -1033,6 +1339,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdByRole: newRow.created_by_role,
               createdAt: newRow.created_at,
               requireGPS: newRow.require_gps,
+              sessionType: newRow.session_type || 'members',
+              eventId: newRow.event_id,
+              eventName: newRow.event_name,
+              eventDate: newRow.event_date,
               qrToken: newRow.qr_token,
               isActive: newRow.is_active,
               notes: newRow.notes
@@ -2544,7 +2854,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: eventData.description || '',
       eventManagerId: eventData.eventManagerId || currentUser.id,
       eventManagerName: eventData.eventManagerName || currentUser.fullName,
+      targetAudience: eventData.targetAudience || 'all',
+      selectedCommitteeIds: eventData.selectedCommitteeIds || [],
       committeeQuotas: eventData.committeeQuotas || {},
+      rsvps: eventData.rsvps || {},
       status: eventData.status || 'Planned',
       expectedMembersCount: eventData.expectedMembersCount || 20,
       actualAttendanceCount: 0,
@@ -2557,13 +2870,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEvents(prev => [newEvent, ...prev]);
     SupabaseService.upsertEvent(newEvent).catch(e => console.warn('Supabase upsertEvent error:', e));
     
-    // Broadcast notification for new event to all members
+    // Broadcast notification for new event to all members or target group
+    const targetGroupText = newEvent.targetAudience === 'heads_leadership'
+      ? '👑 رؤساء اللجان والقيادة العليا'
+      : newEvent.targetAudience === 'members_only'
+      ? '🌟 أعضاء المتطوعين'
+      : '👥 جميع أعضاء ولجان المتطوعين';
+
     const eventNotif: SystemNotification = {
       id: `notif-event-${Date.now()}`,
       title: `📅 تم جدولة فعالية جديدة: "${newEvent.name}"`,
       message: `التاريخ: ${newEvent.date} في ${newEvent.location} (${newEvent.startTime} - ${newEvent.endTime})`,
       type: 'achievement',
-      targetName: 'جميع أعضاء ولجان المتطوعين',
+      targetName: targetGroupText,
       requiredAction: 'المطلوب: فتح الفعالية وتأكيد الحضور (RSVP) أو تقديم اعتذار مسبق',
       badgeText: `حصة ${newEvent.expectedMembersCount} متطوع`,
       senderName: currentUser.fullName,
@@ -2580,7 +2899,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       type: 'event'
     });
 
-    addAuditLog('إنشاء فعالية جديدة', newEvent.name, `الموقع: ${newEvent.location} - الموعد: ${newEvent.date}`);
+    addAuditLog('إنشاء فعالية جديدة', newEvent.name, `الموقع: ${newEvent.location} - الموعد: ${newEvent.date} - الفئة: ${newEvent.targetAudience || 'all'}`);
     playSound('task');
   };
 

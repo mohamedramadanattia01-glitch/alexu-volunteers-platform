@@ -33,7 +33,6 @@ export class SupabaseService {
         });
 
       if (error) {
-        // If bucket doesn't exist, fallback to data URL or error
         console.warn(`Storage upload error (${bucket}):`, error.message);
         return { success: false, error: error.message };
       }
@@ -82,22 +81,22 @@ export class SupabaseService {
 
     try {
       const [
-        { data: membersData },
-        { data: committeesData },
-        { data: seasonsData },
-        { data: tasksData },
-        { data: eventsData },
-        { data: attendanceData },
-        { data: sessionsData },
-        { data: memberEvalsData },
-        { data: headEvalsData },
-        { data: complaintsData },
-        { data: documentsData },
-        { data: announcementsData },
-        { data: auditLogsData },
-        { data: notificationsData },
-        { data: bannedUsersData },
-        { data: settingsData }
+        { data: membersData, error: memErr },
+        { data: committeesData, error: commErr },
+        { data: seasonsData, error: seaErr },
+        { data: tasksData, error: taskErr },
+        { data: eventsData, error: evErr },
+        { data: attendanceData, error: attErr },
+        { data: sessionsData, error: sessErr },
+        { data: memberEvalsData, error: meErr },
+        { data: headEvalsData, error: heErr },
+        { data: complaintsData, error: compErr },
+        { data: documentsData, error: docErr },
+        { data: announcementsData, error: annErr },
+        { data: auditLogsData, error: audErr },
+        { data: notificationsData, error: notifErr },
+        { data: bannedUsersData, error: banErr },
+        { data: settingsData, error: setErr }
       ] = await Promise.all([
         supabase.from('members').select('*'),
         supabase.from('committees').select('*'),
@@ -117,6 +116,10 @@ export class SupabaseService {
         supabase.from('app_settings').select('*')
       ]);
 
+      if (memErr) console.warn('Supabase members fetch error:', memErr);
+      if (taskErr) console.warn('Supabase tasks fetch error:', taskErr);
+      if (evErr) console.warn('Supabase events fetch error:', evErr);
+
       const result: any = {};
 
       if (membersData && membersData.length > 0) {
@@ -127,7 +130,8 @@ export class SupabaseService {
           universityEmail: row.email,
           college: row.college,
           academicYear: row.academic_year,
-          whatsappNumber: row.whatsapp_number,
+          phone: row.phone || row.whatsapp_number || '',
+          whatsappNumber: row.whatsapp_number || row.phone || '',
           birthDate: row.birth_date,
           age: row.age,
           nationalId: row.national_id,
@@ -157,6 +161,15 @@ export class SupabaseService {
           bio: row.bio || '',
           hobbies: row.hobbies || [],
           learningAspirations: row.learning_aspirations || [],
+          certifiedSkills: row.certified_skills || [],
+          bloodType: row.blood_type || 'O+',
+          emergencyContact: row.emergency_contact || '',
+          address: row.address || '',
+          banReason: row.ban_reason,
+          bannedAt: row.banned_at,
+          bannedBy: row.banned_by,
+          rejectionReason: row.rejection_reason,
+          registrationDate: row.registration_date,
           facebookUrl: row.facebook_url,
           tiktokUrl: row.tiktok_url,
           instagramUrl: row.instagram_url,
@@ -187,6 +200,20 @@ export class SupabaseService {
         }));
       }
 
+      if (seasonsData && seasonsData.length > 0) {
+        result.seasons = seasonsData.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          isCurrent: s.is_current,
+          startDate: s.start_date,
+          endDate: s.end_date,
+          totalMembers: s.total_members || 0,
+          totalEvents: s.total_events || 0,
+          totalTasks: s.total_tasks || 0,
+          archived: s.archived || false
+        }));
+      }
+
       if (tasksData && tasksData.length > 0) {
         result.tasks = tasksData.map((t: any) => ({
           id: t.id,
@@ -208,9 +235,22 @@ export class SupabaseService {
           eventId: t.event_id,
           eventName: t.event_name,
           completionPercentage: t.completion_percentage || 0,
-          xpReward: t.xp_reward || 20,
-          createdAt: t.created_at,
-          subtasks: t.subtasks || []
+          maxPoints: t.max_points || t.xp_reward || 30,
+          xpReward: t.xp_reward || t.max_points || 30,
+          subtasks: t.subtasks || [],
+          voiceNoteUrl: t.voice_note_url,
+          voiceDuration: t.voice_duration,
+          stance: t.stance,
+          excuseReason: t.excuse_reason,
+          excusedAt: t.excused_at,
+          excusedByMemberId: t.excused_by_id,
+          excusedByMemberName: t.excused_by_name,
+          awardedPoints: t.awarded_points,
+          gradedBy: t.graded_by,
+          gradedByName: t.graded_by_name,
+          gradedAt: t.graded_at,
+          feedback: t.feedback,
+          createdAt: t.created_at
         }));
       }
 
@@ -232,7 +272,10 @@ export class SupabaseService {
           tasksCount: e.tasks_count || 0,
           sosAlertsCount: e.sos_alerts_count || 0,
           seasonId: e.season_id,
-          liveDashboardActive: e.live_dashboard_active || false
+          liveDashboardActive: e.live_dashboard_active || false,
+          targetAudience: e.target_audience || 'all',
+          selectedCommitteeIds: e.selected_committee_ids || [],
+          rsvps: e.rsvps || {}
         }));
       }
 
@@ -242,17 +285,22 @@ export class SupabaseService {
           memberId: a.member_id,
           memberName: a.member_name,
           memberAvatar: a.member_avatar,
+          memberVolunteerId: a.member_volunteer_id,
           committeeId: a.committee_id,
           committeeName: a.committee_name,
           eventId: a.event_id,
           eventName: a.event_name,
+          sessionId: a.session_id,
+          sessionTitle: a.session_title,
           date: a.date,
           checkInTime: a.check_in_time,
           checkOutTime: a.check_out_time,
           durationMinutes: a.duration_minutes,
           durationFormatted: a.duration_formatted,
           status: a.status,
-          qrHashToken: a.qr_hash_token
+          qrHashToken: a.qr_hash_token,
+          gpsLocation: a.gps_location,
+          dailyEvaluation: a.daily_evaluation
         }));
       }
 
@@ -267,6 +315,10 @@ export class SupabaseService {
           createdByRole: s.created_by_role,
           createdAt: s.created_at,
           requireGPS: s.require_gps,
+          sessionType: s.session_type || 'members',
+          eventId: s.event_id,
+          eventName: s.event_name,
+          eventDate: s.event_date,
           qrToken: s.qr_token,
           isActive: s.is_active,
           notes: s.notes
@@ -367,6 +419,8 @@ export class SupabaseService {
           targetCommitteeId: a.target_committee_id,
           targetCommitteeName: a.target_committee_name,
           isPinned: a.is_pinned,
+          poll: a.poll,
+          reactions: a.reactions || [],
           createdAt: a.created_at
         }));
       }
@@ -392,6 +446,12 @@ export class SupabaseService {
           title: n.title,
           message: n.message,
           type: n.type,
+          targetName: n.target_name,
+          requiredAction: n.required_action,
+          badgeText: n.badge_text,
+          targetCommitteeId: n.target_committee_id,
+          targetMemberIds: n.target_member_ids || [],
+          senderName: n.sender_name,
           read: n.read,
           createdAt: n.created_at,
           linkTab: n.link_tab
@@ -430,7 +490,8 @@ export class SupabaseService {
         email: member.universityEmail,
         college: member.college,
         academic_year: member.academicYear,
-        whatsapp_number: member.whatsappNumber,
+        phone: member.phone || member.whatsappNumber,
+        whatsapp_number: member.whatsappNumber || member.phone,
         birth_date: member.birthDate,
         age: member.age,
         national_id: member.nationalId,
@@ -457,6 +518,15 @@ export class SupabaseService {
         bio: member.bio,
         hobbies: member.hobbies,
         learning_aspirations: member.learningAspirations,
+        certified_skills: member.certifiedSkills || [],
+        blood_type: member.bloodType || 'O+',
+        emergency_contact: member.emergencyContact || '',
+        address: member.address || '',
+        ban_reason: member.banReason,
+        banned_at: member.bannedAt,
+        banned_by: member.bannedBy,
+        rejection_reason: member.rejectionReason,
+        registration_date: member.registrationDate,
         facebook_url: member.facebookUrl,
         tiktok_url: member.tiktokUrl,
         instagram_url: member.instagramUrl,
@@ -661,7 +731,7 @@ export class SupabaseService {
   static async upsertTask(task: Task) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('tasks').upsert({
+      const { error } = await supabase.from('tasks').upsert({
         id: task.id,
         title: task.title,
         description: task.description,
@@ -681,11 +751,25 @@ export class SupabaseService {
         event_id: task.eventId,
         event_name: task.eventName,
         completion_percentage: task.completionPercentage,
-        xp_reward: task.xpReward,
+        max_points: task.maxPoints || task.xpReward || 30,
+        xp_reward: task.xpReward || task.maxPoints || 30,
         subtasks: task.subtasks,
+        voice_note_url: task.voiceNoteUrl,
+        voice_duration: task.voiceDuration,
+        stance: task.stance,
+        excuse_reason: task.excuseReason,
+        excused_at: task.excusedAt,
+        excused_by_id: task.excusedByMemberId,
+        excused_by_name: task.excusedByMemberName,
+        awarded_points: task.awardedPoints,
+        graded_by: task.gradedBy,
+        graded_by_name: task.gradedByName,
+        graded_at: task.gradedAt,
+        feedback: task.feedback,
         created_at: task.createdAt,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertTask Supabase error:', error);
     } catch (e) {
       console.error('upsertTask failed:', e);
     }
@@ -694,7 +778,8 @@ export class SupabaseService {
   static async deleteTask(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('tasks').delete().eq('id', id);
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) console.error('deleteTask error:', error);
     } catch (e) {
       console.error('deleteTask failed:', e);
     }
@@ -703,7 +788,7 @@ export class SupabaseService {
   static async upsertEvent(event: EventEntity) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('events').upsert({
+      const { error } = await supabase.from('events').upsert({
         id: event.id,
         name: event.name,
         date: event.date,
@@ -721,8 +806,12 @@ export class SupabaseService {
         sos_alerts_count: event.sosAlertsCount,
         season_id: event.seasonId,
         live_dashboard_active: event.liveDashboardActive,
+        target_audience: event.targetAudience || 'all',
+        selected_committee_ids: event.selectedCommitteeIds || [],
+        rsvps: event.rsvps || {},
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertEvent Supabase error:', error);
     } catch (e) {
       console.error('upsertEvent failed:', e);
     }
@@ -731,7 +820,8 @@ export class SupabaseService {
   static async deleteEvent(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('events').delete().eq('id', id);
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) console.error('deleteEvent error:', error);
     } catch (e) {
       console.error('deleteEvent failed:', e);
     }
@@ -740,7 +830,7 @@ export class SupabaseService {
   static async upsertAttendanceSession(session: AttendanceSession) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('attendance_sessions').upsert({
+      const { error } = await supabase.from('attendance_sessions').upsert({
         id: session.id,
         title: session.title,
         committee_id: session.committeeId,
@@ -749,11 +839,16 @@ export class SupabaseService {
         created_by_name: session.createdByMemberName,
         created_by_role: session.createdByRole,
         require_gps: session.requireGPS,
+        session_type: session.sessionType || 'members',
+        event_id: session.eventId,
+        event_name: session.eventName,
+        event_date: session.eventDate,
         qr_token: session.qrToken,
         is_active: session.isActive,
         notes: session.notes,
         created_at: session.createdAt
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertAttendanceSession error:', error);
     } catch (e) {
       console.error('upsertAttendanceSession failed:', e);
     }
@@ -762,7 +857,8 @@ export class SupabaseService {
   static async deleteAttendanceSession(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('attendance_sessions').delete().eq('id', id);
+      const { error } = await supabase.from('attendance_sessions').delete().eq('id', id);
+      if (error) console.error('deleteAttendanceSession error:', error);
     } catch (e) {
       console.error('deleteAttendanceSession failed:', e);
     }
@@ -771,23 +867,29 @@ export class SupabaseService {
   static async insertAttendanceRecord(record: AttendanceRecord) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('attendance_records').upsert({
+      const { error } = await supabase.from('attendance_records').upsert({
         id: record.id,
         member_id: record.memberId,
         member_name: record.memberName,
         member_avatar: record.memberAvatar,
+        member_volunteer_id: record.memberVolunteerId,
         committee_id: record.committeeId,
         committee_name: record.committeeName,
         event_id: record.eventId,
         event_name: record.eventName,
+        session_id: record.sessionId,
+        session_title: record.sessionTitle,
         date: record.date,
         check_in_time: record.checkInTime,
         check_out_time: record.checkOutTime,
         duration_minutes: record.durationMinutes,
         duration_formatted: record.durationFormatted,
         status: record.status,
-        qr_hash_token: record.qrHashToken
-      });
+        qr_hash_token: record.qrHashToken,
+        gps_location: record.gpsLocation,
+        daily_evaluation: record.dailyEvaluation
+      }, { onConflict: 'id' });
+      if (error) console.error('insertAttendanceRecord error:', error);
     } catch (e) {
       console.error('insertAttendanceRecord failed:', e);
     }
@@ -796,7 +898,8 @@ export class SupabaseService {
   static async deleteAttendanceRecord(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('attendance_records').delete().eq('id', id);
+      const { error } = await supabase.from('attendance_records').delete().eq('id', id);
+      if (error) console.error('deleteAttendanceRecord error:', error);
     } catch (e) {
       console.error('deleteAttendanceRecord failed:', e);
     }
@@ -805,7 +908,7 @@ export class SupabaseService {
   static async upsertMemberEvaluation(ev: MemberEvaluationRecord) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('member_evaluations').upsert({
+      const { error } = await supabase.from('member_evaluations').upsert({
         id: ev.id,
         member_id: ev.memberId,
         member_name: ev.memberName,
@@ -820,7 +923,8 @@ export class SupabaseService {
         percentage: ev.percentage,
         feedback: ev.feedback,
         evaluated_at: ev.evaluatedAt
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertMemberEvaluation error:', error);
     } catch (e) {
       console.error('upsertMemberEvaluation failed:', e);
     }
@@ -829,7 +933,8 @@ export class SupabaseService {
   static async deleteMemberEvaluation(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('member_evaluations').delete().eq('id', id);
+      const { error } = await supabase.from('member_evaluations').delete().eq('id', id);
+      if (error) console.error('deleteMemberEvaluation error:', error);
     } catch (e) {
       console.error('deleteMemberEvaluation failed:', e);
     }
@@ -838,7 +943,7 @@ export class SupabaseService {
   static async upsertHeadEvaluation(he: HeadEvaluationRecord) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('head_evaluations').upsert({
+      const { error } = await supabase.from('head_evaluations').upsert({
         id: he.id,
         head_id: he.headId,
         head_name: he.headName,
@@ -856,7 +961,8 @@ export class SupabaseService {
         feedback: he.feedback,
         action_items: he.actionItems,
         evaluated_at: he.evaluatedAt
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertHeadEvaluation error:', error);
     } catch (e) {
       console.error('upsertHeadEvaluation failed:', e);
     }
@@ -865,7 +971,8 @@ export class SupabaseService {
   static async deleteHeadEvaluation(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('head_evaluations').delete().eq('id', id);
+      const { error } = await supabase.from('head_evaluations').delete().eq('id', id);
+      if (error) console.error('deleteHeadEvaluation error:', error);
     } catch (e) {
       console.error('deleteHeadEvaluation failed:', e);
     }
@@ -874,7 +981,7 @@ export class SupabaseService {
   static async upsertComplaint(c: Complaint) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('complaints').upsert({
+      const { error } = await supabase.from('complaints').upsert({
         id: c.id,
         title: c.title,
         description: c.description,
@@ -895,7 +1002,8 @@ export class SupabaseService {
         resolved_at: c.resolvedAt,
         satisfaction_rating: c.satisfactionRating,
         created_at: c.createdAt
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertComplaint error:', error);
     } catch (e) {
       console.error('upsertComplaint failed:', e);
     }
@@ -904,7 +1012,8 @@ export class SupabaseService {
   static async deleteComplaint(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('complaints').delete().eq('id', id);
+      const { error } = await supabase.from('complaints').delete().eq('id', id);
+      if (error) console.error('deleteComplaint error:', error);
     } catch (e) {
       console.error('deleteComplaint failed:', e);
     }
@@ -913,7 +1022,7 @@ export class SupabaseService {
   static async upsertAnnouncement(a: Announcement) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('announcements').upsert({
+      const { error } = await supabase.from('announcements').upsert({
         id: a.id,
         title: a.title,
         content: a.content,
@@ -923,8 +1032,11 @@ export class SupabaseService {
         target_committee_id: a.targetCommitteeId,
         target_committee_name: a.targetCommitteeName,
         is_pinned: a.isPinned,
+        poll: a.poll,
+        reactions: a.reactions || [],
         created_at: a.createdAt
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertAnnouncement error:', error);
     } catch (e) {
       console.error('upsertAnnouncement failed:', e);
     }
@@ -933,7 +1045,8 @@ export class SupabaseService {
   static async deleteAnnouncement(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('announcements').delete().eq('id', id);
+      const { error } = await supabase.from('announcements').delete().eq('id', id);
+      if (error) console.error('deleteAnnouncement error:', error);
     } catch (e) {
       console.error('deleteAnnouncement failed:', e);
     }
@@ -942,7 +1055,7 @@ export class SupabaseService {
   static async insertAuditLog(log: AuditLogItem) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('audit_logs').insert({
+      const { error } = await supabase.from('audit_logs').insert({
         id: log.id,
         user_id: log.userId,
         user_name: log.userName,
@@ -954,6 +1067,7 @@ export class SupabaseService {
         new_value: log.newValue,
         timestamp: log.timestamp || new Date().toISOString()
       });
+      if (error) console.error('insertAuditLog error:', error);
     } catch (e) {
       console.error('insertAuditLog failed:', e);
     }
@@ -962,15 +1076,22 @@ export class SupabaseService {
   static async upsertNotification(n: SystemNotification) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('system_notifications').upsert({
+      const { error } = await supabase.from('system_notifications').upsert({
         id: n.id,
         title: n.title,
         message: n.message,
         type: n.type,
+        target_name: n.targetName,
+        required_action: n.requiredAction,
+        badge_text: n.badgeText,
+        target_committee_id: n.targetCommitteeId,
+        target_member_ids: n.targetMemberIds || [],
+        sender_name: n.senderName,
         read: n.read,
         link_tab: n.linkTab,
         created_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertNotification error:', error);
     } catch (e) {
       console.error('upsertNotification failed:', e);
     }
@@ -979,7 +1100,8 @@ export class SupabaseService {
   static async deleteNotification(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('system_notifications').delete().eq('id', id);
+      const { error } = await supabase.from('system_notifications').delete().eq('id', id);
+      if (error) console.error('deleteNotification error:', error);
     } catch (e) {
       console.error('deleteNotification failed:', e);
     }
@@ -988,7 +1110,8 @@ export class SupabaseService {
   static async clearAllNotifications() {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('system_notifications').delete().neq('id', 'keep_empty');
+      const { error } = await supabase.from('system_notifications').delete().neq('id', 'keep_empty');
+      if (error) console.error('clearAllNotifications error:', error);
     } catch (e) {
       console.error('clearAllNotifications failed:', e);
     }
@@ -997,11 +1120,12 @@ export class SupabaseService {
   static async saveAppSetting(key: string, value: any) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('app_settings').upsert({
+      const { error } = await supabase.from('app_settings').upsert({
         key,
         value,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'key' });
+      if (error) console.error(`saveAppSetting [${key}] error:`, error);
     } catch (e) {
       console.error(`saveAppSetting [${key}] failed:`, e);
     }
@@ -1021,7 +1145,7 @@ export class SupabaseService {
   static async upsertBannedUser(banned: BannedUserRecord) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('banned_users').upsert({
+      const { error } = await supabase.from('banned_users').upsert({
         id: banned.id,
         email: banned.email,
         full_name: banned.fullName,
@@ -1029,7 +1153,8 @@ export class SupabaseService {
         reason: banned.reason,
         banned_at: banned.bannedAt,
         banned_by: banned.bannedBy
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertBannedUser error:', error);
     } catch (e) {
       console.error('upsertBannedUser failed:', e);
     }
@@ -1038,7 +1163,8 @@ export class SupabaseService {
   static async deleteBannedUser(emailOrId: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('banned_users').delete().or(`id.eq.${emailOrId},email.eq.${emailOrId}`);
+      const { error } = await supabase.from('banned_users').delete().or(`id.eq.${emailOrId},email.eq.${emailOrId}`);
+      if (error) console.error('deleteBannedUser error:', error);
     } catch (e) {
       console.error('deleteBannedUser failed:', e);
     }
@@ -1047,7 +1173,7 @@ export class SupabaseService {
   static async upsertDocument(doc: DocumentItem) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('documents').upsert({
+      const { error } = await supabase.from('documents').upsert({
         id: doc.id,
         title: doc.title,
         committee_id: doc.committeeId,
@@ -1060,7 +1186,8 @@ export class SupabaseService {
         file_name: doc.fileName,
         description: doc.description,
         file_url: doc.fileUrl
-      });
+      }, { onConflict: 'id' });
+      if (error) console.error('upsertDocument error:', error);
     } catch (e) {
       console.error('upsertDocument failed:', e);
     }
@@ -1069,7 +1196,8 @@ export class SupabaseService {
   static async deleteDocument(id: string) {
     if (!isSupabaseConfigured() || !supabase) return;
     try {
-      await supabase.from('documents').delete().eq('id', id);
+      const { error } = await supabase.from('documents').delete().eq('id', id);
+      if (error) console.error('deleteDocument error:', error);
     } catch (e) {
       console.error('deleteDocument failed:', e);
     }

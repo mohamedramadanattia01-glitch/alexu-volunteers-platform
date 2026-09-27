@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus } from '../../types';
 import { 
   CheckSquare, Plus, Search, Filter, Clock, 
-  CheckCircle2, AlertCircle, Sparkles, User, FileText, ChevronLeft,
+  CheckCircle2, AlertCircle, Sparkles, User, Users, FileText, ChevronLeft,
   Trash2, Edit3, ShieldAlert, X, Save, ExternalLink, Check, ListChecks,
   Paperclip, Download, Mic, File
 } from 'lucide-react';
@@ -26,6 +26,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedCommittee, setSelectedCommittee] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [memberFilterScope, setMemberFilterScope] = useState<'my_assigned' | 'my_committee' | 'all'>('my_assigned');
   
   // Task delete and quick edit states
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -38,13 +39,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const canCreateTask = isHighLeadership || ['head', 'vice_head', 'hr_admin', 'event_manager'].includes(currentUser.role);
 
   const filteredTasks = tasks.filter(task => {
-    // Regular members ONLY see their own assigned tasks
+    // For regular members, apply member filter scope
     if (currentUser.role === 'member') {
       const isAssigned = (task.assignedToMemberIds || []).includes(currentUser.id);
-      if (!isAssigned) return false;
+      const isMyComm = task.committeeId === currentUser.currentCommitteeId;
+      if (memberFilterScope === 'my_assigned' && !isAssigned) return false;
+      if (memberFilterScope === 'my_committee' && !isMyComm) return false;
+      if (memberFilterScope === 'all' && !isAssigned && !isMyComm) return false;
     }
     const matchesComm = selectedCommittee === 'all' || task.committeeId === selectedCommittee;
-    const matchesSearch = task.title.includes(searchQuery) || task.description.includes(searchQuery);
+    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (task.assignedToMemberNames || []).some(n => n.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesComm && matchesSearch;
   });
 
@@ -117,6 +123,56 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
           </button>
         )}
       </div>
+
+      {/* Member Filter Scope Buttons */}
+      {currentUser.role === 'member' && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setMemberFilterScope('my_assigned')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              memberFilterScope === 'my_assigned'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 border border-blue-400/30'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>مهامي المسندة لي مباشرة</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
+              {tasks.filter(t => (t.assignedToMemberIds || []).includes(currentUser.id)).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setMemberFilterScope('my_committee')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              memberFilterScope === 'my_committee'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 border border-blue-400/30'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>مهام لجنتي ({currentUser.currentCommitteeName})</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
+              {tasks.filter(t => t.committeeId === currentUser.currentCommitteeId).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setMemberFilterScope('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              memberFilterScope === 'all'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 border border-blue-400/30'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <ListChecks className="w-3.5 h-3.5" />
+            <span>كافة المهام المتاحة</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] font-mono font-black">
+              {tasks.filter(t => (t.assignedToMemberIds || []).includes(currentUser.id) || t.committeeId === currentUser.currentCommitteeId).length}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Filter & View Switcher Bar */}
       <div className="glass-card p-3.5 flex flex-col md:flex-row items-center justify-between gap-2.5">

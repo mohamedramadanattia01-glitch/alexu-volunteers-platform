@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- اتحاد طلاب جامعة الإسكندرية • منصة إدارة العمليات وفريق المتطوعين
--- SUPABASE DATABASE SCHEMA (PRODUCTION VERSION)
+-- SUPABASE DATABASE SCHEMA (PRODUCTION VERSION - IDEMPOTENT & FULL-FEATURED)
 -- Run this complete SQL script in your Supabase SQL Editor (1-Click Setup)
 -- ==============================================================================
 
@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS public.members (
     email TEXT UNIQUE NOT NULL,
     college TEXT,
     academic_year TEXT,
+    phone TEXT,
     whatsapp_number TEXT,
     birth_date DATE,
     age INTEGER,
@@ -62,9 +63,9 @@ CREATE TABLE IF NOT EXISTS public.members (
     preferred_committee_id TEXT,
     preferred_committee_name TEXT,
     position TEXT,
-    role TEXT NOT NULL DEFAULT 'member', -- 'advisor', 'super_admin', 'vice_president', 'general_coordinator', 'operations_manager', 'quality_officer', 'head', 'vice_head', 'hr_admin', 'event_manager', 'member'
+    role TEXT NOT NULL DEFAULT 'member',
     join_date DATE DEFAULT CURRENT_DATE,
-    status TEXT DEFAULT 'Pending', -- 'Active', 'Pending', 'Inactive', 'Archived', 'Rejected'
+    status TEXT DEFAULT 'Pending',
     avatar_url TEXT,
     password TEXT DEFAULT '123456',
     performance JSONB DEFAULT '{
@@ -89,6 +90,15 @@ CREATE TABLE IF NOT EXISTS public.members (
     bio TEXT,
     hobbies JSONB DEFAULT '[]'::jsonb,
     learning_aspirations JSONB DEFAULT '[]'::jsonb,
+    certified_skills JSONB DEFAULT '[]'::jsonb,
+    blood_type TEXT DEFAULT 'O+',
+    emergency_contact TEXT,
+    address TEXT,
+    ban_reason TEXT,
+    banned_at TIMESTAMPTZ,
+    banned_by TEXT,
+    rejection_reason TEXT,
+    registration_date TIMESTAMPTZ,
     facebook_url TEXT,
     tiktok_url TEXT,
     instagram_url TEXT,
@@ -96,6 +106,19 @@ CREATE TABLE IF NOT EXISTS public.members (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure all columns exist on members table if already created
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS blood_type TEXT DEFAULT 'O+';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS emergency_contact TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS banned_by TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS registration_date TIMESTAMPTZ;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS certified_skills JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 5. TASKS TABLE
 CREATE TABLE IF NOT EXISTS public.tasks (
@@ -108,9 +131,9 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     assigned_to_names JSONB DEFAULT '[]'::jsonb,
     created_by_id TEXT,
     created_by_name TEXT,
-    priority TEXT DEFAULT 'Medium', -- 'Critical', 'High', 'Medium', 'Low'
+    priority TEXT DEFAULT 'Medium',
     deadline TIMESTAMPTZ,
-    status TEXT DEFAULT 'Assigned', -- 'Assigned', 'Accepted', 'In Progress', 'Submitted', 'Approved', 'Rejected', 'Overdue'
+    status TEXT DEFAULT 'Assigned',
     attachments JSONB DEFAULT '[]'::jsonb,
     submission JSONB,
     evaluation JSONB,
@@ -118,11 +141,41 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     event_id TEXT,
     event_name TEXT,
     completion_percentage INTEGER DEFAULT 0,
-    xp_reward INTEGER DEFAULT 20,
+    max_points INTEGER DEFAULT 30,
+    xp_reward INTEGER DEFAULT 30,
     subtasks JSONB DEFAULT '[]'::jsonb,
+    voice_note_url TEXT,
+    voice_duration NUMERIC,
+    stance TEXT,
+    excuse_reason TEXT,
+    excused_at TEXT,
+    excused_by_id TEXT,
+    excused_by_name TEXT,
+    awarded_points NUMERIC,
+    graded_by TEXT,
+    graded_by_name TEXT,
+    graded_at TEXT,
+    feedback TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure all columns exist on tasks table
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS max_points INTEGER DEFAULT 30;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 30;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS voice_note_url TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS voice_duration NUMERIC;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS stance TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS excuse_reason TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS excused_at TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS excused_by_id TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS excused_by_name TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS awarded_points NUMERIC;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS graded_by TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS graded_by_name TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS graded_at TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS feedback TEXT;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 6. EVENTS TABLE
 CREATE TABLE IF NOT EXISTS public.events (
@@ -136,16 +189,25 @@ CREATE TABLE IF NOT EXISTS public.events (
     event_manager_id TEXT,
     event_manager_name TEXT,
     committee_quotas JSONB DEFAULT '{}'::jsonb,
-    status TEXT DEFAULT 'Planned', -- 'Planned', 'Upcoming', 'Live', 'Completed', 'Cancelled'
+    status TEXT DEFAULT 'Planned',
     expected_members_count INTEGER DEFAULT 0,
     actual_attendance_count INTEGER DEFAULT 0,
     tasks_count INTEGER DEFAULT 0,
     sos_alerts_count INTEGER DEFAULT 0,
     season_id TEXT REFERENCES public.seasons(id) ON DELETE SET NULL,
     live_dashboard_active BOOLEAN DEFAULT false,
+    target_audience TEXT DEFAULT 'all',
+    selected_committee_ids JSONB DEFAULT '[]'::jsonb,
+    rsvps JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure all columns exist on events table
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS target_audience TEXT DEFAULT 'all';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS selected_committee_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS rsvps JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 7. ATTENDANCE SESSIONS & RECORDS TABLE
 CREATE TABLE IF NOT EXISTS public.attendance_sessions (
@@ -157,30 +219,50 @@ CREATE TABLE IF NOT EXISTS public.attendance_sessions (
     created_by_name TEXT,
     created_by_role TEXT,
     require_gps BOOLEAN DEFAULT false,
+    session_type TEXT DEFAULT 'members',
+    event_id TEXT,
+    event_name TEXT,
+    event_date TEXT,
     qr_token TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.attendance_sessions ADD COLUMN IF NOT EXISTS session_type TEXT DEFAULT 'members';
+ALTER TABLE public.attendance_sessions ADD COLUMN IF NOT EXISTS event_id TEXT;
+ALTER TABLE public.attendance_sessions ADD COLUMN IF NOT EXISTS event_name TEXT;
+ALTER TABLE public.attendance_sessions ADD COLUMN IF NOT EXISTS event_date TEXT;
+
 CREATE TABLE IF NOT EXISTS public.attendance_records (
     id TEXT PRIMARY KEY,
     member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
     member_name TEXT,
     member_avatar TEXT,
+    member_volunteer_id TEXT,
     committee_id TEXT,
     committee_name TEXT,
     event_id TEXT,
     event_name TEXT,
+    session_id TEXT,
+    session_title TEXT,
     date DATE DEFAULT CURRENT_DATE,
     check_in_time TEXT,
     check_out_time TEXT,
     duration_minutes INTEGER DEFAULT 0,
     duration_formatted TEXT,
-    status TEXT DEFAULT 'Present', -- 'Present', 'Late', 'Excused', 'Absent'
+    status TEXT DEFAULT 'Present',
     qr_hash_token TEXT,
+    gps_location JSONB,
+    daily_evaluation JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS member_volunteer_id TEXT;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS session_id TEXT;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS session_title TEXT;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS gps_location JSONB;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS daily_evaluation JSONB;
 
 -- 8. EVALUATIONS TABLES
 CREATE TABLE IF NOT EXISTS public.member_evaluations (
@@ -225,7 +307,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
-    category TEXT DEFAULT 'general', -- 'workload', 'interpersonal', 'safety', 'suggestion', 'confidential', 'general'
+    category TEXT DEFAULT 'general',
     sender_id TEXT,
     sender_name TEXT,
     sender_avatar TEXT,
@@ -233,7 +315,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     sender_committee_name TEXT,
     sender_role TEXT,
     is_anonymous BOOLEAN DEFAULT false,
-    status TEXT DEFAULT 'New', -- 'New', 'In Investigation', 'Resolved', 'Dismissed'
+    status TEXT DEFAULT 'New',
     target_recipients JSONB DEFAULT '["head", "hr", "super_admin"]'::jsonb,
     response_notes TEXT,
     internal_notes TEXT,
@@ -270,8 +352,13 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     target_committee_id TEXT,
     target_committee_name TEXT,
     is_pinned BOOLEAN DEFAULT false,
+    poll JSONB,
+    reactions JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS poll JSONB;
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '[]'::jsonb;
 
 -- 11. AUDIT LOGS & NOTIFICATIONS
 CREATE TABLE IF NOT EXISTS public.audit_logs (
@@ -291,11 +378,24 @@ CREATE TABLE IF NOT EXISTS public.system_notifications (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
-    type TEXT DEFAULT 'announcement', -- 'sos', 'announcement', 'task', 'eval', 'achievement', 'complaint'
+    type TEXT DEFAULT 'announcement',
+    target_name TEXT,
+    required_action TEXT,
+    badge_text TEXT,
+    target_committee_id TEXT,
+    target_member_ids JSONB DEFAULT '[]'::jsonb,
+    sender_name TEXT,
     read BOOLEAN DEFAULT false,
     link_tab TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS target_name TEXT;
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS required_action TEXT;
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS badge_text TEXT;
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS target_committee_id TEXT;
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS target_member_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.system_notifications ADD COLUMN IF NOT EXISTS sender_name TEXT;
 
 -- 12. APP SETTINGS & BRANDING
 CREATE TABLE IF NOT EXISTS public.app_settings (
@@ -304,7 +404,7 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 13. BANNED USERS / BLACKLIST (Permanent Access Revocation)
+-- 13. BANNED USERS / BLACKLIST
 CREATE TABLE IF NOT EXISTS public.banned_users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -375,7 +475,6 @@ ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Enable all for banned_users" ON public.banned_users;
 CREATE POLICY "Enable all for banned_users" ON public.banned_users FOR ALL USING (true);
 
--- Allow full read/write for all application operations (Anon + Authenticated)
 DROP POLICY IF EXISTS "Enable read for all users" ON public.members;
 DROP POLICY IF EXISTS "Enable insert for all users" ON public.members;
 DROP POLICY IF EXISTS "Enable update for all users" ON public.members;
@@ -428,7 +527,7 @@ DROP POLICY IF EXISTS "Enable all for app_settings" ON public.app_settings;
 CREATE POLICY "Enable all for app_settings" ON public.app_settings FOR ALL USING (true);
 
 -- ==============================================================================
--- SEED DATA: OFFICIAL 2026/2027 INITIAL DATA (CLEAN SLATE)
+-- SEED DATA: OFFICIAL 2026/2027 INITIAL DATA
 -- ==============================================================================
 
 -- 1. Season
@@ -507,7 +606,6 @@ ON CONFLICT (id) DO NOTHING;
 -- ==============================================================================
 DO $$
 BEGIN
-    -- Ensure tables are added to realtime publication
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.members; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.committees; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks; EXCEPTION WHEN OTHERS THEN NULL; END;
@@ -522,5 +620,5 @@ BEGIN
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.system_notifications; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.banned_users; EXCEPTION WHEN OTHERS THEN NULL; END;
 END $$;
-
