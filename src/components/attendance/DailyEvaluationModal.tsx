@@ -14,52 +14,53 @@ interface DailyEvaluationModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedSessionId?: string;
+  initialRecordId?: string | null;
 }
 
-// Criteria Configurations with 3 Standard Grades (A = 100%, B = 50%, C = 15%)
+// Criteria Configurations with 3 Standard Grades (A = 100%, B = 50%, C = 15%) - Unified 100-Point Model (40/30/15/15)
 const EVAL_CRITERIA_CONFIG = [
   {
     key: 'attendanceCommitment',
-    title: 'الالتزام والحضور والانضباط',
-    maxScore: 25,
+    title: 'الالتزام والانضباط والحضور (40%)',
+    maxScore: 40,
     description: 'الحضور في الموعد المحدد، الالتزام بالزي والسلوك والمظهر اللائق، والجدية طوال فترة الفعالية.',
     grades: {
-      A: { label: 'A (ممتاز)', score: 25, pct: '100%', desc: 'انضباط كامل وحضور مبكر' },
-      B: { label: 'B (متوسط)', score: 12.5, pct: '50%', desc: 'تأخير بسيط أو انضباط جزئي' },
-      C: { label: 'C (مقبول)', score: 3.75, pct: '15%', desc: 'انضباط ضعيف وتأخير ملحوظ' }
+      A: { label: 'A (ممتاز)', score: 40, pct: '100%', desc: 'انضباط كامل وحضور مبكر في الموعد' },
+      B: { label: 'B (متوسط)', score: 20, pct: '50%', desc: 'تأخير بسيط أو انضباط جزئي' },
+      C: { label: 'C (مقبول)', score: 6, pct: '15%', desc: 'انضباط ضعيف وتأخير ملحوظ' }
     }
   },
   {
     key: 'taskQuality',
-    title: 'جودة الأداء وإتقان المهام',
-    maxScore: 35,
+    title: 'جودة الأداء وإتقان المهام (30%)',
+    maxScore: 30,
     description: 'تنفيذ التكليفات الميدانية بدقة وسرعة وبدون أخطاء، وتحمل المسؤولية وحسن التصرف.',
     grades: {
-      A: { label: 'A (ممتاز)', score: 35, pct: '100%', desc: 'إتقان فائق وإنجاز مهام مثالي' },
-      B: { label: 'B (متوسط)', score: 17.5, pct: '50%', desc: 'أداء جيد مع حاجة لمتابعة خفيفة' },
-      C: { label: 'C (مقبول)', score: 5.25, pct: '15%', desc: 'إنجاز بطيء أو بحاجة لتوجيه مستمر' }
+      A: { label: 'A (ممتاز)', score: 30, pct: '100%', desc: 'إتقان فائق وإنجاز مهام مثالي وبدون أخطاء' },
+      B: { label: 'B (متوسط)', score: 15, pct: '50%', desc: 'أداء جيد مع حاجة لمتابعة خفيفة' },
+      C: { label: 'C (مقبول)', score: 4.5, pct: '15%', desc: 'إنجاز بطيء أو بحاجة لتوجيه مستمر' }
     }
   },
   {
     key: 'teamworkCommunication',
-    title: 'العمل الجماعي والتواصل',
-    maxScore: 25,
-    description: 'التعاون مع الزملاء وقادة اللجان، التواصل الفعال وحل المشكلات بروح الفريق الواحد.',
+    title: 'السلوك والانضباط والتعامل (15%)',
+    maxScore: 15,
+    description: 'الاحترام المتبادل، الالتزام بلائحة اتحاد الطلاب، والتعامل الأخلاقي والمهني مع الجميع.',
     grades: {
-      A: { label: 'A (ممتاز)', score: 25, pct: '100%', desc: 'روح فريق استثنائية وتواصل راقٍ' },
-      B: { label: 'B (متوسط)', score: 12.5, pct: '50%', desc: 'تعاون معقول مع الفريق' },
-      C: { label: 'C (مقبول)', score: 3.75, pct: '15%', desc: 'تفاعل محدود أو صعوبة في التواصل' }
+      A: { label: 'A (ممتاز)', score: 15, pct: '100%', desc: 'سلوك مثالي وأخلاق قيادية عالية' },
+      B: { label: 'B (متوسط)', score: 7.5, pct: '50%', desc: 'سلوك جيد مع التزام بالتعليمات' },
+      C: { label: 'C (مقبول)', score: 2.25, pct: '15%', desc: 'ملاحظات سلوكية أو تشتت أثناء العمل' }
     }
   },
   {
     key: 'initiativePassion',
-    title: 'المبادرة والشغف والإيجابية',
+    title: 'التفاعل والعمل الجماعي والمبادرة (15%)',
     maxScore: 15,
-    description: 'طرح أفكار مبتكرة، التطوع للمهام الإضافية، ونشر الطاقة الإيجابية والحماس بين الحضور.',
+    description: 'طرح أفكار مبتكرة، التطوع للمهام الإضافية، والتعاون بروح الفريق الواحد.',
     grades: {
-      A: { label: 'A (ممتاز)', score: 15, pct: '100%', desc: 'مبادرة مستمرة وشغف ملهم' },
-      B: { label: 'B (متوسط)', score: 7.5, pct: '50%', desc: 'مبادرة جيدة عند الطلب' },
-      C: { label: 'C (مقبول)', score: 2.25, pct: '15%', desc: 'تطبيق التوجيهات فقط دون مبادرة' }
+      A: { label: 'A (ممتاز)', score: 15, pct: '100%', desc: 'مبادرة استثنائية وروح فريق ملهمة' },
+      B: { label: 'B (متوسط)', score: 7.5, pct: '50%', desc: 'مبادرة جيدة وتعاون عند الطلب' },
+      C: { label: 'C (مقبول)', score: 2.25, pct: '15%', desc: 'تطبيق التوجيهات فقط دون مبادرة أو تفاعل' }
     }
   }
 ];
@@ -67,7 +68,8 @@ const EVAL_CRITERIA_CONFIG = [
 export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   isOpen,
   onClose,
-  selectedSessionId
+  selectedSessionId,
+  initialRecordId
 }) => {
   const { 
     attendanceRecords, 
@@ -87,16 +89,22 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   const defaultEvt = events.find(e => e.date === todayStr || e.status === 'Live') || liveEvent;
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('all');
 
-  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(initialRecordId || null);
+
+  React.useEffect(() => {
+    if (initialRecordId && isOpen) {
+      setSelectedRecordId(initialRecordId);
+    }
+  }, [initialRecordId, isOpen]);
   const [searchQuery, setSearchQuery] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState('all');
   const [evalFilter, setEvalFilter] = useState<'all' | 'pending' | 'evaluated'>('all');
 
-  // 4 Criteria Scores state (out of 25, 35, 25, 15)
+  // 4 Criteria Scores state (out of 40, 30, 15, 15)
   const [scores, setScores] = useState<{ [key: string]: number }>({
-    attendanceCommitment: 25,
-    taskQuality: 35,
-    teamworkCommunication: 25,
+    attendanceCommitment: 40,
+    taskQuality: 30,
+    teamworkCommunication: 15,
     initiativePassion: 15
   });
 
@@ -190,9 +198,9 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
     setSelectedRecordId(record.id);
     const ev = record.dailyEvaluation;
     if (ev) {
-      const c1 = Number(ev.attendanceCommitment ?? ev.attendanceScore ?? 25);
-      const c2 = Number(ev.taskQuality ?? ev.participationScore ?? 35);
-      const c3 = Number(ev.teamworkCommunication ?? ev.commitmentScore ?? 25);
+      const c1 = Number(ev.attendanceCommitment ?? ev.attendanceScore ?? 40);
+      const c2 = Number(ev.taskQuality ?? ev.participationScore ?? 30);
+      const c3 = Number(ev.teamworkCommunication ?? ev.commitmentScore ?? 15);
       const c4 = Number(ev.initiativePassion ?? ev.taskExecutionScore ?? 15);
 
       setScores({
@@ -203,10 +211,10 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
       });
 
       setGrades(ev.criteriaGrades as any || {
-        attendanceCommitment: c1 === 25 ? 'A' : c1 === 12.5 ? 'B' : c1 === 3.75 ? 'C' : 'Custom',
-        taskQuality: c2 === 35 ? 'A' : c2 === 17.5 ? 'B' : c2 === 5.25 ? 'C' : 'Custom',
-        teamworkCommunication: c3 === 25 ? 'A' : c3 === 12.5 ? 'B' : c3 === 3.75 ? 'C' : 'Custom',
-        initiativePassion: c4 === 15 ? 'A' : c4 === 7.5 ? 'B' : c4 === 2.25 ? 'C' : 'Custom'
+        attendanceCommitment: c1 >= 40 ? 'A' : c1 >= 20 ? 'B' : c1 >= 6 ? 'C' : 'Custom',
+        taskQuality: c2 >= 30 ? 'A' : c2 >= 15 ? 'B' : c2 >= 4.5 ? 'C' : 'Custom',
+        teamworkCommunication: c3 >= 15 ? 'A' : c3 >= 7.5 ? 'B' : c3 >= 2.25 ? 'C' : 'Custom',
+        initiativePassion: c4 >= 15 ? 'A' : c4 >= 7.5 ? 'B' : c4 >= 2.25 ? 'C' : 'Custom'
       });
 
       setCriteriaNotes(ev.criteriaNotes || {
@@ -223,9 +231,9 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
     } else {
       // Default to full marks (A) for new evaluation
       setScores({
-        attendanceCommitment: 25,
-        taskQuality: 35,
-        teamworkCommunication: 25,
+        attendanceCommitment: 40,
+        taskQuality: 30,
+        teamworkCommunication: 15,
         initiativePassion: 15
       });
       setGrades({
@@ -264,9 +272,9 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
   const handleApplyPreset = (preset: 'all_A' | 'all_B') => {
     if (preset === 'all_A') {
       setScores({
-        attendanceCommitment: 25,
-        taskQuality: 35,
-        teamworkCommunication: 25,
+        attendanceCommitment: 40,
+        taskQuality: 30,
+        teamworkCommunication: 15,
         initiativePassion: 15
       });
       setGrades({
@@ -277,9 +285,9 @@ export const DailyEvaluationModal: React.FC<DailyEvaluationModalProps> = ({
       });
     } else {
       setScores({
-        attendanceCommitment: 12.5,
-        taskQuality: 17.5,
-        teamworkCommunication: 12.5,
+        attendanceCommitment: 20,
+        taskQuality: 15,
+        teamworkCommunication: 7.5,
         initiativePassion: 7.5
       });
       setGrades({

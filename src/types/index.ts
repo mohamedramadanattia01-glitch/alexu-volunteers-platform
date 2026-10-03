@@ -105,6 +105,11 @@ export interface Member {
   bannedBy?: string;
   preferredCommitteeId?: string;
   preferredCommitteeName?: string;
+  isSubscriptionPaid?: boolean; // حالة سداد الاشتراك الشهري (50 ج.م)
+  subscriptionPaidAt?: string;
+  subscriptionBadgeText?: string; // e.g. "ما انتا دافع بقى 👑"
+  subscriptionMonth?: string; // YYYY-MM
+  profileCompletionPercentage?: number; // نسبة اكتمال البيانات الشخصية (0-100%)
 }
 
 export interface CertifiedSkillItem {
@@ -268,12 +273,38 @@ export interface EventCommitteeQuota {
 }
 
 export interface AttendancePointsConfig {
-  onTimePoints: number; // e.g. 30 (حضور في الموعد)
+  earlyArrivalBonus: number; // e.g. 5 (حضور مبكر قبل الموعد بـ 5 نقاط إضافية)
+  onTimePoints: number; // e.g. 40 (حضور في الموعد)
   minorDelayThresholdMinutes: number; // e.g. 15 (حد التأخير الخفيف)
-  minorDelayPoints: number; // e.g. 20 (تأخير حتى ربع ساعة)
-  majorDelayPoints: number; // e.g. 10 (تأخير كبير بدون عذر)
-  excusedAbsencePoints: number; // e.g. 0 (غياب بعذر مقبول)
-  unexcusedAbsencePenalty: number; // e.g. -15 (خصم غياب بدون عذر)
+  minorDelayPoints: number; // e.g. 30 (تأخير حتى ربع ساعة)
+  majorDelayPoints: number; // e.g. 25 (تأخير بعد ربع ساعة)
+  excusedAbsencePoints: number; // e.g. 10 (غياب بعذر مقبول)
+  unexcusedAbsencePenalty: number; // e.g. -5 (خصم 5 نقاط لغياب بدون عذر)
+}
+
+export interface UnexcusedAbsenteeRecord {
+  memberId: string;
+  memberName: string;
+  memberVolunteerId?: string;
+  committeeId: string;
+  committeeName: string;
+  penaltyScore: number; // e.g. -5
+  penaltyApplied: boolean;
+  notes?: string;
+  markedAt: string;
+  markedBy: string;
+}
+
+export interface ExcusedAbsenteeRecord {
+  memberId: string;
+  memberName: string;
+  memberVolunteerId?: string;
+  committeeId: string;
+  committeeName: string;
+  reason: string;
+  awardedScore: number; // e.g. 10
+  excusedAt: string;
+  approvedBy: string;
 }
 
 export interface EventEntity {
@@ -290,6 +321,8 @@ export interface EventEntity {
   selectedCommitteeIds?: string[];
   committeeQuotas: { [committeeId: string]: EventCommitteeQuota };
   rsvps?: { [memberId: string]: EventRSVP };
+  unexcusedAbsentees?: { [memberId: string]: UnexcusedAbsenteeRecord };
+  excusedAbsentees?: { [memberId: string]: ExcusedAbsenteeRecord };
   status: EventStatus;
   expectedMembersCount: number;
   actualAttendanceCount: number;
@@ -509,8 +542,16 @@ export interface AuditLogItem {
 export interface EvaluationCriterion {
   id: string;
   name: string;
-  maxPoints: number; // e.g. 25
+  maxPoints: number; // e.g. 40, 30, 15, 15
   description: string;
+}
+
+export interface GradeThresholds {
+  gradeAPlus: number; // e.g. 95 (%)
+  gradeA: number; // e.g. 85 (%)
+  gradeB: number; // e.g. 75 (%)
+  gradeC: number; // e.g. 65 (%)
+  gradeD: number; // e.g. 50 (%)
 }
 
 export interface EvaluationRubric {
@@ -518,6 +559,17 @@ export interface EvaluationRubric {
   title: string;
   description: string;
   criteria: EvaluationCriterion[];
+  gradeThresholds?: GradeThresholds;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
+}
+
+export interface HeadEvaluationRubric {
+  id: string;
+  title: string;
+  description: string;
+  criteria: EvaluationCriterion[];
+  gradeThresholds?: GradeThresholds;
   lastUpdatedBy: string;
   lastUpdatedAt: string;
 }
@@ -587,13 +639,16 @@ export interface HeadEvaluationRecord {
   evaluatedAt: string;
 }
 
-export interface HeadEvaluationRubric {
-  id: string;
-  title: string;
-  description: string;
-  criteria: EvaluationCriterion[];
-  lastUpdatedBy: string;
-  lastUpdatedAt: string;
+export interface AppSubscriptionSettings {
+  monthlyAmount: number; // default: 50 EGP
+  monthlyFeeAmount?: number; // compat e.g. 50 EGP
+  currency: string; // EGP or 'ج.م'
+  isMandatory?: boolean;
+  defaultVerifiedBadgeText: string; // default: "ما انتا دافع بقى 👑"
+  defaultBadgeText?: string; // compat
+  paymentInstructions?: string;
+  vodafoneCashNumber?: string;
+  instapayHandle?: string;
 }
 
 export interface DocumentItem {

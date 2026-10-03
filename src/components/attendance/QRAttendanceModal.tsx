@@ -109,6 +109,7 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
 
   // Evaluation Modal Trigger
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
+  const [selectedRecordForEvaluation, setSelectedRecordForEvaluation] = useState<string | null>(null);
 
   // Active session or latest
   const currentSession = activeAttendanceSession || attendanceSessions[0];
@@ -757,13 +758,13 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
               </div>
             </div>
 
-            {/* Live Attendees Counter & Action Buttons */}
+            {/* Detailed Host Attendance Table with Real GPS Lat/Lng & Evaluation Button */}
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-emerald-400" />
                   <span className="text-xs font-bold text-white">
-                    الحاضرون المسجلون لحظياً في هذه الجلسة ({attendeesInThisSession.length})
+                    كشف الحاضرين الفعلي وإحداثيات الموقع (GPS) الموثقة لحظياً ({attendeesInThisSession.length})
                   </span>
                 </div>
 
@@ -773,40 +774,136 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
                     className="btn-secondary text-[11px] py-1.5 px-3 flex items-center gap-1.5 cursor-pointer hover:text-white"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>تصدير Excel</span>
+                    <span>تصدير كشف الحضور Excel</span>
                   </button>
 
                   <button
-                    onClick={() => setIsEvalModalOpen(true)}
+                    onClick={() => {
+                      setSelectedRecordForEvaluation(null);
+                      setIsEvalModalOpen(true);
+                    }}
                     className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-amber-500/20"
                   >
                     <Award className="w-3.5 h-3.5" />
-                    <span>تقييم الحاضرين اليوم</span>
+                    <span>تقييم شامل للحاضرين ⭐</span>
                   </button>
                 </div>
               </div>
 
-              {/* Recent Attendees Badges with Check-In & Check-Out status */}
-              <div className="flex flex-wrap gap-2 pt-1">
-                {attendeesInThisSession.length === 0 ? (
-                  <span className="text-[11px] text-slate-500">في انتظار قيام الأعضاء بالمسح...</span>
-                ) : (
-                  attendeesInThisSession.slice(0, 8).map(att => (
-                    <div key={att.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white">
-                      <img src={att.memberAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                      <span className="font-semibold">{att.memberName.split(' ')[0]}</span>
-                      {att.checkOutTime ? (
-                        <span className="text-[10px] font-mono text-purple-400 bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-500/30">
-                          انصرف: {att.checkOutTime} ({att.durationFormatted})
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                          حاضر: {att.checkInTime}
-                        </span>
-                      )}
-                    </div>
-                  ))
-                )}
+              <div className="overflow-x-auto max-h-72 border border-slate-800 rounded-xl">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-950 sticky top-0 text-slate-400 border-b border-slate-800 text-[11px]">
+                    <tr>
+                      <th className="p-2.5 font-bold">المتطوع</th>
+                      <th className="p-2.5 font-bold">اللجنة</th>
+                      <th className="p-2.5 font-bold">الحضور والانصراف</th>
+                      <th className="p-2.5 font-bold">إحداثيات الـ GPS (خطوط العرض والطول)</th>
+                      <th className="p-2.5 font-bold text-center">التقييم اليومي</th>
+                      <th className="p-2.5 font-bold text-center">الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+                    {attendeesInThisSession.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-slate-500 text-xs">
+                          في انتظار قيام الأعضاء بمسح الكود المعروض...
+                        </td>
+                      </tr>
+                    ) : (
+                      attendeesInThisSession.map(att => {
+                        const lat = att.gpsLocation?.latitude ?? att.gpsLocation?.lat;
+                        const lng = att.gpsLocation?.longitude ?? att.gpsLocation?.lng;
+                        const hasCoords = lat !== undefined && lng !== undefined;
+                        const isEvaluated = !!att.dailyEvaluation;
+                        const evalGrade = att.dailyEvaluation?.overallGrade;
+                        const evalScore = att.dailyEvaluation?.totalDailyScore;
+
+                        return (
+                          <tr key={att.id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-2">
+                                <img src={att.memberAvatar} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0" />
+                                <div>
+                                  <div className="font-bold text-white leading-tight">{att.memberName}</div>
+                                  <div className="text-[10px] font-mono text-sky-400">{att.memberVolunteerId || att.memberId}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="p-2.5 text-slate-300 text-[11px]">
+                              {att.committeeName}
+                            </td>
+
+                            <td className="p-2.5 font-mono text-[11px]">
+                              <div className="text-emerald-400 font-bold flex items-center gap-1">
+                                <LogIn className="w-3 h-3" />
+                                <span>{att.checkInTime}</span>
+                              </div>
+                              {att.checkOutTime && (
+                                <div className="text-purple-400 text-[10px] flex items-center gap-1 mt-0.5">
+                                  <LogOut className="w-2.5 h-2.5" />
+                                  <span>{att.checkOutTime} ({att.durationFormatted})</span>
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="p-2.5 text-[11px] font-mono">
+                              {hasCoords ? (
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5 text-sky-300 font-bold">
+                                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                    <span>{Number(lat).toFixed(4)}° N, {Number(lng).toFixed(4)}° E</span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                                    <span>دقة ±{att.gpsLocation?.accuracy || 12}م</span>
+                                    {att.gpsLocation?.mapsUrl && (
+                                      <a
+                                        href={att.gpsLocation.mapsUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-sky-400 hover:underline font-medium"
+                                      >
+                                        خرائط Google ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-[10px]">موقع غير موثق بالـ GPS</span>
+                              )}
+                            </td>
+
+                            <td className="p-2.5 text-center">
+                              {isEvaluated ? (
+                                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]">
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>{evalScore !== undefined ? `${evalScore} درجة` : ''} {evalGrade ? `(${evalGrade})` : ''}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-[10px]">بانتظار التقييم</span>
+                              )}
+                            </td>
+
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedRecordForEvaluation(att.id);
+                                  setIsEvalModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold cursor-pointer transition-all inline-flex items-center gap-1"
+                                title="تقييم أو تعديل درجات هذا العضو"
+                              >
+                                <Award className="w-3 h-3 text-amber-400" />
+                                <span>{isEvaluated ? 'تعديل التقييم' : 'تقييم الحضور'}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -1352,8 +1449,12 @@ export const QRAttendanceModal: React.FC<QRAttendanceModalProps> = ({ isOpen, on
       {/* Daily Evaluation Modal for Host/Leadership */}
       <DailyEvaluationModal
         isOpen={isEvalModalOpen}
-        onClose={() => setIsEvalModalOpen(false)}
+        onClose={() => {
+          setIsEvalModalOpen(false);
+          setSelectedRecordForEvaluation(null);
+        }}
         selectedSessionId={currentSession?.id}
+        initialRecordId={selectedRecordForEvaluation}
       />
 
     </div>

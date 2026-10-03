@@ -1,13 +1,61 @@
+# 🏛️ دليل الاستخدام الشامل والتوثيق الأمني لمنظومة متطوعي اتحاد طلاب جامعة الإسكندرية
+### Alexandria University Student Union Volunteers Platform • Hardened Production Architecture
+
+---
+
+## 🌟 1. نظرة عامة على المنظومة (Platform Overview)
+تم تصميم وتطوير هذه المنظومة الرقمية الشاملة لخدمة **فريق متطوعي اتحاد طلاب جامعة الإسكندرية** وفق أعلى معايير أمان قواعد البيانات (PostgreSQL Hardened Security) والتصميم التفاعلي:
+* **الهيكل التنظيمي واللجان الـ 6 التخصصية** (التنظيم، الموارد البشرية، المونتاج، التصوير، صناعة المحتوى، التصميم).
+* **إدارة وتوزيع المهام الميدانية والتكليفات** عبر جداول علائقية (`task_assignments`).
+* **جدول الفعاليات والتقويم الشهري الذكي المتوافق مع شاشات الهواتف** ونظام الـ RSVPs العلائقي (`event_rsvps`).
+* **نظام تسجيل الحضور والانصراف الذكي بالـ QR Code المتجدد كل 10 ثوانٍ مع التحقق الجغرافي بالـ GPS**.
+* **معايير التقييم الشامل الموحدة (100 نقطة)**: (حضور 40%، مهام 30%، سلوك 15%، تفاعل 15%) ونسب التقديرات (A+, A, B, C, D) الحصرية للقيادة العليا.
+* **إدارة الاشتراك الشهري (50 ج.م)** وعلامة التوثيق الزرقاء الملكية (Verified Badge) وتصدير كشوفات السداد إلى Excel.
+* **البورتفوليو الرقمي والـ CV المعتمد بمقاس ورقة A4 واحدة قياسية مع ختم الاتحاد وتوقيعات القيادة الثلاثية**.
+* **نظام أمني محصن بالكامل (Strict Role-Based Access Control - RLS)** يمنع أي وصول غير مصرح به.
+
+---
+
+## 📋 2. صلاحيات ومستويات المستخدمين (Roles & RBAC Matrix)
+
+| الرتبة / المنصب | الصلاحيات والاختصاصات في قاعدة البيانات والـ RLS |
+| :--- | :--- |
+| **القيادة العليا (Supreme Leadership)**<br>*(رئيس الاتحاد، نائب الرئيس، المستشار العام)* | • التحكم الكامل في إعدادات المنظومة وهوية الاتحاد.<br>• تعديل معايير التقييم الشامل وأوزان الدرجات (`evaluation_rubrics`) ودرجات الحضور (`attendance_point_rules`).<br>• تقييم رؤساء ونواب اللجان (`head_evaluations` حصرياً لهم).<br>• تعيين ونقل قادة اللجان، حظر المستخدمين (`banned_users`)، والاطلاع على سجلات التدقيق (`audit_logs`).<br>• اعتماد الوثائق وتصدير كافة كشوفات البيانات الرسمية. |
+| **رؤساء ونواب اللجان (Heads & Vice Heads)** | • إنشاء وإسناد المهام لأعضاء لجنتهم حصرياً (`tasks`, `task_assignments`).<br>• إنشاء جلسات الحضور بالـ QR وتقييم أعضاء لجنتهم يومياً (`daily_attendance_evaluations`).<br>• مراجعة وتأكيد اعتذارات الأعضاء وتطبيق عقوبات الغياب بدون عذر.<br>• تعديل حالة سداد الاشتراك الشهري وبادج التوثيق للأعضاء. |
+| **المتطوعون (Members)** | • مسح كود الحضور والانصراف بالكاميرا وتوثيق الـ GPS الحقيقي.<br>• استلام وتسليم المهام وإرفاق الروابط والملفات.<br>• متابعة نسبة استكمال الملف الشخصي واستعراض نقاط الـ XP والأوسمة.<br>• استعراض وتحميل البورتفوليو الرقمي المعتمد (A4 PDF).<br>• تأكيد الحضور (RSVP) أو تقديم اعتذارات مسبقة عن الفعاليات (`event_rsvps`). |
+
+---
+
+## 🛡️ 3. الحلول الأمنية والهيكلية للثغرات الـ 18 (Security & Architecture Hardening)
+
+1. **إلغاء `USING (true)` وتطبيق RLS حقيقي**:
+   تم كتابة دوال أمنية موثقة بـ `SECURITY DEFINER` مثل `public.is_supreme_admin()` و `public.is_committee_head()`، لحماية كل جدول على حدة ومنع الأعضاء من الوصول للبيانات الإدارية.
+2. **فصل Supabase Auth وإلغاء كلمات المرور النصية**:
+   تم ربط جدول `members` بـ `auth.uid()::text = id` وإلغاء عمود `password TEXT` نهائياً من الجداول.
+3. **تصفير القيم الافتراضية الوهمية**:
+   تم ضبط القيم الافتراضية للتقييمات ونسب الإنجاز عند `0`، وحساب نسب اللجان والملفات الشخصية ديناميكياً من واقع السجلات الفعلية.
+4. **توحيد معايير التقييم**:
+   توحيد نموذج الـ 100 نقطة (40% حضور، 30% مهام، 15% سلوك، 15% تفاعل) في الشاشات والـ SQL.
+5. **جداول إعدادات التقييم والدرجات العلائقية**:
+   إنشاء جدول `evaluation_rubrics` وجدول `attendance_point_rules` للتحكم في درجات الحضور ونسب الـ (A, B, C) حصرياً من قبل القيادة العليا.
+6. **الجداول العلائقية (Relational Tables)**:
+   استبدال تخزين المصفوفات في JSON بإنشاء جداول صريحة: `task_assignments`, `event_rsvps`, `daily_attendance_evaluations`, `portfolio_templates`, `app_branding`.
+7. **تأمين الـ Storage وسجلات التدقيق (Append-Only Audit Logs)**:
+   * حاويات `documents` و `attachments` أصبحت خاصة (`public = false`) مع سياسات تحقق أمنية.
+   * جدول `audit_logs` محمي ضد الحذف أو التعديل نهائياً `FOR UPDATE USING (false)` و `FOR DELETE USING (false)`.
+8. **تنظيف وتأمين الـ Seed Data**:
+   إزالة أي بيانات شخصية أو أرقام قومية أو كلمات مرور ثابتة.
+
+---
+
+## 🗄️ 4. كود إعداد قاعدة بيانات Supabase المحصن بالكامل (Production SQL)
+
+انسخ هذا الكود بالكامل ونفذه في **SQL Editor** داخل لوحة تحكم Supabase:
+
+```sql
 -- ==============================================================================
 -- اتحاد طلاب جامعة الإسكندرية • منصة إدارة العمليات وفريق المتطوعين
 -- SUPABASE DATABASE SCHEMA (PRODUCTION-GRADE HARDENED VERSION)
--- Includes:
--- 1. Full RBAC (Role-Based Access Control) Security Policies
--- 2. Relationally Normalized Tables (Event RSVPs, Task Assignments, Rubrics)
--- 3. Dynamic Profile Completion & Performance Triggers
--- 4. Unified 100-Point Evaluation Model (40/30/15/15)
--- 5. Anti-Cheat Rotating QR Code & Device GPS Geolocation Logging
--- 6. Append-Only Secure Audit Logs & Authenticated Storage
 -- ==============================================================================
 
 -- 1. EXTENSIONS
@@ -18,7 +66,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 2. CORE ENUMS & HELPER RBAC FUNCTIONS
 -- ==============================================================================
 
--- Helper to extract user ID from Supabase Auth
 CREATE OR REPLACE FUNCTION public.current_user_id()
 RETURNS TEXT AS $$
 BEGIN
@@ -26,7 +73,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Helper to extract member role from public.members
 CREATE OR REPLACE FUNCTION public.get_current_role()
 RETURNS TEXT AS $$
 DECLARE
@@ -37,23 +83,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Check if current user is Supreme Leadership (President, Vice, General Sec, Advisor, Admin)
 CREATE OR REPLACE FUNCTION public.is_supreme_admin()
 RETURNS BOOLEAN AS $$
 DECLARE
     u_role TEXT;
 BEGIN
-    -- Allow service_role key or superadmin claim
     IF (auth.jwt()->>'role' = 'service_role') OR (auth.jwt()->'app_metadata'->>'role' = 'admin') THEN
         RETURN true;
     END IF;
-    
     u_role := public.get_current_role();
     RETURN u_role IN ('president', 'vice_president', 'general_secretary', 'advisor', 'admin', 'senior_admin');
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Check if current user is a Committee Head or Vice Head
 CREATE OR REPLACE FUNCTION public.is_committee_head()
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -67,7 +109,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Check if current user is an active, unbanned member
 CREATE OR REPLACE FUNCTION public.is_active_member()
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -78,7 +119,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- Get current user's committee ID
 CREATE OR REPLACE FUNCTION public.get_current_user_committee()
 RETURNS TEXT AS $$
 DECLARE
@@ -107,7 +147,7 @@ CREATE TABLE IF NOT EXISTS public.seasons (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.2 COMMITTEES TABLE (With zeroed dynamic defaults)
+-- 3.2 COMMITTEES TABLE
 CREATE TABLE IF NOT EXISTS public.committees (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -131,7 +171,7 @@ CREATE TABLE IF NOT EXISTS public.committees (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.3 MEMBERS TABLE (Calculated dynamic fields, no plaintext passwords)
+-- 3.3 MEMBERS TABLE (Linked to auth.users, zero fake defaults, no plaintext passwords)
 CREATE TABLE IF NOT EXISTS public.members (
     id TEXT PRIMARY KEY,
     volunteer_id TEXT UNIQUE,
@@ -197,7 +237,7 @@ CREATE TABLE IF NOT EXISTS public.members (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Function to dynamically compute profile completion percentage (0-100%)
+-- Dynamic Profile Completion Calculation
 CREATE OR REPLACE FUNCTION public.calculate_profile_completion(m public.members)
 RETURNS INTEGER AS $$
 DECLARE
@@ -217,7 +257,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- Trigger to automatically recalculate profile completion on member update
 CREATE OR REPLACE FUNCTION public.trig_update_profile_completion()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -254,7 +293,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.5 TASK ASSIGNMENTS (Relational Normalization)
+-- 3.5 TASK ASSIGNMENTS TABLE (Relational)
 CREATE TABLE IF NOT EXISTS public.task_assignments (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     task_id TEXT REFERENCES public.tasks(id) ON DELETE CASCADE,
@@ -294,18 +333,18 @@ CREATE TABLE IF NOT EXISTS public.events (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.7 EVENT RSVPS & EXCUSES (Relational Normalization)
+-- 3.7 EVENT RSVPS & EXCUSES (Relational)
 CREATE TABLE IF NOT EXISTS public.event_rsvps (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     event_id TEXT REFERENCES public.events(id) ON DELETE CASCADE,
     member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
-    status TEXT NOT NULL DEFAULT 'attending', -- 'attending' | 'excused' | 'absent'
+    status TEXT NOT NULL DEFAULT 'attending',
     excuse_reason TEXT,
     responded_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (event_id, member_id)
 );
 
--- 3.8 ATTENDANCE SESSIONS TABLE (With Anti-Cheat 10s QR Rotation)
+-- 3.8 ATTENDANCE SESSIONS TABLE (10-second rotating anti-cheat QR)
 CREATE TABLE IF NOT EXISTS public.attendance_sessions (
     id TEXT PRIMARY KEY,
     event_id TEXT REFERENCES public.events(id) ON DELETE CASCADE,
@@ -329,7 +368,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_sessions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.9 ATTENDANCE RECORDS (With Device GPS Coordinates & Precision Check)
+-- 3.9 ATTENDANCE RECORDS (GPS Geolocation Logging)
 CREATE TABLE IF NOT EXISTS public.attendance_records (
     id TEXT PRIMARY KEY,
     session_id TEXT REFERENCES public.attendance_sessions(id) ON DELETE CASCADE,
@@ -372,14 +411,14 @@ CREATE TABLE IF NOT EXISTS public.daily_attendance_evaluations (
     session_id TEXT REFERENCES public.attendance_sessions(id) ON DELETE CASCADE,
     evaluator_id TEXT REFERENCES public.members(id) ON DELETE SET NULL,
     evaluator_name TEXT,
-    attendance_commitment NUMERIC DEFAULT 40, -- 40% (A=40, B=20, C=6)
-    task_quality NUMERIC DEFAULT 30,          -- 30% (A=30, B=15, C=4.5)
-    teamwork_communication NUMERIC DEFAULT 15, -- 15% (A=15, B=7.5, C=2.25)
-    initiative_passion NUMERIC DEFAULT 15,    -- 15% (A=15, B=7.5, C=2.25)
+    attendance_commitment NUMERIC DEFAULT 40,
+    task_quality NUMERIC DEFAULT 30,
+    teamwork_communication NUMERIC DEFAULT 15,
+    initiative_passion NUMERIC DEFAULT 15,
     bonus_points NUMERIC DEFAULT 0,
     bonus_reason TEXT,
-    total_daily_score NUMERIC DEFAULT 100,    -- Max 100 + bonus
-    overall_grade TEXT DEFAULT 'A',           -- A+ | A | B | C | D
+    total_daily_score NUMERIC DEFAULT 100,
+    overall_grade TEXT DEFAULT 'A',
     criteria_grades JSONB,
     criteria_notes JSONB,
     notes TEXT,
@@ -387,7 +426,7 @@ CREATE TABLE IF NOT EXISTS public.daily_attendance_evaluations (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.11 EVALUATION RUBRIC & THRESHOLDS SETTINGS (Customizable by Supreme Admin)
+-- 3.11 EVALUATION RUBRICS & THRESHOLDS
 CREATE TABLE IF NOT EXISTS public.evaluation_rubrics (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -407,7 +446,7 @@ CREATE TABLE IF NOT EXISTS public.evaluation_rubrics (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.12 ATTENDANCE POINT RULES (Configurable Point Scales)
+-- 3.12 ATTENDANCE POINT RULES
 CREATE TABLE IF NOT EXISTS public.attendance_point_rules (
     id TEXT PRIMARY KEY,
     rule_name TEXT NOT NULL,
@@ -417,7 +456,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_point_rules (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.13 PORTFOLIO TEMPLATES & STAMP SETTINGS
+-- 3.13 PORTFOLIO TEMPLATES & STAMPS
 CREATE TABLE IF NOT EXISTS public.portfolio_templates (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -433,7 +472,7 @@ CREATE TABLE IF NOT EXISTS public.portfolio_templates (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.14 APP BRANDING & DYNAMIC THEME
+-- 3.14 APP BRANDING
 CREATE TABLE IF NOT EXISTS public.app_branding (
     id TEXT PRIMARY KEY,
     app_name TEXT DEFAULT 'اتحاد طلاب جامعة الإسكندرية - منصة المتطوعين',
@@ -448,30 +487,7 @@ CREATE TABLE IF NOT EXISTS public.app_branding (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.15 PERIODIC MEMBER EVALUATIONS
-CREATE TABLE IF NOT EXISTS public.member_evaluations (
-    id TEXT PRIMARY KEY,
-    member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
-    member_name TEXT NOT NULL,
-    committee_id TEXT REFERENCES public.committees(id) ON DELETE SET NULL,
-    evaluator_id TEXT REFERENCES public.members(id) ON DELETE SET NULL,
-    evaluator_name TEXT,
-    evaluator_role TEXT,
-    period TEXT DEFAULT 'Monthly',
-    evaluation_type TEXT DEFAULT 'Regular',
-    overall_score NUMERIC DEFAULT 0,
-    attendance_commitment NUMERIC DEFAULT 0,
-    task_quality NUMERIC DEFAULT 0,
-    teamwork_communication NUMERIC DEFAULT 0,
-    initiative_passion NUMERIC DEFAULT 0,
-    status TEXT DEFAULT 'Approved',
-    feedback TEXT,
-    areas_of_strength JSONB DEFAULT '[]'::jsonb,
-    areas_for_improvement JSONB DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3.16 HEAD EVALUATIONS (Visible strictly to Supreme Leadership)
+-- 3.15 HEAD EVALUATIONS (Supreme Leadership Only)
 CREATE TABLE IF NOT EXISTS public.head_evaluations (
     id TEXT PRIMARY KEY,
     head_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
@@ -490,7 +506,32 @@ CREATE TABLE IF NOT EXISTS public.head_evaluations (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.17 COMPLAINTS & GRIEVANCES
+-- 3.16 APPEND-ONLY AUDIT LOGS
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id TEXT,
+    user_name TEXT,
+    user_role TEXT,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT,
+    details JSONB DEFAULT '{}'::jsonb,
+    ip_address TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3.17 BANNED USERS
+CREATE TABLE IF NOT EXISTS public.banned_users (
+    id TEXT PRIMARY KEY,
+    member_id TEXT,
+    member_name TEXT NOT NULL,
+    national_id TEXT,
+    reason TEXT NOT NULL,
+    banned_at TIMESTAMPTZ DEFAULT NOW(),
+    banned_by TEXT
+);
+
+-- 3.18 COMPLAINTS
 CREATE TABLE IF NOT EXISTS public.complaints (
     id TEXT PRIMARY KEY,
     submitter_id TEXT REFERENCES public.members(id) ON DELETE SET NULL,
@@ -509,7 +550,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.18 DOCUMENT LIBRARY
+-- 3.19 DOCUMENTS
 CREATE TABLE IF NOT EXISTS public.documents (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -527,7 +568,7 @@ CREATE TABLE IF NOT EXISTS public.documents (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.19 ANNOUNCEMENTS
+-- 3.20 ANNOUNCEMENTS
 CREATE TABLE IF NOT EXISTS public.announcements (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -544,21 +585,7 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.20 SECURE APPEND-ONLY AUDIT LOGS
-CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    user_id TEXT,
-    user_name TEXT,
-    user_role TEXT,
-    action TEXT NOT NULL,
-    resource_type TEXT NOT NULL,
-    resource_id TEXT,
-    details JSONB DEFAULT '{}'::jsonb,
-    ip_address TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3.21 SYSTEM NOTIFICATIONS
+-- 3.21 SYSTEM NOTIFICATIONS & APP SETTINGS
 CREATE TABLE IF NOT EXISTS public.system_notifications (
     id TEXT PRIMARY KEY,
     member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
@@ -570,25 +597,12 @@ CREATE TABLE IF NOT EXISTS public.system_notifications (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.22 APP GENERAL SETTINGS
 CREATE TABLE IF NOT EXISTS public.app_settings (
     key TEXT PRIMARY KEY,
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.23 BANNED USERS
-CREATE TABLE IF NOT EXISTS public.banned_users (
-    id TEXT PRIMARY KEY,
-    member_id TEXT,
-    member_name TEXT NOT NULL,
-    national_id TEXT,
-    reason TEXT NOT NULL,
-    banned_at TIMESTAMPTZ DEFAULT NOW(),
-    banned_by TEXT
-);
-
--- 3.24 PUSH NOTIFICATION SUBSCRIPTIONS
 CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     id TEXT PRIMARY KEY,
     member_id TEXT REFERENCES public.members(id) ON DELETE CASCADE,
@@ -598,7 +612,6 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.25 LIVE COMMAND VOICE ORDERS
 CREATE TABLE IF NOT EXISTS public.live_voice_orders (
     id TEXT PRIMARY KEY,
     event_id TEXT REFERENCES public.events(id) ON DELETE CASCADE,
@@ -614,10 +627,9 @@ CREATE TABLE IF NOT EXISTS public.live_voice_orders (
 );
 
 -- ==============================================================================
--- 4. ROW LEVEL SECURITY (RLS) POLICIES - GRANULAR & SECURE
+-- 4. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 
--- Enable RLS across all tables
 ALTER TABLE public.seasons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.committees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
@@ -632,7 +644,6 @@ ALTER TABLE public.evaluation_rubrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_point_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_branding ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.member_evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.head_evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
@@ -644,50 +655,23 @@ ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_voice_orders ENABLE ROW LEVEL SECURITY;
 
--- Clean up any existing policies
-DO $$
-DECLARE
-    pol RECORD;
-BEGIN
-    FOR pol IN SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public' LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
-    END LOOP;
-END $$;
-
 -- 4.1 MEMBERS POLICIES
--- Anyone authenticated can view active members directory
-CREATE POLICY "members_select" ON public.members
-    FOR SELECT TO authenticated
+CREATE POLICY "members_select" ON public.members FOR SELECT TO authenticated
     USING (status != 'Banned' OR public.is_supreme_admin());
-
--- Users can insert their own profile on registration
-CREATE POLICY "members_insert" ON public.members
-    FOR INSERT TO authenticated
+CREATE POLICY "members_insert" ON public.members FOR INSERT TO authenticated
     WITH CHECK (auth.uid()::text = id OR public.is_supreme_admin());
-
--- Users can update their own profile, heads can update committee members, supreme admins can update all
-CREATE POLICY "members_update" ON public.members
-    FOR UPDATE TO authenticated
-    USING (
-        auth.uid()::text = id 
-        OR (public.is_committee_head() AND current_committee_id = public.get_current_user_committee())
-        OR public.is_supreme_admin()
-    );
-
--- Delete restricted strictly to Supreme Leadership
-CREATE POLICY "members_delete" ON public.members
-    FOR DELETE TO authenticated
+CREATE POLICY "members_update" ON public.members FOR UPDATE TO authenticated
+    USING (auth.uid()::text = id OR (public.is_committee_head() AND current_committee_id = public.get_current_user_committee()) OR public.is_supreme_admin());
+CREATE POLICY "members_delete" ON public.members FOR DELETE TO authenticated
     USING (public.is_supreme_admin());
 
--- 4.2 COMMITTEES POLICIES
+-- 4.2 COMMITTEES & SEASONS
 CREATE POLICY "committees_select" ON public.committees FOR SELECT TO authenticated USING (true);
 CREATE POLICY "committees_modify" ON public.committees FOR ALL TO authenticated USING (public.is_supreme_admin());
-
--- 4.3 SEASONS POLICIES
 CREATE POLICY "seasons_select" ON public.seasons FOR SELECT TO authenticated USING (true);
 CREATE POLICY "seasons_modify" ON public.seasons FOR ALL TO authenticated USING (public.is_supreme_admin());
 
--- 4.4 TASKS & TASK ASSIGNMENTS POLICIES
+-- 4.3 TASKS & ASSIGNMENTS
 CREATE POLICY "tasks_select" ON public.tasks FOR SELECT TO authenticated USING (true);
 CREATE POLICY "tasks_insert" ON public.tasks FOR INSERT TO authenticated WITH CHECK (public.is_committee_head() OR public.is_supreme_admin());
 CREATE POLICY "tasks_update" ON public.tasks FOR UPDATE TO authenticated USING (
@@ -696,22 +680,19 @@ CREATE POLICY "tasks_update" ON public.tasks FOR UPDATE TO authenticated USING (
     OR EXISTS (SELECT 1 FROM public.task_assignments WHERE task_id = tasks.id AND member_id = auth.uid()::text)
 );
 CREATE POLICY "tasks_delete" ON public.tasks FOR DELETE TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
-
 CREATE POLICY "task_assign_select" ON public.task_assignments FOR SELECT TO authenticated USING (true);
 CREATE POLICY "task_assign_modify" ON public.task_assignments FOR ALL TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
 
--- 4.5 EVENTS & RSVPS POLICIES
+-- 4.4 EVENTS & RSVPS
 CREATE POLICY "events_select" ON public.events FOR SELECT TO authenticated USING (true);
 CREATE POLICY "events_modify" ON public.events FOR ALL TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
-
 CREATE POLICY "rsvps_select" ON public.event_rsvps FOR SELECT TO authenticated USING (true);
 CREATE POLICY "rsvps_insert_update" ON public.event_rsvps FOR ALL TO authenticated 
     USING (member_id = auth.uid()::text OR public.is_committee_head() OR public.is_supreme_admin());
 
--- 4.6 ATTENDANCE SESSIONS & RECORDS POLICIES
+-- 4.5 ATTENDANCE & EVALUATIONS
 CREATE POLICY "sessions_select" ON public.attendance_sessions FOR SELECT TO authenticated USING (true);
 CREATE POLICY "sessions_modify" ON public.attendance_sessions FOR ALL TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
-
 CREATE POLICY "records_select" ON public.attendance_records FOR SELECT TO authenticated 
     USING (member_id = auth.uid()::text OR public.is_committee_head() OR public.is_supreme_admin());
 CREATE POLICY "records_insert" ON public.attendance_records FOR INSERT TO authenticated 
@@ -720,109 +701,78 @@ CREATE POLICY "records_update" ON public.attendance_records FOR UPDATE TO authen
     USING (public.is_committee_head() OR public.is_supreme_admin() OR member_id = auth.uid()::text);
 CREATE POLICY "records_delete" ON public.attendance_records FOR DELETE TO authenticated USING (public.is_supreme_admin());
 
--- 4.7 EVALUATIONS POLICIES (Strict RBAC)
--- Daily evaluations: members see theirs, heads see their committee, supreme admin sees all
 CREATE POLICY "daily_eval_select" ON public.daily_attendance_evaluations FOR SELECT TO authenticated
     USING (member_id = auth.uid()::text OR public.is_committee_head() OR public.is_supreme_admin());
 CREATE POLICY "daily_eval_modify" ON public.daily_attendance_evaluations FOR ALL TO authenticated
     USING (public.is_committee_head() OR public.is_supreme_admin());
 
--- Member Evaluations: members see approved, heads manage committee, supreme admin manages all
-CREATE POLICY "member_eval_select" ON public.member_evaluations FOR SELECT TO authenticated
-    USING (member_id = auth.uid()::text OR public.is_committee_head() OR public.is_supreme_admin());
-CREATE POLICY "member_eval_modify" ON public.member_evaluations FOR ALL TO authenticated
-    USING (public.is_committee_head() OR public.is_supreme_admin());
+-- Head evaluations: Strictly Supreme Leadership
+CREATE POLICY "head_eval_supreme_only" ON public.head_evaluations FOR ALL TO authenticated USING (public.is_supreme_admin());
 
--- Head Evaluations: STRICTLY visible and editable ONLY by Supreme Leadership!
-CREATE POLICY "head_eval_supreme_only" ON public.head_evaluations FOR ALL TO authenticated
-    USING (public.is_supreme_admin());
-
--- Rubrics and Point Rules: readable by all authenticated, modified ONLY by Supreme Leadership
+-- Rubrics, rules, branding: modified only by Supreme Leadership
 CREATE POLICY "rubrics_select" ON public.evaluation_rubrics FOR SELECT TO authenticated USING (true);
 CREATE POLICY "rubrics_modify" ON public.evaluation_rubrics FOR ALL TO authenticated USING (public.is_supreme_admin());
-
 CREATE POLICY "point_rules_select" ON public.attendance_point_rules FOR SELECT TO authenticated USING (true);
 CREATE POLICY "point_rules_modify" ON public.attendance_point_rules FOR ALL TO authenticated USING (public.is_supreme_admin());
-
 CREATE POLICY "portfolio_templates_select" ON public.portfolio_templates FOR SELECT TO authenticated USING (true);
 CREATE POLICY "portfolio_templates_modify" ON public.portfolio_templates FOR ALL TO authenticated USING (public.is_supreme_admin());
-
 CREATE POLICY "app_branding_select" ON public.app_branding FOR SELECT TO authenticated USING (true);
 CREATE POLICY "app_branding_modify" ON public.app_branding FOR ALL TO authenticated USING (public.is_supreme_admin());
 
--- 4.8 COMPLAINTS POLICIES
--- Submitter can view their own complaint; Supreme Leadership can view all
+-- 4.6 COMPLAINTS, DOCUMENTS & ANNOUNCEMENTS
 CREATE POLICY "complaints_select" ON public.complaints FOR SELECT TO authenticated
     USING (submitter_id = auth.uid()::text OR public.is_supreme_admin());
-CREATE POLICY "complaints_insert" ON public.complaints FOR INSERT TO authenticated
-    WITH CHECK (true);
-CREATE POLICY "complaints_update" ON public.complaints FOR UPDATE TO authenticated
-    USING (public.is_supreme_admin());
+CREATE POLICY "complaints_insert" ON public.complaints FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "complaints_update" ON public.complaints FOR UPDATE TO authenticated USING (public.is_supreme_admin());
 
--- 4.9 DOCUMENTS & ANNOUNCEMENTS POLICIES
 CREATE POLICY "documents_select" ON public.documents FOR SELECT TO authenticated
     USING (is_public = true OR public.is_committee_head() OR public.is_supreme_admin());
-CREATE POLICY "documents_modify" ON public.documents FOR ALL TO authenticated
-    USING (public.is_committee_head() OR public.is_supreme_admin());
+CREATE POLICY "documents_modify" ON public.documents FOR ALL TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
 
 CREATE POLICY "announcements_select" ON public.announcements FOR SELECT TO authenticated USING (true);
 CREATE POLICY "announcements_modify" ON public.announcements FOR ALL TO authenticated USING (public.is_supreme_admin() OR public.is_committee_head());
 
--- 4.10 SECURE APPEND-ONLY AUDIT LOGS
--- Anyone can append (INSERT) audit events; Supreme admin can SELECT; NO ONE can UPDATE or DELETE!
+-- 4.7 SECURE APPEND-ONLY AUDIT LOGS
 CREATE POLICY "audit_logs_select" ON public.audit_logs FOR SELECT TO authenticated USING (public.is_supreme_admin());
 CREATE POLICY "audit_logs_insert" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "audit_logs_no_update" ON public.audit_logs FOR UPDATE TO authenticated USING (false);
 CREATE POLICY "audit_logs_no_delete" ON public.audit_logs FOR DELETE TO authenticated USING (false);
 
--- 4.11 SYSTEM NOTIFICATIONS, APP SETTINGS, BANNED USERS
-CREATE POLICY "notif_select" ON public.system_notifications FOR SELECT TO authenticated
-    USING (member_id = auth.uid()::text OR member_id IS NULL OR public.is_supreme_admin());
-CREATE POLICY "notif_modify" ON public.system_notifications FOR ALL TO authenticated
-    USING (public.is_supreme_admin() OR public.is_committee_head());
-
-CREATE POLICY "app_settings_select" ON public.app_settings FOR SELECT TO authenticated USING (true);
-CREATE POLICY "app_settings_modify" ON public.app_settings FOR ALL TO authenticated USING (public.is_supreme_admin());
-
+-- 4.8 BANNED USERS & SETTINGS
 CREATE POLICY "banned_users_select" ON public.banned_users FOR SELECT TO authenticated USING (public.is_committee_head() OR public.is_supreme_admin());
 CREATE POLICY "banned_users_modify" ON public.banned_users FOR ALL TO authenticated USING (public.is_supreme_admin());
-
+CREATE POLICY "app_settings_select" ON public.app_settings FOR SELECT TO authenticated USING (true);
+CREATE POLICY "app_settings_modify" ON public.app_settings FOR ALL TO authenticated USING (public.is_supreme_admin());
 CREATE POLICY "push_sub_select" ON public.push_subscriptions FOR SELECT TO authenticated USING (member_id = auth.uid()::text OR public.is_supreme_admin());
 CREATE POLICY "push_sub_modify" ON public.push_subscriptions FOR ALL TO authenticated USING (member_id = auth.uid()::text OR public.is_supreme_admin());
-
 CREATE POLICY "voice_orders_select" ON public.live_voice_orders FOR SELECT TO authenticated USING (true);
 CREATE POLICY "voice_orders_modify" ON public.live_voice_orders FOR ALL TO authenticated USING (public.is_supreme_admin() OR public.is_committee_head());
 
 -- ==============================================================================
--- 5. STORAGE BUCKETS & AUTHENTICATED STORAGE POLICIES
+-- 5. STORAGE BUCKETS & AUTHENTICATED ACCESS
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', false) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachments', false) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('branding', 'branding', true) ON CONFLICT (id) DO NOTHING;
 
--- Avatars: Public read, authenticated users can upload their own avatar
 DROP POLICY IF EXISTS "Avatars Public Read" ON storage.objects;
 DROP POLICY IF EXISTS "Avatars Authenticated Upload" ON storage.objects;
 CREATE POLICY "Avatars Public Read" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
 CREATE POLICY "Avatars Authenticated Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'avatars');
 
--- Documents & Attachments: Authenticated only
 DROP POLICY IF EXISTS "Documents Auth Read" ON storage.objects;
 DROP POLICY IF EXISTS "Documents Admin Upload" ON storage.objects;
 CREATE POLICY "Documents Auth Read" ON storage.objects FOR SELECT TO authenticated USING (bucket_id IN ('documents', 'attachments'));
 CREATE POLICY "Documents Admin Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id IN ('documents', 'attachments'));
 
 -- ==============================================================================
--- 6. DEFAULT SEED DATA & CONFIGURATION
+-- 6. DEFAULT SEED DATA
 -- ==============================================================================
-
--- 6.1 Season
 INSERT INTO public.seasons (id, name, is_current, start_date, end_date, total_members, total_events, total_tasks, archived)
 VALUES ('season-2026-2027', 'الموسم 2026/2027 (الحالي)', true, '2026-09-01', '2027-06-30', 0, 0, 0, false)
 ON CONFLICT (id) DO UPDATE SET is_current = true;
 
--- 6.2 6 Official Specialized Committees + Supreme Leadership
 INSERT INTO public.committees (id, name, code, description, responsibilities, member_count, active_tasks_count, completed_tasks_count, attendance_rate, performance_score, health_score, season_id, color, icon)
 VALUES 
 ('comm-leadership', 'القيادة العليا والمجلس الاستشاري', 'LEAD', 'المجلس الاستشاري، رئاسة الاتحاد، ونواب الرئيس، وإدارة العمليات والجودة وشؤون العضوية.', '["التوجيه الاستراتيجي وحوكمة العمل التطوعي","الإشراف الميداني واعتماد الخطط والقرارات","إدارة الأزمات الكبرى وبلاغات الطوارئ","التحكيم النهائي في التظلمات وتطوير الكوادر"]'::jsonb, 0, 0, 0, 0, 0, 0, 'season-2026-2027', '#f59e0b', 'Crown'),
@@ -834,15 +784,11 @@ VALUES
 ('comm-design', 'لجنة التصميم', 'DESIGN', 'تصميم البنرات، إعلانات السوشيال ميديا، المطبوعات، الكارنيهات، وتطوير الهوية البصرية للاتحاد.', '["تصميم بنرات ومطبوعات الفعاليات والمؤتمرات","إنتاج بوستات وإعلانات منصات التواصل الاجتماعي","تصميم الكارنيهات والشهادات والبادجات الرسمية","تطبيق دليل الهوية البصرية الصارم لجامعة الإسكندرية"]'::jsonb, 0, 0, 0, 0, 0, 0, 'season-2026-2027', '#06b6d4', 'Palette')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
 
--- 6.3 Standard 100-Point Rubric Configuration
 INSERT INTO public.evaluation_rubrics (id, name, attendance_weight, tasks_weight, behavior_weight, interaction_weight, grade_thresholds, is_active)
 VALUES (
     'rubric-standard-100',
     'نموذج التقييم الشامل المعتمد (100 نقطة)',
-    40, -- Attendance 40%
-    30, -- Tasks 30%
-    15, -- Behavior 15%
-    15, -- Interaction/Teamwork 15%
+    40, 30, 15, 15,
     '{"A_PLUS": 95, "A": 85, "B": 70, "C": 50, "D": 0}'::jsonb,
     true
 )
@@ -853,7 +799,6 @@ ON CONFLICT (id) DO UPDATE SET
     interaction_weight = EXCLUDED.interaction_weight,
     grade_thresholds = EXCLUDED.grade_thresholds;
 
--- 6.4 Standard Attendance Points Rules
 INSERT INTO public.attendance_point_rules (id, rule_name, rule_key, points, description)
 VALUES 
 ('rule-early', 'حضور مبكر قبل الموعد', 'before_time', 5, 'مكافأة الحضور المبكر قبل بداية التجمع'),
@@ -864,7 +809,6 @@ VALUES
 ('rule-unexcused', 'غياب بدون عذر', 'unexcused', -5, 'خصم مباشر لعدم الانضباط والغياب المفاجئ')
 ON CONFLICT (id) DO NOTHING;
 
--- 6.5 Default Branding & Dynamic Stamp
 INSERT INTO public.app_branding (id, app_name, university_name, union_name, primary_color, secondary_color, font_family)
 VALUES (
     'branding-alexu',
@@ -877,7 +821,6 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 6.6 Default Portfolio Template
 INSERT INTO public.portfolio_templates (id, name, university_name, union_name)
 VALUES (
     'portfolio-official-a4',
@@ -886,32 +829,4 @@ VALUES (
     'اتحاد طلاب جامعة الإسكندرية'
 )
 ON CONFLICT (id) DO NOTHING;
-
--- ==============================================================================
--- 7. REALTIME REPLICATION CONFIGURATION
--- ==============================================================================
-DO $$
-BEGIN
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.members; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.committees; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.task_assignments; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.events; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.event_rsvps; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_sessions; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_attendance_evaluations; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.evaluation_rubrics; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_point_rules; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.member_evaluations; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.head_evaluations; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.complaints; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.documents; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.system_notifications; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.banned_users; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.push_subscriptions; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.live_voice_orders; EXCEPTION WHEN OTHERS THEN NULL; END;
-END $$;
+```

@@ -100,7 +100,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       setCommModesMap(modes);
       setCommQuotasMap(quotas);
     }
-  }, [eventToEdit, eventToDuplicate, initialDate, isOpen, committees, members]);
+  }, [isOpen, eventToEdit?.id, eventToDuplicate?.id, initialDate]);
 
   if (!isOpen) return null;
 

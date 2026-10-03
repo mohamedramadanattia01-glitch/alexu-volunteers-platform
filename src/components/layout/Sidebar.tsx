@@ -5,7 +5,7 @@ import {
   Calendar, QrCode, Target, GraduationCap, Trophy, 
   Bot, Megaphone, FolderGit2, ShieldAlert, 
   BarChart3, Activity, Sparkles, HeartPulse, MessageSquare, User, FileText, Cake, Building2, Database,
-  Smartphone
+  Smartphone, LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,7 +16,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenInstallModal }) => {
   const { 
     activeTab, setActiveTab, tasks = [], isLiveCommandCenterActive, 
-    sosAlerts = [], teamHealthScore, currentUser, complaints = [], isHighLeadership 
+    sosAlerts = [], teamHealthScore, currentUser, complaints = [], isHighLeadership, logout 
   } = useApp();
 
   const activeTasksCount = (tasks || []).filter(t => t.status !== 'Approved' && t.status !== 'Cancelled').length;
@@ -207,6 +207,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenDatabaseModal, onOpenIns
           <span>النشاط المستمر</span>
           <span className="text-emerald-400 font-medium">حالة ممتازة 🟢</span>
         </div>
+      </div>
+
+      {/* Logout Button (Positioned at the very bottom of sidebar) */}
+      <div className="pt-2 mt-2 border-t border-slate-800/80">
+        <button
+          onClick={logout}
+          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600/30 border border-rose-500/30 hover:border-rose-500/50 transition-all cursor-pointer shadow-sm group"
+          title="تسجيل الخروج الآمن من المنصة"
+        >
+          <div className="flex items-center gap-2">
+            <LogOut className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+            <span>تسجيل الخروج</span>
+          </div>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono">
+            خروج 🚪
+          </span>
+        </button>
       </div>
 
     </aside>

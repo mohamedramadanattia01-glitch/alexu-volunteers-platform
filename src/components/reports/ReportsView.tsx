@@ -584,24 +584,40 @@ export const ReportsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Official Signatures */}
-              <div className="pt-8 border-t-2 border-slate-300 grid grid-cols-3 gap-4 text-center text-xs">
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">مسؤول الجودة والتقييم</span>
-                  <span className="font-extrabold text-slate-800 block text-xs">سارة إبراهيم</span>
-                  <span className="text-[10px] text-slate-400 block mt-4">التوقيع والاعتماد: ____________</span>
-                </div>
+              {/* Official Signatures & Flexible Team Stamp */}
+              <div className="pt-6 border-t-2 border-slate-300 relative">
+                <div className="grid grid-cols-3 gap-4 text-center text-xs">
+                  <div>
+                    <span className="font-bold text-slate-500 block mb-1">مسؤول الجودة والتقييم</span>
+                    <span className="font-extrabold text-slate-900 block text-xs">سارة إبراهيم</span>
+                    <span className="text-[10px] text-slate-400 block mt-4">التوقيع والاعتماد: ____________</span>
+                  </div>
 
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">نائب رئيس فريق المتطوعين</span>
-                  <span className="font-extrabold text-slate-800 block text-xs">أحمد عادل</span>
-                  <span className="text-[10px] text-slate-400 block mt-4">التوقيع والاعتماد: ____________</span>
-                </div>
+                  {/* Dynamic Flexible Union Stamp */}
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="flex flex-col items-center justify-center p-1">
+                      {branding.stampUrl ? (
+                        <img 
+                          src={branding.stampUrl} 
+                          alt="ختم اتحاد طلاب جامعة الإسكندرية" 
+                          className="max-h-20 max-w-28 object-contain drop-shadow" 
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full border-2 border-dashed border-red-600/70 text-red-600 flex flex-col items-center justify-center p-1 rotate-[-6deg] text-[9px] font-black">
+                          <ShieldCheck className="w-5 h-5 text-red-600 mb-0.5" />
+                          <span>ختم الاعتماد</span>
+                          <span className="text-[7px]">اتحاد الطلاب 2026</span>
+                        </div>
+                      )}
+                      <span className="text-[9px] text-slate-500 font-bold mt-1">الختم الرسمي المعتمد</span>
+                    </div>
+                  </div>
 
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">رئيس فريق متطوعين اتحاد الطلاب</span>
-                  <span className="font-extrabold text-slate-800 block text-xs">عمر خالد</span>
-                  <span className="text-[10px] text-slate-400 block mt-4">التوقيع والاعتماد: ____________</span>
+                  <div>
+                    <span className="font-bold text-slate-500 block mb-1">رئيس فريق متطوعين اتحاد الطلاب</span>
+                    <span className="font-extrabold text-slate-900 block text-xs">يوسف محمد</span>
+                    <span className="text-[10px] text-slate-400 block mt-4">التوقيع والاعتماد: ____________</span>
+                  </div>
                 </div>
               </div>
 

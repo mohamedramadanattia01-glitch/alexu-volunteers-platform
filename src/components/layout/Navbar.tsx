@@ -551,15 +551,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </button>
 
-          {/* Logout Button */}
-          <button
-            onClick={logout}
-            title="تسجيل الخروج من الحساب"
-            className="p-1.5 sm:p-2 rounded-lg bg-slate-800/80 hover:bg-rose-600/20 border border-slate-700 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition-all cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-
         </div>
 
       </div>

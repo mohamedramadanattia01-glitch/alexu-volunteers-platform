@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { 
   AttendanceRecord, Member, Complaint, MemberEvaluationRecord, 
   HeadEvaluationRecord, Task, AnnouncementPoll, EventEntity, EventRSVP, AttendancePointsConfig,
-  AttendanceSession, AuditLogItem
+  AttendanceSession, AuditLogItem, AppSubscriptionSettings
 } from '../types';
 import { getRoleShortLabel, isHighLeadershipRole } from './roleUtils';
 
@@ -812,8 +812,12 @@ export const exportComplaintsToExcel = (complaints: Complaint[]) => {
 /**
  * 7. Export Announcement Poll Results to Excel (.xlsx)
  */
-export const exportPollResultsToExcel = (poll: AnnouncementPoll, announcementTitle: string = 'استطلاع') => {
-  const summaryHeaders = ['خيار الاستطلاع', 'عدد الأصوات', 'النسبة المئوية (%)'];
+export const exportPollResultsToExcel = (
+  poll: AnnouncementPoll, 
+  announcementTitle: string = 'استطلاع',
+  members: Member[] = []
+) => {
+  const summaryHeaders = ['خيار الاستطلاع', 'عدد الأصوات المحققة', 'النسبة المئوية (%)'];
   const summaryRows = poll.options.map(opt => {
     const votesCount = opt.voteCount || 0;
     const total = poll.totalVotes || 1;
@@ -821,30 +825,50 @@ export const exportPollResultsToExcel = (poll: AnnouncementPoll, announcementTit
     return [opt.text, votesCount, `${pct}%`];
   });
 
-  const votesHeaders = ['اسم العضو المصوت', 'اللجنة', 'الخيار المختار', 'تاريخ ووقت التصويت'];
-  const votesRows = (poll.votes || []).map(v => {
+  const votesHeaders = [
+    'م',
+    'الرقم التطوعي',
+    'اسم العضو المصوت',
+    'الرقم القومي',
+    'الكلية / المعهد',
+    'اللجنة التخصصية',
+    'الخيار المختار في التصويت',
+    'تاريخ ووقت التصويت'
+  ];
+
+  const votesRows = (poll.votes || []).map((v, idx) => {
+    const mem = members.find(m => m.id === v.memberId);
     const optText = poll.options.find(o => o.id === v.optionId)?.text || 'خيار';
-    return [v.memberName, v.committeeName || 'عام', optText, v.votedAt || '—'];
+    return [
+      idx + 1,
+      mem?.volunteerId || v.memberId,
+      v.memberName || mem?.fullName || 'عضو',
+      mem?.nationalId || '—',
+      mem?.college || 'جامعة الإسكندرية',
+      v.committeeName || mem?.currentCommitteeName || 'عام',
+      optText,
+      v.votedAt || '—'
+    ];
   });
 
   const aoaData = [
-    ['تقرير نتائج استطلاع الرأي والتصويت الإلكتروني'],
+    ['تقرير نتائج استطلاع الرأي والتصويت الإلكتروني الرسمي — اتحاد طلاب جامعة الإسكندرية'],
     [`عنوان الإعلان: ${announcementTitle}`],
-    [`السؤال: ${poll.question}`],
-    [`إجمالي الأصوات: ${poll.totalVotes || 0}`],
+    [`السؤال المطروح: ${poll.question}`],
+    [`إجمالي الأصوات: ${poll.totalVotes || 0} صوت | تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')}`],
     [],
-    ['ملخص النتائج حسب الخيارات:'],
+    ['=== ملخص النتائج حسب الخيارات ==='],
     summaryHeaders,
     ...summaryRows,
     [],
-    ['سجل تفاصيل أصوات الأعضاء:'],
+    ['=== سجل تفاصيل أصوات الأعضاء والمصوتين ==='],
     votesHeaders,
     ...votesRows
   ];
 
   const cleanTitle = announcementTitle.replace(/[\s\/:*?"<>|]+/g, '_');
-  const fileName = `نتائج_استطلاع_${cleanTitle}_${new Date().toISOString().slice(0, 10)}`;
-  downloadExcelWorkbook(aoaData, fileName, 'نتائج الاستطلاع');
+  const fileName = `نتائج_تصويت_${cleanTitle}_${new Date().toISOString().slice(0, 10)}`;
+  downloadExcelWorkbook(aoaData, fileName, 'نتائج التصويت');
 };
 
 /**
@@ -1093,3 +1117,162 @@ export const exportAuditLogsToExcel = (logs: AuditLogItem[]) => {
 
   downloadExcelWorkbook(aoaData, `سجل_التدقيق_والحوكمة_${new Date().toISOString().split('T')[0]}`, 'سجل التدقيق');
 };
+
+/**
+ * 12. Export Monthly Subscription Dues to Excel (.xlsx)
+ * شيت متكامل يجمع كل من سدد أو لم يسدد الاشتراك الشهري مع التفاصيل
+ */
+export const exportSubscriptionDuesToExcel = (
+  members: Member[],
+  settings: AppSubscriptionSettings = { 
+    monthlyAmount: 50, 
+    monthlyFeeAmount: 50, 
+    currency: 'ج.م', 
+    isMandatory: true, 
+    defaultVerifiedBadgeText: 'ما انتا دافع بقى 👑',
+    defaultBadgeText: 'ما انتا دافع بقى 👑' 
+  },
+  filterStatus?: 'all' | 'paid' | 'unpaid'
+) => {
+  let filtered = members.filter(m => m.status === 'Active');
+  if (filterStatus === 'paid') {
+    filtered = filtered.filter(m => m.isSubscriptionPaid);
+  } else if (filterStatus === 'unpaid') {
+    filtered = filtered.filter(m => !m.isSubscriptionPaid);
+  }
+
+  const paidCount = members.filter(m => m.status === 'Active' && m.isSubscriptionPaid).length;
+  const unpaidCount = members.filter(m => m.status === 'Active' && !m.isSubscriptionPaid).length;
+  const totalAmountCollected = paidCount * (settings.monthlyFeeAmount || 50);
+
+  const headers = [
+    'م',
+    'الرقم التطوعي',
+    'الاسم الكامل',
+    'الرقم القومي (14 رقم)',
+    'الكلية / المعهد',
+    'الفرقة الدراسية',
+    'رقم الواتساب / الهاتف',
+    'اللجنة التخصصية',
+    'المسمى التنظيمي',
+    'حالة سداد الاشتراك',
+    'قيمة الاشتراك المستحقة',
+    'تاريخ ووقت السداد',
+    'علامة التوثيق الزرقاء',
+    'نص بادج التوثيق'
+  ];
+
+  const rows = filtered.map((m, idx) => [
+    idx + 1,
+    m.volunteerId || m.id,
+    m.fullName,
+    m.nationalId || '—',
+    m.college,
+    m.academicYear,
+    m.whatsappNumber || m.phone || '—',
+    m.currentCommitteeName,
+    m.position,
+    m.isSubscriptionPaid ? 'مسدد ✓' : 'غير مسدد ⚠️',
+    `${settings.monthlyFeeAmount || 50} ${settings.currency || 'ج.م'}`,
+    m.subscriptionPaidAt || '—',
+    m.isSubscriptionPaid ? 'موثق بالبادج الأزرق 🔵' : 'غير موثق',
+    m.subscriptionBadgeText || (m.isSubscriptionPaid ? (settings.defaultBadgeText || 'ما انتا دافع بقى 👑') : '—')
+  ]);
+
+  const aoaData = [
+    ['سجل تحصيل واشتراكات صندوق فريق المتطوعين الشهري — اتحاد طلاب جامعة الإسكندرية'],
+    [`تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}`],
+    [`قيمة الاشتراك الشهري المعتمدة: ${settings.monthlyFeeAmount || 50} ${settings.currency || 'ج.م'}`],
+    [`إجمالي المسددين: ${paidCount} متطوع | إجمالي غير المسددين: ${unpaidCount} متطوع | إجمالي المحصل: ${totalAmountCollected} ${settings.currency || 'ج.م'}`],
+    [],
+    headers,
+    ...rows
+  ];
+
+  const titlePrefix = filterStatus === 'paid' ? 'كشف_المسددين_للاشتراك' : filterStatus === 'unpaid' ? 'كشف_غير_المسددين_للاشتراك' : 'سجل_الاشتراك_الشهري_الشامل';
+  const fileName = `${titlePrefix}_${new Date().toISOString().slice(0, 10)}`;
+
+  downloadExcelWorkbook(aoaData, fileName, 'سجل الاشتراكات الشهرية');
+};
+
+/**
+ * 13. Export Unexcused & Excused Absentees to Excel (.xlsx)
+ */
+export const exportUnexcusedAbsenteesToExcel = (
+  event: EventEntity,
+  unexcusedAbsentees: Member[],
+  excusedAbsentees: { member: Member; reason: string }[],
+  pointsConfig: AttendancePointsConfig
+) => {
+  const unexcusedHeaders = [
+    'م',
+    'الرقم التطوعي',
+    'الاسم الكامل',
+    'الرقم القومي',
+    'الكلية والفرقة',
+    'رقم الواتساب',
+    'اللجنة التخصصية',
+    'المسمى التنظيمي',
+    'حالة الغياب',
+    'الجزاء المترتب',
+    'خصم نقاط الـ XP'
+  ];
+
+  const unexcusedRows = unexcusedAbsentees.map((m, idx) => [
+    idx + 1,
+    m.volunteerId || m.id,
+    m.fullName,
+    m.nationalId || '—',
+    `${m.college} - ${m.academicYear}`,
+    m.whatsappNumber || m.phone || '—',
+    m.currentCommitteeName,
+    m.position,
+    'تغيب بدون إذن أو عذر مسبق',
+    'خصم نقاط حضور الفعالية',
+    `${pointsConfig.unexcusedAbsencePenalty} XP`
+  ]);
+
+  const excusedHeaders = [
+    'م',
+    'الرقم التطوعي',
+    'الاسم الكامل',
+    'الرقم القومي',
+    'الكلية والفرقة',
+    'اللجنة التخصصية',
+    'حالة الغياب',
+    'سبب العذر المقبول',
+    'نقاط العذر الممنوحة'
+  ];
+
+  const excusedRows = excusedAbsentees.map((item, idx) => [
+    idx + 1,
+    item.member.volunteerId || item.member.id,
+    item.member.fullName,
+    item.member.nationalId || '—',
+    `${item.member.college} - ${item.member.academicYear}`,
+    item.member.currentCommitteeName,
+    'غياب بعذر مقبول ومعتمد من الهيد',
+    item.reason || 'عذر دراسي / طبي معتمد',
+    `+${pointsConfig.excusedAbsencePoints} XP`
+  ]);
+
+  const aoaData = [
+    [`كشف المتغيبين والمعتذرين الرسمي — فعالية: ${event.name}`],
+    [`تاريخ الفعالية: ${event.date} | الموقع: ${event.location}`],
+    [`إجمالي المتغيبين بدون عذر: ${unexcusedAbsentees.length} متطوع | إجمالي المعتذرين بعذر: ${excusedAbsentees.length} متطوع`],
+    [],
+    ['=== قائمة المتغيبين عن الفعالية بدون عذر (Unexcused Absentees) ==='],
+    unexcusedHeaders,
+    ...unexcusedRows,
+    [],
+    ['=== قائمة المعتذرين بعذر مقبول (Excused Absentees) ==='],
+    excusedHeaders,
+    ...excusedRows
+  ];
+
+  const cleanEventName = event.name.replace(/[\s\/:*?"<>|]+/g, '_');
+  const fileName = `كشف_المتغيبين_والمعتذرين_${cleanEventName}_${event.date}`;
+
+  downloadExcelWorkbook(aoaData, fileName, 'المتغيبون والمعتذرون');
+};
+

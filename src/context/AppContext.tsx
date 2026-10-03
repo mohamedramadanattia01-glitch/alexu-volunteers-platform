@@ -10,7 +10,7 @@ import {
   AnnouncementReaction, AnnouncementPoll, PollOption, PollVote,
   HeadEvaluationRecord, HeadEvaluationRubric, TaskAttachment,
   BannedUserRecord, CommitteeHistoryItem, EventRSVP, AttendancePointsConfig,
-  CertifiedSkillItem, MemberPerformance
+  CertifiedSkillItem, MemberPerformance, AppSubscriptionSettings
 } from '../types';
 import { 
   initialSeasons, initialCommittees, initialMembers, initialTasks, 
@@ -21,7 +21,7 @@ import {
   initialComplaints, initialSoundSettings, initialBrandingSettings,
   initialRolePermissionsMap, initialEvaluationRubric,
   initialHeadEvaluationRubric, initialHeadEvaluations,
-  initialAttendancePointsConfig
+  initialAttendancePointsConfig, initialSubscriptionSettings
 } from '../data/initialData';
 import { playAppTone } from '../utils/soundEngine';
 import { generateCommitteeVolunteerId } from '../utils/volunteerId';
@@ -102,6 +102,15 @@ interface AppContextType {
   isHead: boolean;
   isHighLeadershipMember: (member?: Member | null) => boolean;
 
+  // Monthly Subscription System
+  subscriptionSettings: AppSubscriptionSettings;
+  updateSubscriptionSettings: (settings: Partial<AppSubscriptionSettings>) => void;
+  toggleMemberSubscriptionStatus: (memberId: string, isPaid: boolean, badgeText?: string) => void;
+  updateMemberSubscriptionBadge: (memberId: string, badgeText: string) => void;
+
+  // Profile Completion Helper
+  calculateProfileCompletion: (member: Member) => { percentage: number; missingFields: string[] };
+
   // Actions
   setActiveTab: (tab: string) => void;
   switchSeason: (seasonId: string) => void;
@@ -141,6 +150,9 @@ interface AppContextType {
   sendEventDayReminder: (eventId: string) => void;
   attendancePointsConfig: AttendancePointsConfig;
   updateAttendancePointsConfig: (config: AttendancePointsConfig) => void;
+  markUnexcusedAbsenteePenalty: (eventId: string, memberId: string, penaltyPoints?: number) => void;
+  markExcusedAbsentee: (eventId: string, memberId: string, excuseReason?: string, awardPoints?: number) => void;
+  revertAbsenteeStatus: (eventId: string, memberId: string) => void;
   recordAttendance: (memberId: string, eventId: string, actionType: 'check-in' | 'check-out') => { success: boolean; message: string };
   recordAttendanceWithGPS: (params: { 
     memberId: string; 
@@ -571,6 +583,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     safeSetItem(`${STORAGE_KEY}_ATTENDANCE_POINTS_CONFIG`, JSON.stringify(attendancePointsConfig));
   }, [attendancePointsConfig]);
+
+  const [subscriptionSettings, setSubscriptionSettings] = useState<AppSubscriptionSettings>(() => {
+    return safeJsonParse(localStorage.getItem(`${STORAGE_KEY}_SUBSCRIPTION_SETTINGS`), initialSubscriptionSettings);
+  });
+
+  useEffect(() => {
+    safeSetItem(`${STORAGE_KEY}_SUBSCRIPTION_SETTINGS`, JSON.stringify(subscriptionSettings));
+  }, [subscriptionSettings]);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [celebrationData, setCelebrationData] = useState<{ active: boolean; badgeTitle: string; points: number } | null>(null);
@@ -3114,7 +3134,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('تقييم مهمة', task.title, `التقييم: ${evalData.qualityScore}/5 - النقاط الممنوحة: ${pointsAwarded}/${task.maxPoints || task.xpReward || 25}`);
   };
 
-  // Create Event
+  // Monthly Subscription Actions
+  const updateSubscriptionSettings = (settings: Partial<AppSubscriptionSettings>) => {
+    setSubscriptionSettings(prev => {
+      const updated = { ...prev, ...settings };
+      SupabaseService.saveAppSetting('subscription_settings', updated).catch(e => console.warn(e));
+      return updated;
+    });
+    addAuditLog('تعديل إعدادات الاشتراك الشهري', `${settings.monthlyFeeAmount || subscriptionSettings.monthlyFeeAmount} ج.م`, `بواسطة ${currentUser.fullName}`);
+    showNotification('success', 'تم حفظ وتحديث إعدادات الاشتراك الشهري بنجاح 💰');
+  };
+
+  const toggleMemberSubscriptionStatus = (memberId: string, isPaid: boolean, badgeText?: string) => {
+    let targetMember: Member | null = null;
+    const nowStr = new Date().toISOString();
+    const currentMonthStr = new Date().toISOString().substring(0, 7); // e.g. "2026-10"
+
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const updatedM: Member = {
+          ...m,
+          isSubscriptionPaid: isPaid,
+          subscriptionPaidAt: isPaid ? nowStr : undefined,
+          subscriptionBadgeText: isPaid ? (badgeText || m.subscriptionBadgeText || subscriptionSettings.defaultBadgeText) : undefined,
+          subscriptionMonth: isPaid ? (m.subscriptionMonth || currentMonthStr) : undefined
+        };
+        targetMember = updatedM;
+        return updatedM;
+      }
+      return m;
+    }));
+
+    if (targetMember) {
+      SupabaseService.upsertMember(targetMember).catch(e => console.warn(e));
+    }
+
+    const memberName = targetMember ? (targetMember as Member).fullName : memberId;
+    addAuditLog(
+      isPaid ? 'تأكيد سداد الاشتراك الشهري وتفعيل الشارة الزرقاء' : 'إلغاء حالة سداد الاشتراك الشهري',
+      memberName,
+      `تم التعديل بواسطة ${currentUser.fullName}`
+    );
+    showNotification('success', isPaid ? `تم تأكيد سداد الاشتراك وتوثيق حساب ${memberName} بالعلامة الزرقاء 👑` : `تم تعديل حالة اشتراك ${memberName} إلى غير مسدد`);
+    playSound('task');
+  };
+
+  const updateMemberSubscriptionBadge = (memberId: string, badgeText: string) => {
+    let targetMember: Member | null = null;
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const updatedM: Member = {
+          ...m,
+          subscriptionBadgeText: badgeText
+        };
+        targetMember = updatedM;
+        return updatedM;
+      }
+      return m;
+    }));
+
+    if (targetMember) {
+      SupabaseService.upsertMember(targetMember).catch(e => console.warn(e));
+    }
+    showNotification('success', 'تم تحديث النص التوثيقي للشارة الزرقاء بنجاح');
+  };
+
+  // Profile Completion Percentage Calculator (0 - 100%) with Missing Fields Discovery
+  const calculateProfileCompletion = (member: Member): { percentage: number; missingFields: string[] } => {
+    if (!member) return { percentage: 0, missingFields: [] };
+    const missing: string[] = [];
+    let filledCount = 0;
+    const fields = [
+      { key: 'fullName', label: 'الاسم الرباعي', valid: Boolean(member.fullName && member.fullName.trim().length >= 6) },
+      { key: 'nationalId', label: 'الرقم القومي (14 رقم)', valid: Boolean(member.nationalId && member.nationalId.length === 14) },
+      { key: 'universityEmail', label: 'البريد الإلكتروني الجامعي', valid: Boolean(member.universityEmail && member.universityEmail.includes('@')) },
+      { key: 'phone', label: 'رقم الهاتف / الواتساب', valid: Boolean(member.phone || member.whatsappNumber) },
+      { key: 'college', label: 'الكلية والجامعة', valid: Boolean(member.college && member.college !== 'لم تحدد') },
+      { key: 'academicYear', label: 'الفرقة الدراسية', valid: Boolean(member.academicYear && member.academicYear !== 'لم تحدد') },
+      { key: 'birthDate', label: 'تاريخ الميلاد', valid: Boolean(member.birthDate) },
+      { key: 'avatarUrl', label: 'الصورة الشخصية الرسمية', valid: Boolean(member.avatarUrl && !member.avatarUrl.includes('unsplash') && member.avatarUrl.length > 10) },
+      { key: 'bio', label: 'النبذة التعريفية (Bio)', valid: Boolean(member.bio && member.bio.trim().length >= 10) },
+      { key: 'address', label: 'محل الإقامة / العنوان', valid: Boolean(member.address && member.address.trim().length >= 5) },
+      { key: 'emergencyContact', label: 'رقم طوارئ والتواصل السريع', valid: Boolean(member.emergencyContact && member.emergencyContact.trim().length >= 5) },
+      { key: 'bloodType', label: 'فصيلة الدم', valid: Boolean(member.bloodType) },
+      { key: 'skills', label: 'المهارات والخبرات العملية', valid: Boolean(member.skills && Object.keys(member.skills).length > 0) },
+      { key: 'hobbies', label: 'الهوايات والاهتمامات', valid: Boolean(member.hobbies && member.hobbies.length > 0) },
+      { key: 'learningAspirations', label: 'تطلعات التعلم والتطوير', valid: Boolean(member.learningAspirations && member.learningAspirations.length > 0) },
+      { key: 'social', label: 'روابط التواصل الاجتماعي', valid: Boolean(member.facebookUrl || member.linkedinUrl || member.tiktokUrl || member.instagramUrl) },
+    ];
+
+    fields.forEach(f => {
+      if (f.valid) {
+        filledCount++;
+      } else {
+        missing.push(f.label);
+      }
+    });
+
+    const percentage = Math.round((filledCount / fields.length) * 100);
+    return { percentage, missingFields: missing };
+  };
+
+  // Create Event with automatic announcement broadcast
   const createEvent = (eventData: Partial<EventEntity>) => {
     const newEvent: EventEntity = {
       id: `event-${Date.now()}`,
@@ -3142,6 +3263,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEvents(prev => [newEvent, ...prev]);
     SupabaseService.upsertEvent(newEvent).catch(e => console.warn('Supabase upsertEvent error:', e));
     
+    // Broadcast announcement if event is open for the entire team
+    if (newEvent.targetAudience === 'all') {
+      const annId = `ann-evt-${newEvent.id}`;
+      const newAnn: Announcement = {
+        id: annId,
+        title: `📅 فعالية كبرى قادمة: ${newEvent.name}`,
+        content: `يسر إدارة اتحاد طلاب جامعة الإسكندرية الإعلان عن تنظيم فعالية "${newEvent.name}" بتاريخ ${newEvent.date} في ${newEvent.location} (من ${newEvent.startTime} إلى ${newEvent.endTime}). يرجى من جميع المتطوعين تسجيل تأكيد الحضور (RSVP) في جدول الفعاليات. ${newEvent.description ? `\n\nتفاصيل الفعالية: ${newEvent.description}` : ''}`,
+        authorName: currentUser.fullName,
+        authorRole: currentUser.position || 'إدارة الفعاليات',
+        targetType: 'all',
+        isPinned: true,
+        createdAt: 'الآن',
+        reactions: []
+      };
+      setAnnouncements(prev => [newAnn, ...prev.filter(a => a.id !== annId)]);
+      SupabaseService.upsertAnnouncement(newAnn).catch(e => console.warn(e));
+    }
+
     // Broadcast notification for new event to all members or target group
     const targetGroupText = newEvent.targetAudience === 'heads_leadership'
       ? '👑 رؤساء اللجان والقيادة العليا'
@@ -3280,6 +3419,180 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAttendancePointsConfig(config);
     addAuditLog('تعديل معايير نقاط الحضور', 'Attendance Points Config', `تم تعديل قواعد حساب النقاط والتأخير بواسطة ${currentUser.fullName}`);
     showNotification('success', 'تم حفظ وتحديث معايير نقاط الحضور والتأخير بنجاح ⚙️');
+  };
+
+  // Absentee & Excusal Operations
+  const markUnexcusedAbsenteePenalty = (eventId: string, memberId: string, penaltyPoints?: number) => {
+    const penalty = penaltyPoints !== undefined ? penaltyPoints : (attendancePointsConfig.unexcusedAbsencePenalty ?? -5);
+    const targetMember = members.find(m => m.id === memberId);
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetMember) return;
+
+    // Apply negative XP / penalty to member
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        const newPoints = Math.max(0, (m.points || 0) + penalty);
+        const updatedM = {
+          ...m,
+          points: newPoints,
+          level: Math.max(1, Math.floor(newPoints / 150) + 1),
+          performance: {
+            ...m.performance,
+            attendanceRate: Math.max(0, (m.performance?.attendanceRate || 100) - 5),
+            commitment: Math.max(0, (m.performance?.commitment || 100) - 5)
+          }
+        };
+        SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+        return updatedM;
+      }
+      return m;
+    }));
+
+    // Record an Attendance Record with status 'Absent' and penalty dailyEvaluation
+    const attRecId = `att-abs-${eventId}-${memberId}`;
+    const absRec: AttendanceRecord = {
+      id: attRecId,
+      memberId: targetMember.id,
+      memberName: targetMember.fullName,
+      memberAvatar: targetMember.avatarUrl,
+      memberVolunteerId: targetMember.volunteerId,
+      committeeId: targetMember.currentCommitteeId,
+      committeeName: targetMember.currentCommitteeName,
+      eventId: eventId,
+      eventName: targetEvent?.name || 'فعالية رسمية',
+      date: targetEvent?.date || new Date().toISOString().split('T')[0],
+      checkInTime: 'غائب',
+      durationMinutes: 0,
+      durationFormatted: '—',
+      status: 'Absent',
+      qrHashToken: `ABSENT_UNEXCUSED_${Date.now()}`,
+      dailyEvaluation: {
+        attendanceScore: 0,
+        totalDailyScore: 0,
+        percentage: 0,
+        overallGrade: 'D',
+        bonusXP: penalty,
+        notes: `غياب بدون عذر مسبق عن فعالية (${targetEvent?.name || ''}) وتم تطبيق خصم ${penalty} XP`,
+        evaluatedBy: currentUser.fullName,
+        evaluatedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      }
+    };
+
+    setAttendanceRecords(prev => [absRec, ...prev.filter(a => a.id !== attRecId && !(a.memberId === memberId && a.eventId === eventId))]);
+    SupabaseService.insertAttendanceRecord(absRec).catch(e => console.warn(e));
+
+    // Send notification to the member
+    const notif: SystemNotification = {
+      id: `notif-abs-${Date.now()}`,
+      title: `⚠️ تسجيل غياب بدون عذر: ${targetEvent?.name || 'فعالية'}`,
+      message: `تم تسجيلك غائباً بدون عذر عن الفعالية وتطبيق خصم (${penalty}) نقاط من رصيدك. يرجى مراجعة رئيس لجنتك في حال وجود عذر مقبول.`,
+      type: 'sos',
+      targetMemberIds: [targetMember.id],
+      read: false,
+      createdAt: 'الآن',
+      linkTab: 'events'
+    };
+    setNotifications(prev => [notif, ...prev]);
+    SupabaseService.upsertNotification(notif).catch(e => console.warn(e));
+
+    addAuditLog('تسجيل متغيب بدون عذر وتطبيق عقوبة النقاط', targetMember.fullName, `الفعالية: ${targetEvent?.name || eventId} - الخصم: ${penalty} XP بواسطة ${currentUser.fullName}`);
+    showNotification('warning', `تم تسجيل ${targetMember.fullName} كمتغيب بدون عذر وتطبيق خصم (${penalty} XP)`);
+    playSound('alert');
+  };
+
+  const markExcusedAbsentee = (eventId: string, memberId: string, excuseReason: string = 'عذر مسبق مقبول', awardPoints?: number) => {
+    const points = awardPoints !== undefined ? awardPoints : (attendancePointsConfig.excusedAbsencePoints || 10);
+    const targetMember = members.find(m => m.id === memberId);
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetMember) return;
+
+    // Update RSVP on event
+    if (targetEvent) {
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+      const updatedRsvps = {
+        ...(targetEvent.rsvps || {}),
+        [memberId]: {
+          memberId: targetMember.id,
+          memberName: targetMember.fullName,
+          memberVolunteerId: targetMember.volunteerId,
+          committeeId: targetMember.currentCommitteeId,
+          committeeName: targetMember.currentCommitteeName,
+          role: targetMember.role,
+          status: 'Apologized' as const,
+          apologyReason: excuseReason,
+          registeredAt: now
+        }
+      };
+      const updatedEvt = { ...targetEvent, rsvps: updatedRsvps };
+      setEvents(prev => prev.map(e => e.id === eventId ? updatedEvt : e));
+      SupabaseService.upsertEvent(updatedEvt).catch(e => console.warn(e));
+    }
+
+    // Award excused points (+10 XP) to member
+    if (points > 0) {
+      setMembers(prev => prev.map(m => {
+        if (m.id === memberId) {
+          const newPoints = (m.points || 0) + points;
+          const updatedM = {
+            ...m,
+            points: newPoints,
+            level: Math.floor(newPoints / 150) + 1
+          };
+          SupabaseService.upsertMember(updatedM).catch(e => console.warn(e));
+          return updatedM;
+        }
+        return m;
+      }));
+    }
+
+    // Record or update Attendance Record
+    const attRecId = `att-exc-${eventId}-${memberId}`;
+    const excRec: AttendanceRecord = {
+      id: attRecId,
+      memberId: targetMember.id,
+      memberName: targetMember.fullName,
+      memberAvatar: targetMember.avatarUrl,
+      memberVolunteerId: targetMember.volunteerId,
+      committeeId: targetMember.currentCommitteeId,
+      committeeName: targetMember.currentCommitteeName,
+      eventId: eventId,
+      eventName: targetEvent?.name || 'فعالية رسمية',
+      date: targetEvent?.date || new Date().toISOString().split('T')[0],
+      checkInTime: 'اعتذار مقبول',
+      durationMinutes: 0,
+      durationFormatted: '—',
+      status: 'Excused',
+      qrHashToken: `EXCUSED_${Date.now()}`,
+      dailyEvaluation: {
+        attendanceScore: points,
+        totalDailyScore: points,
+        percentage: 50,
+        overallGrade: 'C',
+        bonusXP: points,
+        notes: `غياب بعذر مقبول عن فعالية (${targetEvent?.name || ''}). السبب: ${excuseReason} (+${points} XP)`,
+        evaluatedBy: currentUser.fullName,
+        evaluatedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      }
+    };
+
+    setAttendanceRecords(prev => [excRec, ...prev.filter(a => a.id !== attRecId && !(a.memberId === memberId && a.eventId === eventId))]);
+    SupabaseService.insertAttendanceRecord(excRec).catch(e => console.warn(e));
+
+    addAuditLog('قبول وتوثيق عذر غياب', targetMember.fullName, `الفعالية: ${targetEvent?.name || eventId} - العذر: ${excuseReason} (+${points} XP) بواسطة ${currentUser.fullName}`);
+    showNotification('success', `تم قبول وتوثيق عذر ${targetMember.fullName} بنجاح (+${points} XP)`);
+    playSound('task');
+  };
+
+  const revertAbsenteeStatus = (eventId: string, memberId: string) => {
+    const targetMember = members.find(m => m.id === memberId);
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetMember) return;
+
+    // Remove negative or excused attendance record
+    setAttendanceRecords(prev => prev.filter(a => !(a.memberId === memberId && a.eventId === eventId && (a.status === 'Absent' || a.status === 'Excused'))));
+
+    addAuditLog('إلغاء وتعديل حالة غياب', targetMember.fullName, `تم التراجع عن قيد الغياب بفعالية ${targetEvent?.name || eventId} بواسطة ${currentUser.fullName}`);
+    showNotification('info', `تم تعديل وإلغاء حالة الغياب لـ ${targetMember.fullName}`);
   };
 
   // Delete Committee
@@ -5052,6 +5365,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isHead,
         isHighLeadershipMember,
 
+        // Monthly Subscription System
+        subscriptionSettings,
+        updateSubscriptionSettings,
+        toggleMemberSubscriptionStatus,
+        updateMemberSubscriptionBadge,
+
+        // Profile Completion Helper
+        calculateProfileCompletion,
+
         // Authentication & Approvals & Blacklist
         isAuthenticated,
         pendingMembers,
@@ -5100,6 +5422,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendEventDayReminder,
         attendancePointsConfig,
         updateAttendancePointsConfig,
+        markUnexcusedAbsenteePenalty,
+        markExcusedAbsentee,
+        revertAbsenteeStatus,
         recordAttendance,
         recordAttendanceWithGPS,
         createAttendanceSession,

@@ -6,9 +6,10 @@ import {
   Sparkles, FileText, Download, Edit3, MessageSquare, 
   Copy, Check, Heart, BookOpen, Star, AlertCircle, 
   TrendingUp, QrCode, Phone, Mail, GraduationCap, ShieldCheck,
-  Layers, Briefcase, FileDown, CheckCircle
+  Layers, Briefcase, FileDown, CheckCircle, DollarSign, CreditCard,
+  CheckSquare, X, RefreshCw
 } from 'lucide-react';
-import { exportAttendanceToExcel } from '../../utils/excelExport';
+import { exportAttendanceToExcel, exportSubscriptionDuesToExcel } from '../../utils/excelExport';
 import { downloadMemberPortfolioPDF } from '../../utils/pdfExport';
 import { getMemberExactBirthData } from '../../utils/nationalId';
 import { getWhatsAppUrl, hasValidWhatsApp } from '../../utils/whatsapp';
@@ -28,11 +29,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenQRModal,
   onSelectTask
 }) => {
-  const { currentUser, tasks, attendanceRecords, badges, branding, isHighLeadership, members, events, committees } = useApp();
+  const { 
+    currentUser, tasks, attendanceRecords, badges, branding, 
+    isHighLeadership, isHead, members, events, committees,
+    subscriptionSettings, updateSubscriptionSettings,
+    toggleMemberSubscriptionStatus, updateMemberSubscriptionBadge,
+    calculateProfileCompletion
+  } = useApp();
+
   const [copiedId, setCopiedId] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'attendance' | 'badges'>('overview');
   const [leadershipTab, setLeadershipTab] = useState<'overview' | 'history' | 'committees' | 'authorities'>('overview');
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  
+  // Subscription management state
+  const [showSubscriptionManager, setShowSubscriptionManager] = useState(false);
+  const [newFeeInput, setNewFeeInput] = useState(subscriptionSettings?.monthlyFeeAmount?.toString() || '50');
+  const [customBadgeTextInput, setCustomBadgeTextInput] = useState(currentUser?.subscriptionBadgeText || subscriptionSettings?.defaultBadgeText || 'ما انتا دافع بقى 👑');
+  const [subSearchQuery, setSubSearchQuery] = useState('');
+
+  // Calculate profile completion metrics
+  const profileCompletion = calculateProfileCompletion(currentUser);
 
   // Filter personal data
   const myTasks = tasks.filter(t => t.assignedToMemberIds.includes(currentUser.id));
@@ -50,6 +67,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     exportAttendanceToExcel(myAttendance, `المتطوع_${currentUser.fullName}`);
   };
 
+  const handleExportDuesExcel = () => {
+    exportSubscriptionDuesToExcel(members, subscriptionSettings);
+  };
+
   const handleDownloadPDF = async () => {
     setIsExportingPDF(true);
     try {
@@ -58,6 +79,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       console.error(e);
     } finally {
       setIsExportingPDF(false);
+    }
+  };
+
+  const handleSaveFee = () => {
+    const amount = Number(newFeeInput);
+    if (!isNaN(amount) && amount >= 0) {
+      updateSubscriptionSettings({ monthlyFeeAmount: amount });
+    }
+  };
+
+  const handleSaveMyBadgeText = () => {
+    if (customBadgeTextInput.trim()) {
+      updateMemberSubscriptionBadge(currentUser.id, customBadgeTextInput.trim());
     }
   };
 
@@ -104,7 +138,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             <div>
               <div className="flex flex-col md:flex-row items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">{currentUser.fullName}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                  <span>{currentUser.fullName}</span>
+                  
+                  {/* Blue Verified Badge (علامة التوثيق الزرقاء كالفيس بوك) */}
+                  {currentUser.isSubscriptionPaid && (
+                    <span 
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-600/30 border border-blue-400 text-blue-300 text-xs font-bold shadow-md shadow-blue-500/30 cursor-pointer animate-in fade-in"
+                      title={currentUser.subscriptionBadgeText || subscriptionSettings?.defaultBadgeText || 'ما انتا دافع بقى 👑'}
+                    >
+                      <svg className="w-4 h-4 text-blue-400 fill-blue-500" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-[11px] font-extrabold text-blue-200">
+                        {currentUser.subscriptionBadgeText || subscriptionSettings?.defaultBadgeText || 'ما انتا دافع بقى 👑'}
+                      </span>
+                    </span>
+                  )}
+                </h2>
+                
                 <span className="px-2.5 py-0.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium">
                   {currentUser.position}
                 </span>
@@ -241,7 +293,301 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         )}
       </div>
 
-      {/* 2. Key Metrics Cards Grid */}
+      {/* 2. Interactive Profile Completion Progress Card (نسبة استكمال البيانات الشخصية) */}
+      <div className="glass-card p-4 sm:p-5 border border-blue-500/30 bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 shadow-xl text-right animate-in fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-base shadow-lg shrink-0 ${
+              profileCompletion.percentage === 100 
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-emerald-500/10'
+                : profileCompletion.percentage >= 70
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-blue-500/10'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-amber-500/10'
+            }`}>
+              {profileCompletion.percentage}%
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                <span>نسبة استكمال الملف الشخصي والبيانات</span>
+                {profileCompletion.percentage === 100 ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                    مكتمل بنسبة 100% ✓
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                    بحاجة لاستكمال ({profileCompletion.missingFields.length} بنود متبقية)
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {profileCompletion.percentage === 100
+                  ? 'كافة بياناتك الشخصية، الأكاديمية، والمهنية مسجلة وموثقة بنجاح في قاعدة بيانات الاتحاد.'
+                  : `يتبقى استكمال ${profileCompletion.missingFields.length} حقول من بياناتك للوصول إلى 100% وظهور ملفك بكامل قوته.`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onOpenEditProfile}
+            className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5 cursor-pointer shadow-md shrink-0 self-end sm:self-center"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>{profileCompletion.percentage === 100 ? 'تعديل وتحديث البيانات' : 'استكمال البيانات الآن'}</span>
+          </button>
+        </div>
+
+        {/* Progress Bar Track */}
+        <div className="mt-3.5 w-full bg-slate-950/80 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/60 shadow-inner">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${
+              profileCompletion.percentage === 100 
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-md shadow-emerald-500/30'
+                : profileCompletion.percentage >= 70
+                ? 'bg-gradient-to-r from-blue-500 to-sky-400 shadow-md shadow-blue-500/30'
+                : 'bg-gradient-to-r from-amber-500 to-orange-400 shadow-md shadow-amber-500/30'
+            }`}
+            style={{ width: `${Math.max(5, profileCompletion.percentage)}%` }}
+          />
+        </div>
+
+        {/* Missing Fields Clickable Chips */}
+        {profileCompletion.missingFields.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-400 font-semibold">اضغط لاستكمال:</span>
+            {profileCompletion.missingFields.map((fieldLabel, idx) => (
+              <button
+                key={idx}
+                onClick={onOpenEditProfile}
+                className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-amber-300/90 hover:text-amber-200 border border-amber-500/30 transition-colors cursor-pointer"
+              >
+                + {fieldLabel}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Monthly Subscription & Blue Verified Badge Section (منظومة الاشتراك الشهري والتوثيق الأزرق) */}
+      <div className="glass-card p-4 sm:p-5 border border-sky-500/30 bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950/30 text-right shadow-xl">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-3.5 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 shadow-md">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white">منظومة الاشتراك الشهري للفريق</h3>
+                <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-mono font-bold border border-blue-500/30">
+                  {subscriptionSettings?.monthlyFeeAmount || 50} {subscriptionSettings?.currency || 'ج.م'} / شهرياً
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                سداد الاشتراك الشهري يمنح العضو علامة التوثيق الزرقاء الرسمية ويدعم أنشطة الاتحاد
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
+            {/* Status Pill for Current User */}
+            <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold ${
+              currentUser.isSubscriptionPaid 
+                ? 'bg-blue-600/20 border-blue-400 text-blue-300 shadow-md shadow-blue-500/20'
+                : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+            }`}>
+              {currentUser.isSubscriptionPaid ? (
+                <>
+                  <svg className="w-4 h-4 text-blue-400 fill-blue-500" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                  </svg>
+                  <span>مسدد وموثق 👑</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>بانتظار السداد</span>
+                </>
+              )}
+            </div>
+
+            {/* Leadership & Head Action Trigger */}
+            {(isHighLeadership || isHead) && (
+              <button
+                onClick={() => setShowSubscriptionManager(prev => !prev)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{showSubscriptionManager ? 'إخفاء لوحة الاشتراكات' : 'إدارة الاشتراكات والتسديد'}</span>
+              </button>
+            )}
+
+            {/* Excel Dues Export Button */}
+            {(isHighLeadership || isHead) && (
+              <button
+                onClick={handleExportDuesExcel}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="تصدير شيت إكسيل شامل لجميع المسددين وغير المسددين"
+              >
+                <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                <span>شيت الاشتراكات Excel 📊</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Subscription Info / Payment Instructions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3.5 text-xs">
+          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <span className="text-slate-400 block text-[11px] mb-1">قيمة الاشتراك الشهري:</span>
+            <span className="text-white font-bold font-mono text-sm">{subscriptionSettings?.monthlyFeeAmount || 50} {subscriptionSettings?.currency || 'ج.م'}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">قابل للتعديل من الإدارة العليا فقط</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <span className="text-slate-400 block text-[11px] mb-1">طرق السداد المعتمدة:</span>
+            <span className="text-emerald-300 font-semibold block">نقداً لمسؤول الموارد البشرية أو إنستاباي</span>
+            <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{subscriptionSettings?.instapayHandle || 'alexu-volunteers@instapay'}</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <span className="text-slate-400 block text-[11px] mb-1">نص الشارة الزرقاء التوثيقية:</span>
+            <span className="text-blue-300 font-bold block">{currentUser.subscriptionBadgeText || subscriptionSettings?.defaultBadgeText || 'ما انتا دافع بقى 👑'}</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">يظهر مباشرة بجوار اسمك في المنظومة</span>
+          </div>
+        </div>
+
+        {/* Expanded Leadership Management Panel */}
+        {showSubscriptionManager && (isHighLeadership || isHead) && (
+          <div className="mt-4 pt-4 border-t border-slate-800 space-y-4 animate-in fade-in">
+            {/* Top Control Bar for Supreme Leadership */}
+            {isHighLeadership && (
+              <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/30 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-purple-400" />
+                  <div>
+                    <h5 className="text-xs font-bold text-white">تعديل قيمة الاشتراك الشهري (للإدارة العليا فقط)</h5>
+                    <p className="text-[10px] text-purple-300">يتم تطبيق القيمة فوراً على كافة حسابات وشيتات المنظومة</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+                    <input
+                      type="number"
+                      value={newFeeInput}
+                      onChange={(e) => setNewFeeInput(e.target.value)}
+                      className="w-16 bg-transparent text-white font-mono font-bold text-xs text-center focus:outline-none"
+                    />
+                    <span className="text-slate-400 text-xs font-semibold">{subscriptionSettings?.currency || 'ج.م'}</span>
+                  </div>
+                  <button
+                    onClick={handleSaveFee}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer"
+                  >
+                    حفظ القيمة ✓
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Badge Text Editor for Current User */}
+            <div className="p-3.5 rounded-xl bg-blue-950/20 border border-blue-500/30 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                <div>
+                  <h5 className="text-xs font-bold text-white">تعديل نص الشارة الزرقاء (ما انتا دافع بقى)</h5>
+                  <p className="text-[10px] text-slate-400">النص الذي يظهر أسفل الشارة الزرقاء عند التوثيق</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-1 max-w-sm justify-end">
+                <input
+                  type="text"
+                  value={customBadgeTextInput}
+                  onChange={(e) => setCustomBadgeTextInput(e.target.value)}
+                  placeholder="مثال: ما انتا دافع بقى 👑"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={handleSaveMyBadgeText}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shrink-0 cursor-pointer"
+                >
+                  حفظ النص
+                </button>
+              </div>
+            </div>
+
+            {/* Members Subscription Table with Search and Toggles */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h5 className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>سجل سداد الأعضاء والتوثيق ({members.filter(m => m.status === 'Active').length} عضو)</span>
+                </h5>
+                <input
+                  type="text"
+                  value={subSearchQuery}
+                  onChange={(e) => setSubSearchQuery(e.target.value)}
+                  placeholder="بحث باسم العضو أو الكود..."
+                  className="px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none max-w-xs"
+                />
+              </div>
+
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 scrollbar-thin">
+                <table className="w-full text-right text-xs text-slate-300">
+                  <thead className="bg-slate-900 text-slate-400 font-bold sticky top-0 border-b border-slate-800">
+                    <tr>
+                      <th className="p-2.5">العضو</th>
+                      <th className="p-2.5">الكود التطوعي</th>
+                      <th className="p-2.5">اللجنة</th>
+                      <th className="p-2.5 text-center">حالة السداد</th>
+                      <th className="p-2.5 text-center">الإجراء والتوثيق</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {members
+                      .filter(m => m.status === 'Active')
+                      .filter(m => !subSearchQuery || m.fullName.includes(subSearchQuery) || m.volunteerId?.includes(subSearchQuery))
+                      .map(member => (
+                        <tr key={member.id} className="hover:bg-slate-900/40 transition-colors">
+                          <td className="p-2.5 font-semibold text-white flex items-center gap-2">
+                            <img src={member.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                            <span>{member.fullName}</span>
+                          </td>
+                          <td className="p-2.5 font-mono text-sky-400">{member.volunteerId || '—'}</td>
+                          <td className="p-2.5 text-slate-400">{member.currentCommitteeName}</td>
+                          <td className="p-2.5 text-center">
+                            {member.isSubscriptionPaid ? (
+                              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/30">
+                                مسدد 👑
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30">
+                                غير مسدد ⏳
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              onClick={() => toggleMemberSubscriptionStatus(member.id, !member.isSubscriptionPaid)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                member.isSubscriptionPaid
+                                  ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
+                                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
+                              }`}
+                            >
+                              {member.isSubscriptionPaid ? 'إلغاء التوثيق' : 'تأكيد السداد والتوثيق 👑'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Key Metrics Cards Grid */}
       {isHighLeadership ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="glass-card p-4 border-purple-500/20 bg-purple-950/20 flex flex-col justify-between">

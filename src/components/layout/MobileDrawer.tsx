@@ -6,7 +6,7 @@ import {
   GraduationCap, Trophy, Bot, 
   Megaphone, FolderGit2, ShieldAlert, BarChart3, 
   HeartPulse, MessageSquare, Sliders, User, Smartphone, Download,
-  Building2, Cake, Database
+  Building2, Cake, Database, LogOut
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -24,7 +24,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   onOpenInstallModal,
   onOpenDatabaseModal
 }) => {
-  const { activeTab, setActiveTab, teamHealthScore, isLiveCommandCenterActive, branding, complaints, currentUser, isHighLeadership } = useApp();
+  const { activeTab, setActiveTab, teamHealthScore, isLiveCommandCenterActive, branding, complaints, currentUser, isHighLeadership, logout } = useApp();
 
   if (!isOpen) return null;
 
@@ -173,6 +173,15 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
             </div>
             <div className="text-[9px] text-slate-500">اتحاد طلاب جامعة الإسكندرية</div>
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={() => { logout(); onClose(); }}
+            className="w-full py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer shadow-sm"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>تسجيل الخروج من الحساب 🚪</span>
+          </button>
         </div>
 
       </div>

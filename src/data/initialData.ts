@@ -3,7 +3,7 @@ import {
   SOSAlert, EvaluationTemplate, TrainingCourse, BadgeItem, 
   Announcement, AuditLogItem, DocumentItem, RecruitmentCandidate, Permission, SystemNotification,
   Complaint, AppSoundSettings, AppBrandingSettings, RolePermissionsMap, EvaluationRubric,
-  HeadEvaluationRubric, HeadEvaluationRecord, AttendancePointsConfig
+  HeadEvaluationRubric, HeadEvaluationRecord, AttendancePointsConfig, AppSubscriptionSettings
 } from '../types';
 
 export const initialSeasons: Season[] = [
@@ -313,20 +313,6 @@ export const initialAnnouncements: Announcement[] = [];
 
 export const initialAuditLogs: AuditLogItem[] = [];
 
-export const initialEvaluationRubric: EvaluationRubric = {
-  id: 'rubric-unified',
-  title: 'معايير التقييم الشامل الموحدة لأعضاء اللجان المتطوعين',
-  description: 'المعايير المعتمدة رسمياً لقياس الأداء، تسليم المهام، والانضباط الميداني',
-  lastUpdatedBy: 'مستشار الفريق (محمد رمضان)',
-  lastUpdatedAt: '2026-09-24',
-  criteria: [
-    { id: 'crit-1', name: 'الالتزام والانضباط في المواعيد والحضور', maxPoints: 25, description: 'الحضور في الوقت المحدد للاجتماعات والفعاليات والالتزام باللوائح والتعليمات' },
-    { id: 'crit-2', name: 'جودة ودقة تسليم المهام والمخرجات', maxPoints: 30, description: 'مدى مطابقة المهام للمواصفات المطلوبة والإتقان وسرعة التسليم' },
-    { id: 'crit-3', name: 'روح الفريق والتعاون والتواصل الإيجابي', maxPoints: 25, description: 'التنسيق الفعال مع باقي الأعضاء ولجان العمل والتفاعل الإيجابي مع التوجيهات' },
-    { id: 'crit-4', name: 'المبادرة والإبداع وحل المشكلات الميدانية', maxPoints: 20, description: 'تقديم أفكار تطويرية والتعامل بمرونة مع المواقف الطارئة' }
-  ]
-};
-
 export const initialDocuments: DocumentItem[] = [];
 
 export const initialCandidates: RecruitmentCandidate[] = [];
@@ -511,6 +497,27 @@ export const initialRolePermissionsMap: RolePermissionsMap = {
   }
 };
 
+export const initialEvaluationRubric: EvaluationRubric = {
+  id: 'rubric-members-2026',
+  title: 'المعايير المعتمدة لتقييم المتطوعين (360°)',
+  description: 'المعايير الرسمية الموحدة لتقييم أداء المتطوعين في الفعاليات والمهام اليومية من 100 درجة',
+  lastUpdatedBy: 'القيادة العليا',
+  lastUpdatedAt: '2026-09-24',
+  criteria: [
+    { id: 'crit-mem-1', name: 'الحضور والانضباط الميداني', maxPoints: 40, description: 'التواجد في الموعد المحدد ومسح الـ QR والالتزام بساعات الفعالية' },
+    { id: 'crit-mem-2', name: 'جودة تنفيذ المهام والتكليفات', maxPoints: 30, description: 'دقة التنفيذ والاحترافية وإتقان المهام الموكلة إليه أثناء الفعالية' },
+    { id: 'crit-mem-3', name: 'السلوك والالتزام باللائحة', maxPoints: 15, description: 'الاحترام المتبادل، الالتزام بالزي الرسمي، والسلوك اللائق مع الزملاء والزوار' },
+    { id: 'crit-mem-4', name: 'التفاعل والعمل الجماعي', maxPoints: 15, description: 'روح المبادرة، مساعدة أعضاء الفريق، والتعاون الإيجابي الميداني' }
+  ],
+  gradeThresholds: {
+    gradeAPlus: 95,
+    gradeA: 85,
+    gradeB: 75,
+    gradeC: 65,
+    gradeD: 50
+  }
+};
+
 export const initialHeadEvaluationRubric: HeadEvaluationRubric = {
   id: 'rubric-heads-2026',
   title: 'المعايير القيادية الموحدة لتقييم رؤساء ونواب اللجان',
@@ -523,16 +530,37 @@ export const initialHeadEvaluationRubric: HeadEvaluationRubric = {
     { id: 'crit-lead-3', name: 'التواصل المؤسسي والتقارير الدورية للإدارة العليا', maxPoints: 20, description: 'الالتزام برفع تقارير الإنجازات وسجلات الحضور والتقييمات اليومية' },
     { id: 'crit-lead-4', name: 'المبادرة وحل المشكلات وإدارة الأزمات الميدانية', maxPoints: 20, description: 'المرونة وسرعة التصرف في المواقف الطارئة والفعاليات الكبرى' },
     { id: 'crit-lead-5', name: 'الانضباط وحضور الاجتماعات القيادية الرسمية', maxPoints: 15, description: 'الالتزام بمواعيد اجتماعات مجلس القيادة والتنسيق المشترك بين اللجان' }
-  ]
+  ],
+  gradeThresholds: {
+    gradeAPlus: 95,
+    gradeA: 85,
+    gradeB: 75,
+    gradeC: 65,
+    gradeD: 50
+  }
 };
 
 export const initialHeadEvaluations: HeadEvaluationRecord[] = [];
 
 export const initialAttendancePointsConfig: AttendancePointsConfig = {
-  onTimePoints: 30,
+  earlyArrivalBonus: 5,
+  onTimePoints: 40,
   minorDelayThresholdMinutes: 15,
-  minorDelayPoints: 20,
-  majorDelayPoints: 10,
-  excusedAbsencePoints: 0,
-  unexcusedAbsencePenalty: -15,
+  minorDelayPoints: 30,
+  majorDelayPoints: 25,
+  excusedAbsencePoints: 10,
+  unexcusedAbsencePenalty: -5,
 };
+
+export const initialSubscriptionSettings: AppSubscriptionSettings = {
+  monthlyAmount: 50,
+  monthlyFeeAmount: 50,
+  currency: 'ج.م',
+  isMandatory: true,
+  defaultVerifiedBadgeText: 'ما انتا دافع بقى 👑',
+  defaultBadgeText: 'ما انتا دافع بقى 👑',
+  paymentInstructions: 'يمكن سداد الاشتراك الشهري نقداً لمسؤول الموارد البشرية أو عبر فودافون كاش / إنستاباي.',
+  vodafoneCashNumber: '01000000000',
+  instapayHandle: 'alexu-volunteers@instapay'
+};
+

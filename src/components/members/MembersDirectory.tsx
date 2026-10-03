@@ -18,6 +18,7 @@ interface MembersDirectoryProps {
   onOpenTransferModal: (member: Member) => void;
   onOpenImportModal?: () => void;
   onOpenDatabaseModal?: () => void;
+  initialCommitteeFilter?: string;
 }
 
 export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
@@ -25,7 +26,8 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
   onOpenAddMember,
   onOpenTransferModal,
   onOpenImportModal,
-  onOpenDatabaseModal
+  onOpenDatabaseModal,
+  initialCommitteeFilter = 'all'
 }) => {
   const { 
     members, committees, currentUser, isHighLeadership, 
@@ -35,11 +37,17 @@ export const MembersDirectory: React.FC<MembersDirectoryProps> = ({
 
   const [activeSubTab, setActiveSubTab] = useState<'directory' | 'master_grid'>('directory');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCommittee, setSelectedCommittee] = useState('all');
+  const [selectedCommittee, setSelectedCommittee] = useState(initialCommitteeFilter);
   const [selectedCollege, setSelectedCollege] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedRisk, setSelectedRisk] = useState('all');
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  React.useEffect(() => {
+    if (initialCommitteeFilter) {
+      setSelectedCommittee(initialCommitteeFilter);
+    }
+  }, [initialCommitteeFilter]);
   
   // Delete Modal State
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);

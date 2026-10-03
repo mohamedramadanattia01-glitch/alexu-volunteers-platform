@@ -68,6 +68,7 @@ const MainAppContent: React.FC = () => {
   const [isPendingApprovalsOpen, setIsPendingApprovalsOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
+  const [selectedCommitteeFilter, setSelectedCommitteeFilter] = useState<string>('all');
 
   const [selectedEventForEdit, setSelectedEventForEdit] = useState<EventEntity | null>(null);
   const [selectedEventForDuplicate, setSelectedEventForDuplicate] = useState<EventEntity | null>(null);
@@ -180,6 +181,7 @@ const MainAppContent: React.FC = () => {
 
               {activeTab === 'members' && (
                 <MembersDirectory
+                  initialCommitteeFilter={selectedCommitteeFilter}
                   onSelectMember={handleOpenMemberProfile}
                   onOpenAddMember={() => setIsAddMemberOpen(true)}
                   onOpenTransferModal={(m) => setSelectedMemberForTransfer(m)}
@@ -199,7 +201,10 @@ const MainAppContent: React.FC = () => {
               {activeTab === 'committees' && (
                 <CommitteesView
                   onOpenNewCommittee={() => setIsNewCommOpen(true)}
-                  onSelectCommittee={() => setActiveTab('members')}
+                  onSelectCommittee={(comm) => {
+                    setSelectedCommitteeFilter(comm.id);
+                    setActiveTab('members');
+                  }}
                 />
               )}
 
